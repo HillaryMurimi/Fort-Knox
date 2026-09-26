@@ -3,5 +3,6 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   poweredByHeader: false,
+  agentRules: false,
 };
 export default nextConfig;

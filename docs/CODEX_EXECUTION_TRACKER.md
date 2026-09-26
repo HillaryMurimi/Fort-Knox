@@ -449,3 +449,11 @@ Remaining external integration: connect `DemoRequestService` to a protected lead
 - Added social choices to login and signup, the `/welcome` setup/verification screen and `/explore` guided owner tour linking workspace pages.
 - Added rate-limited public auth routes, Origin checks, redacted callback logging, transaction-backed owner creation, OpenAPI entries and optional validated provider configuration.
 - Remaining: provision real OAuth application credentials and exact callback URLs, test each provider end-to-end in staging with SMS and a MongoDB replica set, then review provider policies and legal consent wording before release. Unconfigured providers remain disabled.
+
+## Slice 24 - Interactive Digital Twin Landing (2026-09-26)
+
+- Replaced the previous editorial split hero with a full-bleed Three.js property scene based on the supplied dark technical dashboard reference.
+- Modeled three apartment buildings with visible floor interiors, original helmeted stick-figure workers, residents, mover, manager with clipboard, moving truck, landscaping and camera coverage. Camera controls switch between portfolio, interior, maintenance, move-in and security views.
+- Added responsive operational indicators, animated collection visualization, attention queue, scoped access map and direct signup/demo entry points. Public numbers are explicitly illustrative.
+- Added WebGL fallback, resource cleanup, reduced-motion handling and a Playwright browser check for canvas rendering, camera pixel changes, interactions and overflow across 390px, 768px and 1440px viewports.
+- Existing demo request service still requires a real lead API/CRM. The scene is a product illustration and does not claim live property telemetry or CCTV feeds.
