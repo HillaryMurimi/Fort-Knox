@@ -43,13 +43,13 @@ export function buildOpenApiDocument() {
       '/billing/organizations/{organizationId}/subscription/cancel': { post: { summary: 'Cancel subscription' } },
       '/billing/organizations/{organizationId}/invoices': { get: { summary: 'List subscription invoices' } },
       '/billing/organizations/{organizationId}/entitlements': { get: { summary: 'Get subscription entitlements' } },
-      '/integrations/payments/{paymentId}/provider-initiate': { post: { summary: 'Initiate an M-Pesa, Paystack, or Stripe payment' } },
+      '/integrations/payments/{paymentId}/provider-initiate': { post: { summary: 'Initiate an M-Pesa or Paystack payment' } },
       '/integrations/payments/{paymentId}/provider-reconcile': { post: { summary: 'Reconcile provider payment' } },
       '/integrations/organizations/{organizationId}/storage/signed-url': { post: { summary: 'Get provider storage URL' } },
       '/maintenance/{maintenanceId}/evidence': { post: { summary: 'Attach tenant-authorized photo or video evidence to maintenance', requestBody: { required: true, content: { 'multipart/form-data': { schema: { type: 'object', properties: { media: { type: 'array', maxItems: 5, items: { type: 'string', format: 'binary' } } } } } } } } },
       '/integrations/organizations/{organizationId}/cctv/provider-health': { get: { summary: 'Get external CCTV provider health' } },
       '/integrations/integrations/health': { get: { summary: 'External integration health' } },
-      '/integrations/webhooks/{provider}': { post: { security: [], summary: 'Verified M-Pesa, Paystack, or Stripe webhook ingress' } },
+      '/integrations/webhooks/{provider}': { post: { security: [], summary: 'Verified M-Pesa or Paystack webhook ingress' } },
     },
   };
 }

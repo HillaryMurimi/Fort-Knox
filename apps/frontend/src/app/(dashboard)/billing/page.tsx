@@ -60,9 +60,8 @@ export default function BillingPage() {
   const subscribe = useSubscribeMutation(organizationId);
   const change = useChangePlanMutation(organizationId);
   const cancel = useCancelSubscriptionMutation(organizationId);
-  const [provider, setProvider] = useState<"INTERNAL" | "MPESA" | "STRIPE">(
-    "INTERNAL",
-  );
+  const provider = "PAYSTACK" as const;
+  const [billingEmail, setBillingEmail] = useState("");
   const [atEnd, setAtEnd] = useState(true);
   const [cancelAtEnd, setCancelAtEnd] = useState(true);
   const [busy, setBusy] = useState<string>();
@@ -105,9 +104,9 @@ export default function BillingPage() {
   function selectPlan(p: BillingPlan) {
     if (!activeOrganizationId) return;
     setBusy(p.key);
-    if (!sub.data)
+    if (!sub.data || sub.data.status === "CANCELLED" || sub.data.status === "EXPIRED")
       subscribe.mutate(
-        { planKey: p.key, provider },
+        { planKey: p.key, provider, ...(billingEmail ? { email: billingEmail } : {}) },
         { onSettled: () => setBusy(undefined) },
       );
     else
@@ -253,11 +252,11 @@ export default function BillingPage() {
                     No organization subscription
                   </div>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Choose a plan below. Trial duration and billing interval are
-                    defined by the backend plan catalog.
+                    Choose a plan below and complete secure Paystack checkout.
+                    Access begins after payment confirmation.
                   </p>
                 </div>
-                <ProviderSelect value={provider} onChange={setProvider} />
+                <label className="text-sm">Billing email<input className="input mt-1" type="email" value={billingEmail} onChange={(e) => setBillingEmail(e.target.value)} placeholder="name@example.com" /></label>
               </div>
             ) : (
               <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -297,7 +296,7 @@ export default function BillingPage() {
             />
             <div className="grid lg:grid-cols-3 gap-4">
               {plans.data?.map((p) => {
-                const selected = current ? current._id === p._id : false;
+                const selected = current && !["CANCELLED", "EXPIRED"].includes(sub.data?.status ?? "") ? current._id === p._id : false;
                 return (
                   <div
                     key={p._id}
@@ -321,11 +320,6 @@ export default function BillingPage() {
                         / {interval(p.billingInterval)}
                       </span>
                     </div>
-                    {p.trialDays > 0 && (
-                      <div className="text-xs mt-2 text-muted-foreground">
-                        {p.trialDays}-day trial
-                      </div>
-                    )}
                     <div className="mt-4 space-y-2 text-xs">
                       {[
                         ["Properties", p.entitlements.maxProperties],
@@ -358,6 +352,7 @@ export default function BillingPage() {
                       className="btn-primary w-full mt-5"
                       disabled={
                         selected ||
+                        (sub.data?.provider === "PAYSTACK" && sub.data.status !== "CANCELLED" && sub.data.status !== "EXPIRED") ||
                         busy === p.key ||
                         subscribe.isPending ||
                         change.isPending
@@ -374,14 +369,17 @@ export default function BillingPage() {
                 );
               })}
             </div>
+            {sub.data?.status === "PENDING" && sub.data.providerCheckoutUrl && (
+              <a className="btn-primary mt-4 inline-flex" href={sub.data.providerCheckoutUrl} target="_blank" rel="noopener noreferrer">Open secure Paystack checkout</a>
+            )}
             {!sub.data && (
               <div className="mt-4 flex items-center gap-3 text-xs text-muted-foreground">
                 <span>New subscription provider:</span>
-                <ProviderSelect value={provider} onChange={setProvider} />
+                <span>Paystack</span>
                 <span>Provider secrets remain backend-only.</span>
               </div>
             )}
-            {sub.data && (
+            {sub.data && sub.data.provider !== "PAYSTACK" && (
               <label className="mt-4 flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
@@ -599,26 +597,5 @@ function Info({ label, value }: { label: string; value: string }) {
       </div>
       <div className="font-medium mt-1 text-sm">{value}</div>
     </div>
-  );
-}
-function ProviderSelect({
-  value,
-  onChange,
-}: {
-  value: "INTERNAL" | "MPESA" | "STRIPE";
-  onChange: (v: "INTERNAL" | "MPESA" | "STRIPE") => void;
-}) {
-  return (
-    <select
-      className="input w-36"
-      value={value}
-      onChange={(e) =>
-        onChange(e.target.value as "INTERNAL" | "MPESA" | "STRIPE")
-      }
-    >
-      <option value="INTERNAL">Internal</option>
-      <option value="MPESA">M-Pesa</option>
-      <option value="STRIPE">Stripe</option>
-    </select>
   );
 }

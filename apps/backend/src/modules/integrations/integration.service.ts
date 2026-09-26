@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import { Types } from 'mongoose';
 import { Payment } from '../../database/models/Payment.js';
 import { PaymentDestination } from '../../database/models/PaymentDestination.js';
@@ -17,6 +16,7 @@ import { RentCharge } from '../../database/models/RentCharge.js';
 import { PaymentAllocation } from '../../database/models/PaymentAllocation.js';
 import { Tenant } from '../../database/models/Tenant.js';
 import { SubscriptionInvoice } from '../../database/models/SubscriptionInvoice.js';
+import { SubscriptionPlan } from '../../database/models/SubscriptionPlan.js';
 import { OrganizationSubscription } from '../../database/models/OrganizationSubscription.js';
 import { BillingEvent } from '../../database/models/BillingEvent.js';
 import { integrationConfig } from '../../core/integrations/config.js';
@@ -256,16 +256,11 @@ export class IntegrationService {
   }
 
   static async handleWebhook(
-    provider: 'MPESA' | 'PAYSTACK' | 'STRIPE',
+    provider: 'MPESA' | 'PAYSTACK',
     payload: Buffer,
     signature?: string,
   ) {
-    const secret =
-      provider === 'STRIPE'
-        ? integrationConfig.stripe.webhookSecret
-        : provider === 'PAYSTACK'
-          ? integrationConfig.paystack.secretKey
-          : integrationConfig.mpesa.webhookSecret;
+    const secret = provider === 'PAYSTACK' ? integrationConfig.paystack.secretKey : integrationConfig.mpesa.webhookSecret;
 
     if (provider === 'PAYSTACK') {
       if (!secret) {
@@ -273,10 +268,6 @@ export class IntegrationService {
       }
       if (!verifyHmacSignature(payload, signature, secret, 'sha512')) {
         throw new AppError(401, 'INVALID_WEBHOOK_SIGNATURE', 'Invalid Paystack webhook signature');
-      }
-    } else if (provider === 'STRIPE' && secret) {
-      if (!this.verifyStripe(payload, signature, secret)) {
-        throw new AppError(401, 'INVALID_WEBHOOK_SIGNATURE', 'Invalid Stripe webhook signature');
       }
     } else if (provider === 'MPESA' && secret && !verifyHmacSignature(payload, signature, secret)) {
       throw new AppError(401, 'INVALID_WEBHOOK_SIGNATURE', 'Invalid M-Pesa webhook signature');
@@ -289,14 +280,11 @@ export class IntegrationService {
       throw new AppError(400, 'INVALID_WEBHOOK_PAYLOAD', 'Webhook body must be valid JSON');
     }
 
-    // NOTE: previously this was a single expression mixing `&&` and `??`,
-    // which esbuild rejects. Split into steps for clarity + correctness.
     let eventId: string;
-    if (provider === 'STRIPE') {
-      eventId = String(body.id ?? hashPayload(payload));
-    } else if (provider === 'PAYSTACK') {
+    if (provider === 'PAYSTACK') {
       const data = body.data as Record<string, unknown> | undefined;
-      eventId = `${String(body.event ?? 'unknown')}:${String(data?.reference ?? data?.id ?? hashPayload(payload))}`;
+      const eventType = String(body.event ?? 'unknown');
+      eventId = `${eventType}:${String(data?.reference ?? data?.id ?? 'event')}:${eventType === 'charge.success' ? '' : hashPayload(payload)}`;
     } else {
       const callback = (body.Body as Record<string, unknown> | undefined)?.stkCallback as
         | Record<string, unknown>
@@ -305,19 +293,20 @@ export class IntegrationService {
     }
 
     const existing = await WebhookEvent.findOne({ provider, eventId });
-    if (existing) return existing;
+    if (existing && existing.payloadHash !== hashPayload(payload)) throw new AppError(409, 'WEBHOOK_EVENT_COLLISION', 'Webhook event identifier has a different payload');
+    if (existing && existing.status !== 'FAILED') return existing;
 
-    const event = await WebhookEvent.create({
+    const event = existing ?? await WebhookEvent.create({
       provider,
       eventId,
       payloadHash: hashPayload(payload),
       payload: this.sanitizedWebhookPayload(provider, body),
       status: 'RECEIVED',
     });
+    if (existing) { event.status = 'RECEIVED'; event.error = undefined; await event.save(); }
 
     try {
-      if (provider === 'STRIPE') await this.processStripe(body);
-      else if (provider === 'PAYSTACK') await this.processPaystack(body);
+      if (provider === 'PAYSTACK') await this.processPaystack(body);
       else await this.processMpesa(body);
       event.status = 'PROCESSED';
       event.processedAt = new Date();
@@ -329,52 +318,6 @@ export class IntegrationService {
       await event.save();
       throw error;
     }
-  }
-
-  private static verifyStripe(payload: Buffer, header: string | undefined, secret: string) {
-    if (!header) return false;
-    const parts = Object.fromEntries(header.split(',').map((x) => x.split('=')));
-    const timestamp = parts.t;
-    if (!timestamp || !parts.v1) return false;
-    const age = Math.abs(Date.now() / 1000 - Number(timestamp));
-    if (age > 300) return false;
-    const expected = crypto
-      .createHmac('sha256', secret)
-      .update(`${timestamp}.${payload.toString('utf8')}`)
-      .digest('hex');
-    try {
-      return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1));
-    } catch {
-      return false;
-    }
-  }
-
-  static async processStripe(body: Record<string, unknown>) {
-    const type = String(body.type ?? '');
-    const obj = body.data as Record<string, unknown> | undefined;
-    const object = obj?.object as Record<string, unknown> | undefined;
-    const id = String(object?.id ?? '');
-
-    if (type === 'payment_intent.succeeded' || type === 'payment_intent.payment_failed') {
-      const p = await Payment.findOne({ provider: 'STRIPE', providerTransactionId: id });
-      if (!p) return;
-      if (type === 'payment_intent.payment_failed') {
-        p.status = 'FAILED';
-        await p.save();
-        return;
-      }
-      this.assertProviderAmount(p, {
-        provider: 'STRIPE',
-        providerTransactionId: id,
-        status: 'CONFIRMED',
-        amountMinorUnits: Number(object?.amount_received),
-        currency: String(object?.currency ?? '').toUpperCase(),
-      });
-      await this.confirmProviderPayment(p);
-      return;
-    }
-
-    await this.processBillingStripeEvent(type, object ?? {}, String(body.id ?? id));
   }
 
   static async processMpesa(body: Record<string, unknown>) {
@@ -416,6 +359,48 @@ export class IntegrationService {
 
   static async processPaystack(body: Record<string, unknown>) {
     const eventType = String(body.event ?? '');
+    const eventData = body.data as Record<string, unknown> | undefined;
+    if (eventType === 'subscription.create' && eventData) {
+      const customer = eventData.customer as Record<string, unknown> | undefined;
+      const plan = eventData.plan as Record<string, unknown> | undefined;
+      const subscription = await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerCustomerId: String(customer?.customer_code ?? ''), providerPlanCode: String(plan?.plan_code ?? '') });
+      if (subscription && eventData.subscription_code) {
+        subscription.providerSubscriptionId = String(eventData.subscription_code);
+        if (typeof eventData.email_token === 'string') subscription.providerEmailToken = eventData.email_token;
+        await subscription.save();
+      }
+      return;
+    }
+    if (eventType === 'invoice.payment_failed' && eventData) {
+      const reference = eventData.subscription as Record<string, unknown> | undefined;
+      const subscription = await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerSubscriptionId: String(reference?.subscription_code ?? eventData.subscription_code ?? '') });
+      if (subscription && subscription.status === 'ACTIVE') { subscription.status = 'PAST_DUE'; await subscription.save(); }
+      return;
+    }
+    if (eventType === 'subscription.disable' && eventData) {
+      const subscription = await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerSubscriptionId: String(eventData.subscription_code ?? '') });
+      if (subscription && !subscription.cancelAtPeriodEnd) { subscription.status = 'CANCELLED'; subscription.cancelledAt = new Date(); await subscription.save(); }
+      return;
+    }
+    if (eventType === 'subscription.not_renew' && eventData) {
+      const subscription = await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerSubscriptionId: String(eventData.subscription_code ?? '') });
+      if (subscription) { subscription.cancelAtPeriodEnd = true; await subscription.save(); }
+      return;
+    }
+    if (eventType === 'invoice.update' && eventData?.paid === true && eventData.status === 'success') {
+      const recurring = eventData.subscription as Record<string, unknown> | undefined;
+      const transaction = eventData.transaction as Record<string, unknown> | undefined;
+      if (recurring?.subscription_code && transaction?.status === 'success' && transaction.reference) {
+        const initial = await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerCheckoutReference: String(transaction.reference) });
+        if (initial) {
+          initial.providerSubscriptionId = String(recurring.subscription_code);
+          if (typeof recurring.email_token === 'string') initial.providerEmailToken = recurring.email_token;
+          await initial.save();
+        }
+        await this.processPaystack({ event: 'charge.success', data: { ...transaction, subscription: { subscription_code: recurring.subscription_code }, paid_at: eventData.paid_at } });
+      }
+      return;
+    }
     if (eventType !== 'charge.success') return;
 
     const data = body.data as Record<string, unknown> | undefined;
@@ -427,7 +412,49 @@ export class IntegrationService {
       provider: 'PAYSTACK',
       providerTransactionId: reference,
     });
-    if (!payment) return;
+    if (!payment) {
+      const subscription = await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerCheckoutReference: reference });
+      if (!subscription) {
+        const recurring = data.subscription as Record<string, unknown> | string | undefined;
+        const recurringCode = typeof recurring === 'string' ? recurring : String(recurring?.subscription_code ?? '');
+        const active = recurringCode ? await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerSubscriptionId: recurringCode, status: { $in: ['ACTIVE', 'PAST_DUE'] } }) : null;
+        if (!active) return;
+        const plan = await SubscriptionPlan.findById(active.planId);
+        if (!plan) throw new AppError(409, 'BILLING_PLAN_MISSING', 'Subscription plan is missing');
+        if (Number(data.amount) !== toPaystackMinorUnits(plan.amount) || String(data.currency ?? '').toUpperCase() !== plan.currency.toUpperCase()) {
+          throw new AppError(409, 'PROVIDER_AMOUNT_MISMATCH', 'Renewal charge does not match the subscription plan');
+        }
+        const prior = await SubscriptionInvoice.findOne({ provider: 'PAYSTACK', providerInvoiceId: reference });
+        if (prior) return;
+        const paidAt = this.validDate(data.paid_at) ?? new Date();
+        const periodEnd = new Date(paidAt);
+        if (plan.billingInterval === 'YEAR') periodEnd.setUTCFullYear(periodEnd.getUTCFullYear() + 1);
+        else periodEnd.setUTCMonth(periodEnd.getUTCMonth() + (plan.billingInterval === 'QUARTER' ? 3 : 1));
+        await SubscriptionInvoice.create({ organizationId: active.organizationId, subscriptionId: active._id, invoiceNumber: `INV-PS-${reference}`, periodStart: paidAt, periodEnd, subtotal: plan.amount, tax: 0, total: plan.amount, amountPaid: plan.amount, currency: plan.currency, status: 'PAID', dueDate: paidAt, paidAt, provider: 'PAYSTACK', providerInvoiceId: reference, createdBy: active.createdBy, updatedBy: active.updatedBy, lineItems: [{ description: plan.name, quantity: 1, unitAmount: plan.amount }] });
+        active.status = 'ACTIVE'; active.currentPeriodStart = paidAt; active.currentPeriodEnd = periodEnd;
+        await active.save();
+        return;
+      }
+      if (subscription.status === 'CANCELLED') return;
+      const invoice = await SubscriptionInvoice.findOne({ subscriptionId: subscription._id, provider: 'PAYSTACK' }).sort({ createdAt: -1 });
+      if (!invoice) throw new AppError(409, 'BILLING_INVOICE_MISSING', 'Subscription invoice is missing');
+      if (Number(data.amount) !== toPaystackMinorUnits(invoice.total) || String(data.currency ?? '').toUpperCase() !== invoice.currency.toUpperCase()) {
+        throw new AppError(409, 'PROVIDER_AMOUNT_MISMATCH', 'Subscription charge does not match its invoice');
+      }
+      if (invoice.status === 'PAID' && subscription.status === 'ACTIVE') return;
+      if (invoice.status !== 'PAID') {
+        invoice.status = 'PAID';
+        invoice.amountPaid = invoice.total;
+        invoice.paidAt = this.validDate(data.paid_at) ?? new Date();
+        await invoice.save();
+      }
+      subscription.status = 'ACTIVE';
+      subscription.currentPeriodStart = invoice.paidAt ?? new Date();
+      subscription.currentPeriodEnd = new Date(subscription.currentPeriodStart.getTime() + (invoice.periodEnd.getTime() - invoice.periodStart.getTime()));
+      await subscription.save();
+      await BillingEvent.findOneAndUpdate({ eventId: `paystack:${reference}` }, { organizationId: subscription.organizationId, provider: 'PAYSTACK', type: 'INVOICE_PAID', externalReference: reference, status: 'PROCESSED', processedAt: new Date() }, { upsert: true, new: true, setDefaultsOnInsert: true });
+      return;
+    }
 
     const result: PaymentInitiationResult = {
       provider: 'PAYSTACK',
@@ -452,7 +479,7 @@ export class IntegrationService {
     payment: { amount: number; currency: string; provider?: string | null },
     result: PaymentInitiationResult,
   ) {
-    if (payment.provider !== 'PAYSTACK' && payment.provider !== 'STRIPE') return;
+    if (payment.provider !== 'PAYSTACK') return;
     if (!Number.isSafeInteger(result.amountMinorUnits)) {
       throw new AppError(409, 'PROVIDER_AMOUNT_MISSING', 'Provider did not return a valid amount');
     }
@@ -477,7 +504,7 @@ export class IntegrationService {
   }
 
   private static sanitizedWebhookPayload(
-    provider: 'MPESA' | 'PAYSTACK' | 'STRIPE',
+    provider: 'MPESA' | 'PAYSTACK',
     body: Record<string, unknown>,
   ) {
     if (provider === 'PAYSTACK') {
@@ -494,23 +521,6 @@ export class IntegrationService {
               paid_at: data.paid_at,
               channel: data.channel,
               receipt_number: data.receipt_number,
-            }
-          : undefined,
-      };
-    }
-    if (provider === 'STRIPE') {
-      const data = body.data as Record<string, unknown> | undefined;
-      const object = data?.object as Record<string, unknown> | undefined;
-      return {
-        id: body.id,
-        type: body.type,
-        data: object
-          ? {
-              id: object.id,
-              status: object.status,
-              amount_received: object.amount_received,
-              currency: object.currency,
-              subscription: object.subscription,
             }
           : undefined,
       };
@@ -615,139 +625,11 @@ export class IntegrationService {
     return payment;
   }
 
-  static async processBillingStripeEvent(
-    type: string,
-    object: Record<string, unknown>,
-    eventId: string,
-  ) {
-    if (
-      ![
-        'customer.subscription.created',
-        'customer.subscription.updated',
-        'customer.subscription.deleted',
-        'invoice.paid',
-        'invoice.payment_failed',
-      ].includes(type)
-    ) {
-      return;
-    }
-
-    let subscription = null as Awaited<ReturnType<typeof OrganizationSubscription.findOne>>;
-    const objectId = String(object.id ?? '');
-    if (type.startsWith('customer.subscription.')) {
-      subscription = objectId
-        ? await OrganizationSubscription.findOne({ provider: 'STRIPE', providerSubscriptionId: objectId })
-        : null;
-    }
-
-    if (type === 'customer.subscription.created' || type === 'customer.subscription.updated') {
-      if (subscription) {
-        const status = String(object.status ?? '');
-        subscription.status =
-          status === 'active'
-            ? 'ACTIVE'
-            : status === 'trialing'
-              ? 'TRIALING'
-              : status === 'past_due'
-                ? 'PAST_DUE'
-                : status === 'canceled'
-                  ? 'CANCELLED'
-                  : subscription.status;
-        const start = Number(object.current_period_start);
-        const end = Number(object.current_period_end);
-        if (Number.isFinite(start)) subscription.currentPeriodStart = new Date(start * 1000);
-        if (Number.isFinite(end)) subscription.currentPeriodEnd = new Date(end * 1000);
-        await subscription.save();
-      }
-      await BillingEvent.findOneAndUpdate(
-        { eventId },
-        {
-          organizationId: subscription?.organizationId,
-          provider: 'STRIPE',
-          type: type.endsWith('created') ? 'SUBSCRIPTION_CREATED' : 'SUBSCRIPTION_UPDATED',
-          externalReference: objectId,
-          payloadHash: hashPayload(Buffer.from(JSON.stringify(object))),
-          payload: object,
-          status: 'PROCESSED',
-          processedAt: new Date(),
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
-      );
-      return;
-    }
-
-    if (type === 'customer.subscription.deleted') {
-      if (subscription) {
-        subscription.status = 'CANCELLED';
-        subscription.cancelledAt = new Date();
-        await subscription.save();
-      }
-      await BillingEvent.findOneAndUpdate(
-        { eventId },
-        {
-          organizationId: subscription?.organizationId,
-          provider: 'STRIPE',
-          type: 'SUBSCRIPTION_CANCELLED',
-          externalReference: objectId,
-          payload: object,
-          status: 'PROCESSED',
-          processedAt: new Date(),
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
-      );
-      return;
-    }
-
-    const providerInvoiceId = objectId;
-    const providerSubscriptionId = String(object.subscription ?? '');
-    subscription = providerSubscriptionId
-      ? await OrganizationSubscription.findOne({ provider: 'STRIPE', providerSubscriptionId })
-      : null;
-
-    const invoice = subscription
-      ? await SubscriptionInvoice.findOne({
-          organizationId: subscription.organizationId,
-          provider: 'STRIPE',
-          providerInvoiceId,
-        })
-      : null;
-
-    if (invoice && type === 'invoice.paid') {
-      invoice.amountPaid = invoice.total;
-      invoice.status = 'PAID';
-      invoice.paidAt = new Date();
-      await invoice.save();
-      subscription!.status = 'ACTIVE';
-      await subscription!.save();
-    }
-    if (invoice && type === 'invoice.payment_failed') {
-      invoice.status = 'PAST_DUE';
-      await invoice.save();
-      subscription!.status = 'PAST_DUE';
-      await subscription!.save();
-    }
-
-    await BillingEvent.findOneAndUpdate(
-      { eventId },
-      {
-        organizationId: subscription?.organizationId,
-        provider: 'STRIPE',
-        type: type === 'invoice.paid' ? 'INVOICE_PAID' : 'INVOICE_FAILED',
-        externalReference: providerInvoiceId,
-        payload: object,
-        status: 'PROCESSED',
-        processedAt: new Date(),
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
-  }
-
   static async health() {
     return {
       providers: {
         mpesa: integrationConfig.mpesa.enabled,
         paystack: integrationConfig.paystack.enabled,
-        stripe: integrationConfig.stripe.enabled,
         email: Boolean(integrationConfig.sendgrid.apiKey),
         sms: Boolean(integrationConfig.twilio.accountSid),
         whatsapp: Boolean(integrationConfig.whatsapp.accessToken),

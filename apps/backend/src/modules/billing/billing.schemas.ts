@@ -13,7 +13,7 @@ export const createPlanSchema = z.object({
 });
 
 export const updatePlanSchema = createPlanSchema.partial().omit({ key: true });
-export const createSubscriptionSchema = z.object({ planKey: z.string().min(2).max(50), provider: z.enum(['INTERNAL', 'MPESA', 'STRIPE', 'OTHER']).default('INTERNAL') });
+export const createSubscriptionSchema = z.object({ planKey: z.string().min(2).max(50), provider: z.enum(['PAYSTACK', 'INTERNAL']).default('PAYSTACK'), email: z.string().email().optional() });
 export const changePlanSchema = z.object({ planKey: z.string().min(2).max(50), atPeriodEnd: z.boolean().default(true) });
 export const cancelSubscriptionSchema = z.object({ atPeriodEnd: z.boolean().default(true) });
 export const recordUsageSchema = z.object({ metric: z.enum(['PROPERTIES', 'UNITS', 'USERS', 'TENANTS', 'STORAGE_BYTES', 'API_REQUESTS']), periodStart: z.coerce.date(), periodEnd: z.coerce.date(), quantity: z.number().nonnegative(), source: z.enum(['SNAPSHOT', 'EVENT', 'MANUAL', 'SYSTEM']).default('SYSTEM'), sourceRef: z.string().max(200).optional() });

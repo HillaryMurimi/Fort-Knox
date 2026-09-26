@@ -217,7 +217,6 @@ Business services depend on interfaces, not vendor SDKs.
 PaymentProvider
 ├── MpesaPaymentProvider
 ├── PaystackPaymentProvider
-├── StripePaymentProvider
 └── BankPaymentProvider
 
 NotificationProvider

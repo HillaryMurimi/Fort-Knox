@@ -3,7 +3,7 @@ import { Schema, model, type InferSchemaType } from 'mongoose';
 const organizationSubscriptionSchema = new Schema({
   organizationId: { type: Schema.Types.ObjectId, ref: 'Organization', required: true, unique: true, index: true },
   planId: { type: Schema.Types.ObjectId, ref: 'SubscriptionPlan', required: true, index: true },
-  status: { type: String, enum: ['TRIALING', 'ACTIVE', 'PAST_DUE', 'PAUSED', 'CANCELLED', 'EXPIRED'], required: true, default: 'TRIALING', index: true },
+  status: { type: String, enum: ['PENDING', 'TRIALING', 'ACTIVE', 'PAST_DUE', 'PAUSED', 'CANCELLED', 'EXPIRED'], required: true, default: 'PENDING', index: true },
   currentPeriodStart: { type: Date, required: true },
   currentPeriodEnd: { type: Date, required: true },
   trialEndsAt: { type: Date },
@@ -11,9 +11,13 @@ const organizationSubscriptionSchema = new Schema({
   pendingPlanId: { type: Schema.Types.ObjectId, ref: 'SubscriptionPlan' },
   pendingPlanEffectiveAt: { type: Date },
   cancelledAt: { type: Date },
-  provider: { type: String, enum: ['INTERNAL', 'MPESA', 'STRIPE', 'OTHER'], default: 'INTERNAL' },
+  provider: { type: String, enum: ['INTERNAL', 'MPESA', 'PAYSTACK', 'STRIPE', 'OTHER'], default: 'INTERNAL' },
   providerCustomerId: { type: String },
   providerSubscriptionId: { type: String },
+  providerCheckoutReference: { type: String },
+  providerCheckoutUrl: { type: String },
+  providerPlanCode: { type: String },
+  providerEmailToken: { type: String, select: false },
   gracePeriodEndsAt: { type: Date },
   metadata: { type: Schema.Types.Mixed, default: {} },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -21,5 +25,6 @@ const organizationSubscriptionSchema = new Schema({
 }, { timestamps: true });
 
 organizationSubscriptionSchema.index({ provider: 1, providerSubscriptionId: 1 }, { unique: true, sparse: true });
+organizationSubscriptionSchema.index({ provider: 1, providerCheckoutReference: 1 }, { unique: true, sparse: true });
 export type OrganizationSubscriptionDocument = InferSchemaType<typeof organizationSubscriptionSchema>;
 export const OrganizationSubscription = model('OrganizationSubscription', organizationSubscriptionSchema);

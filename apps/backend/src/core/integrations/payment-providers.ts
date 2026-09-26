@@ -1,7 +1,6 @@
 import type { PaymentProvider, PaymentInitiationInput, PaymentInitiationResult, PaymentProviderKey } from './provider.types.js';
 import { MpesaProvider } from './mpesa.provider.js';
 import { PaystackProvider } from './paystack.provider.js';
-import { StripeProvider } from './stripe.provider.js';
 
 class UnconfiguredPaymentProvider implements PaymentProvider {
   constructor(public readonly key: PaymentProviderKey) {}
@@ -12,6 +11,5 @@ class UnconfiguredPaymentProvider implements PaymentProvider {
 export function getPaymentProvider(key: PaymentProviderKey): PaymentProvider {
   if (key === 'MPESA') return new MpesaProvider();
   if (key === 'PAYSTACK') return new PaystackProvider();
-  if (key === 'STRIPE') return new StripeProvider();
   return new UnconfiguredPaymentProvider(key);
 }

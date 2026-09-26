@@ -1,5 +1,4 @@
 import { OrganizationSubscription } from '../../database/models/OrganizationSubscription.js';
-import { SubscriptionPlan } from '../../database/models/SubscriptionPlan.js';
 import { Property } from '../../database/models/Property.js';
 import { Unit } from '../../database/models/Unit.js';
 import { Tenant } from '../../database/models/Tenant.js';
@@ -11,7 +10,7 @@ export type LimitMetric = 'PROPERTIES' | 'UNITS' | 'USERS' | 'TENANTS';
 export class EntitlementService {
   static async getPlan(organizationId: string) {
     const subscription = await OrganizationSubscription.findOne({ organizationId }).populate('planId').lean();
-    if (!subscription || !['ACTIVE', 'TRIALING'].includes(subscription.status)) throw new AppError(402, 'SUBSCRIPTION_REQUIRED', 'An active subscription is required');
+    if (!subscription || !['ACTIVE', 'TRIALING'].includes(subscription.status) || (subscription.provider === 'PAYSTACK' && subscription.currentPeriodEnd <= new Date())) throw new AppError(402, 'SUBSCRIPTION_REQUIRED', 'An active subscription is required');
     return subscription.planId as unknown as { _id: unknown; key: string; entitlements: { maxProperties: number; maxUnits: number; maxUsers: number; maxTenants: number; features: string[] } };
   }
 

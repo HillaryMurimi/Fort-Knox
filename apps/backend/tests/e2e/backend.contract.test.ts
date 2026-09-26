@@ -18,6 +18,7 @@ import { PaymentAllocation } from '../../src/database/models/PaymentAllocation.j
 import { SubscriptionPlan } from '../../src/database/models/SubscriptionPlan.js';
 import { OrganizationSubscription } from '../../src/database/models/OrganizationSubscription.js';
 import { SubscriptionInvoice } from '../../src/database/models/SubscriptionInvoice.js';
+import { EntitlementService } from '../../src/core/billing/entitlement.service.js';
 
 describe.skipIf(!process.env.RUN_E2E)('backend release E2E certification', () => {
   let mongo: MongoMemoryServer;
@@ -28,7 +29,7 @@ describe.skipIf(!process.env.RUN_E2E)('backend release E2E certification', () =>
   beforeAll(async () => {
     mongo = await MongoMemoryServer.create();
     await mongoose.connect(mongo.getUri());
-  });
+  }, 180_000);
 
   beforeEach(async () => {
     await mongoose.connection.dropDatabase();
@@ -46,7 +47,7 @@ describe.skipIf(!process.env.RUN_E2E)('backend release E2E certification', () =>
     tenancyId = tenancy._id;
   });
 
-  afterAll(async () => { await mongoose.disconnect(); await mongo.stop(); });
+  afterAll(async () => { await mongoose.disconnect(); if (mongo) await mongo.stop(); });
 
   it('confirms an M-Pesa payment and allocates it FIFO to rent', async () => {
     const tenancy = await Tenancy.findById(tenancyId).orFail();
@@ -83,25 +84,31 @@ describe.skipIf(!process.env.RUN_E2E)('backend release E2E certification', () =>
     integrationConfig.paystack.enabled = false;
   });
 
-  it('reconciles Stripe subscription and invoice webhooks into billing state', async () => {
+  it('activates a pending Paystack subscription only for a matching signed charge', async () => {
     const plan = await SubscriptionPlan.create({ key: 'E2E', name: 'E2E Plan', amount: 30000, currency: 'KES', billingInterval: 'MONTH', active: true, entitlements: { maxProperties: 5, maxUnits: 100, maxUsers: 5, maxTenants: 100, features: [] } });
     const now = new Date();
-    const subscription = await OrganizationSubscription.create({ organizationId, planId: plan._id, status: 'PAST_DUE', currentPeriodStart: now, currentPeriodEnd: new Date(now.getTime() + 30 * 86400000), provider: 'STRIPE', providerCustomerId: 'cus_e2e', providerSubscriptionId: 'sub_e2e', createdBy: userId, updatedBy: userId });
-    const invoice = await SubscriptionInvoice.create({ organizationId, subscriptionId: subscription._id, invoiceNumber: 'INV-E2E', periodStart: now, periodEnd: new Date(now.getTime() + 30 * 86400000), subtotal: 30000, tax: 0, total: 30000, amountPaid: 0, currency: 'KES', status: 'OPEN', dueDate: now, provider: 'STRIPE', providerInvoiceId: 'in_e2e', createdBy: userId, updatedBy: userId });
-    await IntegrationService.processBillingStripeEvent('invoice.paid', { id: 'in_e2e', subscription: 'sub_e2e' }, 'evt_invoice_e2e');
+    const subscription = await OrganizationSubscription.create({ organizationId, planId: plan._id, status: 'PENDING', currentPeriodStart: now, currentPeriodEnd: new Date(now.getTime() + 30 * 86400000), provider: 'PAYSTACK', providerCustomerId: 'CUS_e2e', providerPlanCode: 'PLN_e2e', providerCheckoutReference: 'bill_e2e', createdBy: userId, updatedBy: userId });
+    const invoice = await SubscriptionInvoice.create({ organizationId, subscriptionId: subscription._id, invoiceNumber: 'INV-E2E', periodStart: now, periodEnd: new Date(now.getTime() + 30 * 86400000), subtotal: 30000, tax: 0, total: 30000, amountPaid: 0, currency: 'KES', status: 'OPEN', dueDate: now, provider: 'PAYSTACK', createdBy: userId, updatedBy: userId });
+    await expect(IntegrationService.processPaystack({ event: 'charge.success', data: { status: 'success', reference: 'bill_e2e', amount: 2000000, currency: 'KES' } })).rejects.toMatchObject({ code: 'PROVIDER_AMOUNT_MISMATCH' });
+    expect((await OrganizationSubscription.findById(subscription._id).orFail()).status).toBe('PENDING');
+    await IntegrationService.processPaystack({ event: 'charge.success', data: { status: 'success', reference: 'bill_e2e', amount: 3000000, currency: 'KES' } });
     const updatedInvoice = await SubscriptionInvoice.findById(invoice._id).orFail();
     const updatedSubscription = await OrganizationSubscription.findById(subscription._id).orFail();
     expect(updatedInvoice.status).toBe('PAID');
     expect(updatedInvoice.amountPaid).toBe(30000);
     expect(updatedSubscription.status).toBe('ACTIVE');
+    await IntegrationService.processPaystack({ event: 'subscription.create', data: { customer: { customer_code: 'CUS_e2e' }, plan: { plan_code: 'PLN_e2e' }, subscription_code: 'SUB_e2e', email_token: 'private-token' } });
+    await expect(IntegrationService.processPaystack({ event: 'invoice.update', data: { paid: true, status: 'success', subscription: { subscription_code: 'SUB_e2e' }, transaction: { status: 'success', reference: 'renew_e2e', amount: 1, currency: 'KES' } } })).rejects.toMatchObject({ code: 'PROVIDER_AMOUNT_MISMATCH' });
+    await IntegrationService.processPaystack({ event: 'invoice.update', data: { paid: true, status: 'success', subscription: { subscription_code: 'SUB_e2e' }, transaction: { status: 'success', reference: 'renew_e2e', amount: 3000000, currency: 'KES' } } });
+    expect(await SubscriptionInvoice.countDocuments({ organizationId, provider: 'PAYSTACK', status: 'PAID' })).toBe(2);
+    await OrganizationSubscription.findByIdAndUpdate(subscription._id, { currentPeriodEnd: new Date(Date.now() - 1000) });
+    await expect(EntitlementService.getPlan(String(organizationId))).rejects.toMatchObject({ code: 'SUBSCRIPTION_REQUIRED' });
   });
 
-  it('rejects stale Stripe signatures at the webhook boundary', async () => {
-    const payload = Buffer.from(JSON.stringify({ id: `evt_${crypto.randomUUID()}`, type: 'payment_intent.succeeded', data: { object: { id: 'pi_missing' } } }));
-    integrationConfig.stripe.webhookSecret = 'e2e_secret';
-    const stale = Math.floor(Date.now() / 1000) - 301;
-    const signature = crypto.createHmac('sha256', 'e2e_secret').update(`${stale}.${payload.toString('utf8')}`).digest('hex');
-    await expect(IntegrationService.handleWebhook('STRIPE', payload, `t=${stale},v1=${signature}`)).rejects.toMatchObject({ code: 'INVALID_WEBHOOK_SIGNATURE' });
-    integrationConfig.stripe.webhookSecret = undefined;
+  it('rejects invalid Paystack webhook signatures', async () => {
+    const payload = Buffer.from(JSON.stringify({ event: 'charge.success', data: { reference: `bill_${crypto.randomUUID()}` } }));
+    integrationConfig.paystack.secretKey = 'sk_test_e2e';
+    await expect(IntegrationService.handleWebhook('PAYSTACK', payload, 'invalid')).rejects.toMatchObject({ code: 'INVALID_WEBHOOK_SIGNATURE' });
+    integrationConfig.paystack.secretKey = undefined;
   });
 });

@@ -3,7 +3,7 @@ import { Schema, model, type InferSchemaType } from 'mongoose';
 const billingEventSchema = new Schema({
   eventId: { type: String, required: true, unique: true, trim: true },
   organizationId: { type: Schema.Types.ObjectId, ref: 'Organization', index: true },
-  provider: { type: String, enum: ['INTERNAL', 'MPESA', 'STRIPE', 'OTHER'], required: true },
+  provider: { type: String, enum: ['INTERNAL', 'MPESA', 'PAYSTACK', 'STRIPE', 'OTHER'], required: true },
   type: { type: String, enum: ['SUBSCRIPTION_CREATED', 'SUBSCRIPTION_UPDATED', 'SUBSCRIPTION_CANCELLED', 'INVOICE_CREATED', 'INVOICE_PAID', 'INVOICE_FAILED', 'PAYMENT_FAILED', 'PAYMENT_REVERSED'], required: true },
   externalReference: { type: String },
   payloadHash: { type: String },

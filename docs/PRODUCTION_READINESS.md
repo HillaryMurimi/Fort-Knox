@@ -22,7 +22,7 @@ The checked-in quality gate currently exits successfully, but lint still reports
 | --- | --- | --- |
 | M-Pesa STK Push | Real Daraja adapter | Safaricom production app, consumer key/secret, production shortcode, passkey, public callback URL. Unsigned callbacks only trigger an authenticated STK query; they do not independently confirm payment. |
 | Paystack checkout | Real Paystack initialize/verify/webhook adapter | Live secret key, approved business, settlement bank details, HTTPS callback and webhook registration. Landlord destinations use Paystack subaccounts. |
-| Stripe | Real Payment Intent and webhook adapter | Live secret and webhook signing secret if Stripe is enabled. Stripe is optional for the current Kenya-first launch. |
+| Paystack billing | Hosted card checkout for recurring subscriptions | Live secret, registered signed webhook, verified currency and recurring-card eligibility for the merchant account. |
 | SMS and OTP | Real Twilio adapter | Twilio account, production sender/phone number, Kenya delivery approval, funded balance. Production login now sends OTP through this adapter. |
 | Email | Real SendGrid adapter | Verified sending domain, API key, sender address, SPF, DKIM and DMARC. |
 | WhatsApp | Real Meta Cloud adapter, optional | Approved Meta business, phone number ID, access token and approved templates where Meta requires them. |
@@ -56,7 +56,7 @@ These options must remain disabled or hidden until implemented and security-test
 ### Networking and callbacks
 
 - Provision separate HTTPS domains for web and API, DNS, TLS renewal, WAF/rate limits and reverse-proxy request-size limits.
-- Register `POST /api/v1/integrations/webhooks/PAYSTACK`, `/MPESA`, and `/STRIPE` with enabled providers.
+- Register `POST /api/v1/integrations/webhooks/PAYSTACK` and `/MPESA` with enabled providers.
 - Put M-Pesa behind an allow-listed callback gateway that adds the configured HMAC header when possible; authenticated STK reconciliation remains mandatory.
 - Restrict MongoDB, storage and CCTV gateway network access to application infrastructure.
 

@@ -52,8 +52,6 @@ const envSchema = z.object({
   PAYSTACK_BASE_URL: z.string().url().default('https://api.paystack.co'),
   PAYSTACK_SECRET_KEY: optionalValue(z.string().min(1)),
   PAYSTACK_CALLBACK_URL: optionalValue(z.string().url()),
-  STRIPE_SECRET_KEY: optionalValue(z.string().min(1)),
-  STRIPE_WEBHOOK_SECRET: optionalValue(z.string().min(1)),
   EMAIL_PROVIDER: z.enum(['SENDGRID']).default('SENDGRID'),
   EMAIL_FROM: optionalValue(z.string().email()),
   SENDGRID_API_KEY: optionalValue(z.string().min(1)),
@@ -85,7 +83,6 @@ const envSchema = z.object({
       context.addIssue({ code: 'custom', path: [String(right)], message: `${String(left)} and ${String(right)} must be configured together` });
     }
   };
-  paired('STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET');
   paired('WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_ACCESS_TOKEN');
   paired('NVR_BASE_URL', 'NVR_API_KEY');
   paired('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET');

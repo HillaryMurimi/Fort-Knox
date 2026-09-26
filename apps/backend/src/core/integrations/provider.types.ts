@@ -1,4 +1,4 @@
-export type PaymentProviderKey = 'MPESA' | 'PAYSTACK' | 'STRIPE' | 'OTHER';
+export type PaymentProviderKey = 'MPESA' | 'PAYSTACK' | 'OTHER';
 export type PaystackChannel = 'card' | 'bank' | 'apple_pay' | 'ussd' | 'qr' | 'mobile_money' | 'bank_transfer' | 'eft' | 'capitec_pay' | 'payattitude';
 export type ProviderKey = PaymentProviderKey | 'SMTP' | 'SENDGRID' | 'TWILIO' | 'WHATSAPP_CLOUD' | 'CLOUDINARY' | 'S3' | 'GENERIC_CCTV' | 'NVR_HTTP';
 

@@ -1,11 +1,11 @@
 import { api } from '../api';
 import type { BillingEntitlements, BillingPlan, BillingSubscription, BillingUsageSnapshot, SubscriptionInvoice, PaginatedInvoices } from './resource-types';
 
-export type BillingProvider = 'INTERNAL' | 'MPESA' | 'STRIPE' | 'OTHER';
+export type BillingProvider = 'INTERNAL' | 'PAYSTACK';
 export type InvoiceStatus = 'DRAFT' | 'OPEN' | 'PAID' | 'PAST_DUE' | 'VOID' | 'UNCOLLECTIBLE';
 
 export interface ChangePlanInput { planKey: string; atPeriodEnd: boolean }
-export interface SubscribeInput { planKey: string; provider: BillingProvider }
+export interface SubscribeInput { planKey: string; provider: BillingProvider; email?: string }
 
 export const billingClient = {
   plans: () => api<BillingPlan[]>('/billing/plans'),

@@ -1,17 +1,21 @@
 import { integrationConfig } from '../integrations/config.js';
+import { requestJson } from '../integrations/http.js';
+import { toPaystackMinorUnits } from '../integrations/paystack.provider.js';
+import { env } from '../../config/env.js';
 
-export type BillingProviderKey = 'INTERNAL' | 'MPESA' | 'STRIPE' | 'OTHER';
+export type BillingProviderKey = 'INTERNAL' | 'PAYSTACK';
 
 export interface CreateCustomerInput {
   organizationId: string;
   name: string;
   email?: string;
-  phone?: string;
 }
 
 export interface CreateSubscriptionInput {
   customerReference: string;
+  email: string;
   planKey: string;
+  organizationId: string;
   currency: string;
   amount: number;
   interval: 'MONTH' | 'QUARTER' | 'YEAR';
@@ -19,68 +23,70 @@ export interface CreateSubscriptionInput {
 
 export interface BillingProviderSubscription {
   providerCustomerId: string;
-  providerSubscriptionId: string;
-  status: 'ACTIVE' | 'PENDING' | 'FAILED';
+  checkoutReference: string;
+  checkoutUrl: string;
+  providerPlanCode: string;
+  status: 'PENDING';
 }
 
-export interface BillingProvider {
-  readonly key: BillingProviderKey;
-  createCustomer(input: CreateCustomerInput): Promise<{ providerCustomerId: string }>;
-  createSubscription(input: CreateSubscriptionInput): Promise<BillingProviderSubscription>;
-  cancelSubscription(providerSubscriptionId: string, atPeriodEnd: boolean): Promise<void>;
-}
+interface Envelope<T> { status: boolean; message: string; data: T }
 
-export class StripeBillingProvider implements BillingProvider {
-  readonly key: BillingProviderKey = 'STRIPE';
+export class PaystackBillingProvider {
+  readonly key = 'PAYSTACK' as const;
 
-  private headers() {
-    if (!integrationConfig.stripe.secretKey) throw new Error('STRIPE_NOT_CONFIGURED');
-    return { authorization: `Bearer ${integrationConfig.stripe.secretKey}`, 'content-type': 'application/x-www-form-urlencoded' };
-  }
-
-  private async request<T>(path: string, body?: URLSearchParams, method = 'POST'): Promise<T> {
-    const response = await fetch(`https://api.stripe.com/v1/${path}`, { method, headers: this.headers(), body });
-    const data = await response.json() as T & { error?: { message?: string } };
-    if (!response.ok) throw new Error(data.error?.message ?? `STRIPE_${response.status}`);
-    return data;
+  private async request<T>(path: string, body: Record<string, unknown>): Promise<T> {
+    const secret = integrationConfig.paystack.secretKey;
+    if (!secret) throw new Error('PAYSTACK_NOT_CONFIGURED');
+    const response = await requestJson<Envelope<T>>(`${integrationConfig.paystack.baseUrl}/${path}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${secret}` },
+      body: JSON.stringify(body),
+    });
+    if (!response.status || !response.data) throw new Error(`PAYSTACK_BILLING_FAILED:${response.message}`);
+    return response.data;
   }
 
   async createCustomer(input: CreateCustomerInput) {
-    const body = new URLSearchParams({ name: input.name, 'metadata[organizationId]': input.organizationId });
-    if (input.email) body.set('email', input.email);
-    if (input.phone) body.set('phone', input.phone);
-    const result = await this.request<{ id: string }>('customers', body);
-    return { providerCustomerId: result.id };
+    if (!input.email) throw new Error('BILLING_EMAIL_REQUIRED');
+    const customer = await this.request<{ customer_code: string }>('customer', {
+      email: input.email,
+      metadata: { organizationId: input.organizationId, name: input.name },
+    });
+    if (!customer.customer_code) throw new Error('PAYSTACK_CUSTOMER_MISSING');
+    return { providerCustomerId: customer.customer_code };
   }
 
   async createSubscription(input: CreateSubscriptionInput): Promise<BillingProviderSubscription> {
-    const interval = input.interval === 'YEAR' ? 'year' : 'month';
-    const intervalCount = input.interval === 'QUARTER' ? 3 : 1;
-    const product = await this.request<{ id: string }>('products', new URLSearchParams({ name: `Property Command Center - ${input.planKey}`, 'metadata[planKey]': input.planKey }));
-    const priceBody = new URLSearchParams({ currency: input.currency.toLowerCase(), unit_amount: String(Math.round(input.amount * 100)), 'recurring[interval]': interval, 'recurring[interval_count]': String(intervalCount), product: product.id });
-    const price = await this.request<{ id: string }>('prices', priceBody);
-    const subscription = await this.request<{ id: string; status: string }>('subscriptions', new URLSearchParams({ customer: input.customerReference, 'items[0][price]': price.id }));
-    const status = subscription.status === 'active' || subscription.status === 'trialing' ? 'ACTIVE' : subscription.status === 'incomplete' ? 'PENDING' : 'FAILED';
-    return { providerCustomerId: input.customerReference, providerSubscriptionId: subscription.id, status };
-  }
-
-  async cancelSubscription(providerSubscriptionId: string, atPeriodEnd: boolean) {
-    if (atPeriodEnd) {
-      await this.request(`subscriptions/${encodeURIComponent(providerSubscriptionId)}`, new URLSearchParams({ cancel_at_period_end: 'true' }), 'POST');
-      return;
+    const amount = toPaystackMinorUnits(input.amount);
+    const plan = await this.request<{ plan_code: string }>('plan', {
+      name: `PMCC ${input.planKey}`,
+      amount,
+      currency: input.currency.toUpperCase(),
+      interval: { MONTH: 'monthly', QUARTER: 'quarterly', YEAR: 'annually' }[input.interval],
+    });
+    if (!plan.plan_code) throw new Error('PAYSTACK_PLAN_MISSING');
+    const transaction = await this.request<{ authorization_url: string; reference: string }>('transaction/initialize', {
+      email: input.email,
+      amount: String(amount),
+      currency: input.currency.toUpperCase(),
+      plan: plan.plan_code,
+      channels: ['card'],
+      callback_url: `${env.WEB_ORIGIN}/billing`,
+      metadata: { organizationId: input.organizationId, planKey: input.planKey, purpose: 'SUBSCRIPTION' },
+    });
+    if (!transaction.reference || !transaction.authorization_url.startsWith('https://checkout.paystack.com/')) {
+      throw new Error('PAYSTACK_CHECKOUT_INVALID');
     }
-    await this.request(`subscriptions/${encodeURIComponent(providerSubscriptionId)}`, undefined, 'DELETE');
+    return {
+      providerCustomerId: input.customerReference,
+      checkoutReference: transaction.reference,
+      checkoutUrl: transaction.authorization_url,
+      providerPlanCode: plan.plan_code,
+      status: 'PENDING',
+    };
   }
-}
 
-export class UnconfiguredBillingProvider implements BillingProvider {
-  readonly key: BillingProviderKey;
-  constructor(key: BillingProviderKey = 'INTERNAL') { this.key = key; }
-  async createCustomer(_input: CreateCustomerInput) { return { providerCustomerId: `internal_customer_${Date.now()}` }; }
-  async createSubscription(_input: CreateSubscriptionInput) { return { providerCustomerId: `internal_customer_${Date.now()}`, providerSubscriptionId: `internal_subscription_${Date.now()}`, status: 'ACTIVE' as const }; }
-  async cancelSubscription(_providerSubscriptionId: string, _atPeriodEnd: boolean) { return undefined; }
-}
-
-export function getBillingProvider(key: BillingProviderKey): BillingProvider {
-  return key === 'STRIPE' ? new StripeBillingProvider() : new UnconfiguredBillingProvider(key);
+  async cancelSubscription(code: string, token: string): Promise<void> {
+    await this.request('subscription/disable', { code, token });
+  }
 }

@@ -71,7 +71,7 @@ function PaymentSetupForm({ organizationId }: { organizationId: string }) {
     <p className="text-sm text-muted-foreground">Select a pending payment and request collection through your configured provider. Payment is confirmed only after provider verification.</p>
     <fieldset className="space-y-3" disabled={initiate.isPending || payments.isLoading || payments.isError}>
       <label className="block">Payment<select name="paymentId" required><option value="">Choose a pending payment</option>{eligible.map(payment => <option key={payment._id} value={payment._id}>{payment.receiptNumber || payment._id.slice(-6)} ? {payment.currency} {payment.amount.toLocaleString()}</option>)}</select></label>
-      <label className="block">Payment provider<select value={provider} onChange={event => { setProvider(event.target.value as PaymentInitiateInput['provider']); initiate.reset(); }}><option value="MPESA">M-Pesa</option><option value="PAYSTACK">Paystack</option><option value="STRIPE">Stripe</option></select></label>
+      <label className="block">Payment provider<select value={provider} onChange={event => { setProvider(event.target.value as PaymentInitiateInput['provider']); initiate.reset(); }}><option value="MPESA">M-Pesa</option><option value="PAYSTACK">Paystack</option></select></label>
       {provider === 'MPESA' && <label className="block">Payer phone<input key="phone" name="contact" type="tel" required pattern="[+][1-9][0-9]{6,14}" placeholder="+254712345678"/></label>}
       {provider === 'PAYSTACK' && <label className="block">Payer email<input key="email" name="contact" type="email" required placeholder="tenant@example.com"/></label>}
     </fieldset>

@@ -1213,7 +1213,7 @@ export interface BillingSubscription {
   organizationId: string;
   planId: BillingPlan | string;
   status:
-    "TRIALING" | "ACTIVE" | "PAST_DUE" | "PAUSED" | "CANCELLED" | "EXPIRED";
+    "PENDING" | "TRIALING" | "ACTIVE" | "PAST_DUE" | "PAUSED" | "CANCELLED" | "EXPIRED";
   currentPeriodStart: string;
   currentPeriodEnd: string;
   trialEndsAt?: string;
@@ -1221,9 +1221,10 @@ export interface BillingSubscription {
   pendingPlanId?: BillingPlan | string;
   pendingPlanEffectiveAt?: string;
   cancelledAt?: string;
-  provider: "INTERNAL" | "MPESA" | "STRIPE" | "OTHER";
+  provider: "INTERNAL" | "MPESA" | "PAYSTACK" | "STRIPE" | "OTHER";
   providerCustomerId?: string;
   providerSubscriptionId?: string;
+  providerCheckoutUrl?: string;
   gracePeriodEndsAt?: string;
 }
 
@@ -1242,7 +1243,7 @@ export interface SubscriptionInvoice {
   status: "DRAFT" | "OPEN" | "PAID" | "PAST_DUE" | "VOID" | "UNCOLLECTIBLE";
   dueDate: string;
   paidAt?: string;
-  provider: "INTERNAL" | "MPESA" | "STRIPE" | "OTHER";
+  provider: "INTERNAL" | "MPESA" | "PAYSTACK" | "STRIPE" | "OTHER";
   lineItems: Array<{
     description?: string;
     quantity?: number;

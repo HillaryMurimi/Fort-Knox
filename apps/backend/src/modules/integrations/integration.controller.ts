@@ -67,7 +67,7 @@ export async function health(_req: Request, res: Response) {
 
 export async function webhook(req: Request, res: Response) {
   const provider = requiredParam(req.params.provider, 'provider').toUpperCase();
-  if (!['MPESA', 'PAYSTACK', 'STRIPE'].includes(provider)) {
+  if (!['MPESA', 'PAYSTACK'].includes(provider)) {
     throw new AppError(
       400,
       'UNSUPPORTED_WEBHOOK_PROVIDER',
@@ -77,12 +77,10 @@ export async function webhook(req: Request, res: Response) {
   const raw =
     (req as Request & { rawBody?: Buffer }).rawBody ?? Buffer.from(JSON.stringify(req.body));
   const result = await IntegrationService.handleWebhook(
-    provider as 'MPESA' | 'PAYSTACK' | 'STRIPE',
+    provider as 'MPESA' | 'PAYSTACK',
     raw,
     req.header('x-paystack-signature') ??
-      req.header('x-webhook-signature') ??
-      req.header('stripe-signature') ??
-      undefined,
+      req.header('x-webhook-signature') ?? undefined,
   );
   return res.status(200).json(apiResponse({ received: true, eventId: result.eventId }));
 }

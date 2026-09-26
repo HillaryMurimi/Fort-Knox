@@ -351,7 +351,7 @@ Reconciliation. - Approval controls. - Financial audit events.
 
 Payments must use provider abstractions:
 
-`PaymentProvider → M-Pesa / Paystack / Stripe / Bank / future provider`
+`PaymentProvider → M-Pesa / Paystack / Bank / future provider`
 
 Production requirements: - No fake payment-success logic. - Webhook
 verification. - Idempotency. - Provider reference storage. -

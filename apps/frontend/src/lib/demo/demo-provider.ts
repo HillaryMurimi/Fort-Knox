@@ -253,7 +253,6 @@ function get(path: string): unknown {
       providers: {
         mpesa: false,
         paystack: false,
-        stripe: false,
         email: false,
         sms: false,
         whatsapp: false,

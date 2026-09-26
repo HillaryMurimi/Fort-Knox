@@ -474,3 +474,12 @@ Remaining external integration: connect `DemoRequestService` to a protected lead
 - Added responsive scene framing, offscreen animation pause, reduced-motion behavior, WebGL fallback and browser canvas checks for each role plus mobile tenant view.
 - Frontend `npm run verify:production` passed: typecheck, lint (24 existing warnings, no errors), 46 tests and production build. `npm run verify:workspace-scenes -- http://localhost:3102` passed for all five roles and the 390px tenant viewport with nonblank canvas pixels, visible animation, no WebGL context loss, no page errors and no horizontal overflow.
 - Remaining: test on target devices and review whether the illustrations should be personalized from approved property assets in a future, separately authorized feature.
+
+## Slice 27 - Paystack Subscription Checkout (2026-09-27)
+
+- Switched new organization subscriptions to Paystack hosted card checkout. A new subscription stays PENDING until a signed charge with the expected reference, minor-unit amount and currency is processed. The backend keeps provider credentials and cancellation tokens private.
+- Removed Stripe from new payment, webhook, integration and billing choices. Historical Stripe records remain readable; no live Stripe customers require migration.
+- Limited INTERNAL subscriptions and manual invoice settlement to platform administration. Paystack invoices cannot be manually marked paid, and Paystack plan changes are blocked until a provider-coordinated migration flow exists.
+- Kept separate frontend and backend environment templates because they describe distinct deployments. Supply Paystack test/live secret, callback origin and a registered webhook URL in deployment configuration.
+- Remaining: validate live merchant card recurrence, supported currency, renewal event payloads, webhook delivery and cancellation on staging; implement provider-coordinated plan migration and abandoned-checkout recovery. Historical Stripe enum values remain read-only for existing records.
+- Verification: backend `npm run verify:production` passed (127 tests, 4 skipped, build and static certification); frontend `npm run verify:production` passed (46 tests and build). The Mongo-backed E2E suite could not start: mongodb-memory-server began downloading a 781 MB MongoDB binary and exceeded its setup timeout. Run it again after provisioning or caching the binary.

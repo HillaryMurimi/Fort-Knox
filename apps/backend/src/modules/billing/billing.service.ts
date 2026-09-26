@@ -11,7 +11,7 @@ import { OrganizationMembership } from '../../database/models/OrganizationMember
 import { Tenant } from '../../database/models/Tenant.js';
 import { AppError } from '../../core/errors/AppError.js';
 import { AuthorizationService } from '../../core/authorization/authorization.service.js';
-import { getBillingProvider, type BillingProviderKey } from '../../core/billing/billing-provider.js';
+import { PaystackBillingProvider, type BillingProviderKey } from '../../core/billing/billing-provider.js';
 
 function addInterval(date: Date, interval: 'MONTH' | 'QUARTER' | 'YEAR') { const d = new Date(date); if (interval === 'YEAR') d.setUTCFullYear(d.getUTCFullYear() + 1); else d.setUTCMonth(d.getUTCMonth() + (interval === 'QUARTER' ? 3 : 1)); return d; }
 function invoiceNumber() { return `INV-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.random().toString(36).slice(2,8).toUpperCase()}`; }
@@ -26,22 +26,29 @@ export class BillingService {
     return OrganizationSubscription.findOne({ organizationId }).populate('planId').lean();
   }
 
-  static async subscribe(auth: NonNullable<Express.Request['auth']>, organizationId: string, planKey: string, providerKey: BillingProviderKey) {
+  static async subscribe(auth: NonNullable<Express.Request['auth']>, organizationId: string, planKey: string, providerKey: BillingProviderKey, email?: string) {
     AuthorizationService.assertCan(auth, 'billing.subscription.manage', { organizationId });
+    if (providerKey === 'INTERNAL') AuthorizationService.assertPlatformAdmin(auth);
     const organization = await Organization.findById(organizationId).lean(); if (!organization) throw new AppError(404,'NOT_FOUND','Organization not found');
     const plan = await SubscriptionPlan.findOne({ key: planKey, active: true }); if (!plan) throw new AppError(404,'PLAN_NOT_FOUND','Active subscription plan not found');
     const existing = await OrganizationSubscription.findOne({ organizationId });
-    if (existing && ['ACTIVE','TRIALING','PAST_DUE','PAUSED'].includes(existing.status)) throw new AppError(409,'SUBSCRIPTION_EXISTS','Organization already has an active subscription');
+    if (existing && ['PENDING','ACTIVE','TRIALING','PAST_DUE','PAUSED'].includes(existing.status)) throw new AppError(409,'SUBSCRIPTION_EXISTS','Organization already has an active or pending subscription');
     const now = new Date(); const periodEnd = addInterval(now, plan.billingInterval); const trialEnd = plan.trialDays > 0 ? new Date(now.getTime() + plan.trialDays * 86400000) : undefined;
-    const provider = getBillingProvider(providerKey);
-    const customer = await provider.createCustomer({ organizationId, name: organization.name });
-    const remote = await provider.createSubscription({ customerReference: customer.providerCustomerId, planKey: plan.key, currency: plan.currency, amount: plan.amount, interval: plan.billingInterval });
-    const subscription = await OrganizationSubscription.findOneAndUpdate({ organizationId }, { planId: plan._id, status: trialEnd ? 'TRIALING' : 'ACTIVE', currentPeriodStart: now, currentPeriodEnd: periodEnd, trialEndsAt: trialEnd, provider: providerKey, providerCustomerId: remote.providerCustomerId, providerSubscriptionId: remote.providerSubscriptionId, createdBy: auth.userId, updatedBy: auth.userId }, { upsert: true, new: true, setDefaultsOnInsert: true });
-    await SubscriptionInvoice.create({ organizationId, subscriptionId: subscription._id, invoiceNumber: invoiceNumber(), periodStart: now, periodEnd, subtotal: plan.amount, tax: 0, total: plan.amount, amountPaid: 0, currency: plan.currency, status: trialEnd ? 'DRAFT' : 'OPEN', dueDate: now, provider: providerKey, createdBy: auth.userId, updatedBy: auth.userId, lineItems: [{ description: plan.name, quantity: 1, unitAmount: plan.amount }] });
+    let remote: Awaited<ReturnType<PaystackBillingProvider['createSubscription']>> | undefined;
+    if (providerKey === 'PAYSTACK') {
+      const payerEmail = email ?? (await User.findById(auth.userId).select('email').lean())?.email;
+      if (!payerEmail) throw new AppError(400, 'BILLING_EMAIL_REQUIRED', 'A billing email is required for Paystack checkout');
+      if (plan.amount <= 0) throw new AppError(400, 'INVALID_PLAN_AMOUNT', 'Paystack plans must have a positive amount');
+      const provider = new PaystackBillingProvider();
+      const customer = await provider.createCustomer({ organizationId, name: organization.name, email: payerEmail });
+      remote = await provider.createSubscription({ customerReference: customer.providerCustomerId, email: payerEmail, organizationId, planKey: plan.key, currency: plan.currency, amount: plan.amount, interval: plan.billingInterval });
+    }
+    const subscription = await OrganizationSubscription.findOneAndUpdate({ organizationId }, { planId: plan._id, status: providerKey === 'PAYSTACK' ? 'PENDING' : trialEnd ? 'TRIALING' : 'ACTIVE', currentPeriodStart: now, currentPeriodEnd: periodEnd, trialEndsAt: providerKey === 'INTERNAL' ? trialEnd : undefined, provider: providerKey, providerCustomerId: remote?.providerCustomerId, providerCheckoutReference: remote?.checkoutReference, providerCheckoutUrl: remote?.checkoutUrl, providerPlanCode: remote?.providerPlanCode, providerSubscriptionId: undefined, cancelAtPeriodEnd: false, createdBy: auth.userId, updatedBy: auth.userId }, { upsert: true, new: true, setDefaultsOnInsert: true });
+    await SubscriptionInvoice.create({ organizationId, subscriptionId: subscription._id, invoiceNumber: invoiceNumber(), periodStart: now, periodEnd, subtotal: plan.amount, tax: 0, total: plan.amount, amountPaid: 0, currency: plan.currency, status: providerKey === 'INTERNAL' && trialEnd ? 'DRAFT' : 'OPEN', dueDate: now, provider: providerKey, createdBy: auth.userId, updatedBy: auth.userId, lineItems: [{ description: plan.name, quantity: 1, unitAmount: plan.amount }] });
     return subscription.populate('planId');
   }
 
-  static async cancel(auth: NonNullable<Express.Request['auth']>, organizationId: string, atPeriodEnd: boolean) { AuthorizationService.assertCan(auth,'billing.subscription.manage',{organizationId}); const subscription = await OrganizationSubscription.findOne({organizationId}); if (!subscription) throw new AppError(404,'NOT_FOUND','Subscription not found'); const provider = getBillingProvider(subscription.provider as BillingProviderKey); if (subscription.providerSubscriptionId) await provider.cancelSubscription(subscription.providerSubscriptionId, atPeriodEnd); subscription.cancelAtPeriodEnd = atPeriodEnd; subscription.updatedBy = auth.userId; if (!atPeriodEnd) { subscription.status='CANCELLED'; subscription.cancelledAt=new Date(); } await subscription.save(); return subscription; }
+  static async cancel(auth: NonNullable<Express.Request['auth']>, organizationId: string, atPeriodEnd: boolean) { AuthorizationService.assertCan(auth,'billing.subscription.manage',{organizationId}); const subscription = await OrganizationSubscription.findOne({organizationId}).select('+providerEmailToken'); if (!subscription) throw new AppError(404,'NOT_FOUND','Subscription not found'); if (subscription.provider === 'PAYSTACK') { if (!subscription.providerSubscriptionId || !subscription.providerEmailToken) throw new AppError(409,'SUBSCRIPTION_NOT_READY','Paystack subscription is not ready for cancellation'); await new PaystackBillingProvider().cancelSubscription(subscription.providerSubscriptionId, subscription.providerEmailToken); } subscription.cancelAtPeriodEnd = atPeriodEnd; subscription.updatedBy = auth.userId; if (!atPeriodEnd) { subscription.status='CANCELLED'; subscription.cancelledAt=new Date(); } await subscription.save(); return OrganizationSubscription.findById(subscription._id); }
 
   static async listInvoices(auth: NonNullable<Express.Request['auth']>, organizationId: string, query: { status?: string; page: number; pageSize: number }) { AuthorizationService.assertCan(auth,'billing.invoice.view',{organizationId}); const filter: Record<string, unknown> = { organizationId }; if (query.status) filter.status=query.status; const [items,total]=await Promise.all([SubscriptionInvoice.find(filter).sort({dueDate:-1}).skip((query.page-1)*query.pageSize).limit(query.pageSize).lean(), SubscriptionInvoice.countDocuments(filter)]); return { items, pagination:{page:query.page,pageSize:query.pageSize,total,totalPages:Math.ceil(total/query.pageSize),hasNextPage:query.page*query.pageSize<total,hasPreviousPage:query.page>1} }; }
 
@@ -58,6 +65,7 @@ export class BillingService {
     AuthorizationService.assertCan(auth, 'billing.subscription.manage', { organizationId });
     const subscription = await OrganizationSubscription.findOne({ organizationId });
     if (!subscription) throw new AppError(404, 'NOT_FOUND', 'Subscription not found');
+    if (subscription.provider === 'PAYSTACK') throw new AppError(409, 'PLAN_CHANGE_REQUIRES_RESUBSCRIBE', 'Paystack plan changes require a new checkout after cancellation');
     const plan = await SubscriptionPlan.findOne({ key: planKey, active: true });
     if (!plan) throw new AppError(404, 'PLAN_NOT_FOUND', 'Active subscription plan not found');
     if (String(subscription.planId) === String(plan._id)) return subscription.populate('planId');
@@ -68,8 +76,10 @@ export class BillingService {
 
   static async markInvoicePaid(auth: NonNullable<Express.Request['auth']>, organizationId: string, invoiceId: string, amount: number) {
     AuthorizationService.assertCan(auth, 'billing.invoice.manage', { organizationId });
+    AuthorizationService.assertPlatformAdmin(auth);
     const invoice = await SubscriptionInvoice.findOne({ _id: invoiceId, organizationId });
     if (!invoice) throw new AppError(404, 'NOT_FOUND', 'Subscription invoice not found');
+    if (invoice.provider === 'PAYSTACK') throw new AppError(409, 'PROVIDER_CONFIRMATION_REQUIRED', 'Paystack invoices require a verified provider event');
     if (invoice.status === 'PAID') return invoice;
     if (amount < invoice.total) throw new AppError(400, 'PAYMENT_INCOMPLETE', 'Payment amount is less than the invoice total');
     invoice.amountPaid = invoice.total; invoice.status = 'PAID'; invoice.paidAt = new Date(); invoice.updatedBy = auth.userId; await invoice.save();
@@ -82,10 +92,11 @@ export class BillingService {
     for (const subscription of subscriptions) {
       if (subscription.status === 'TRIALING' && subscription.trialEndsAt && subscription.trialEndsAt <= now) { subscription.status='PAST_DUE'; subscription.gracePeriodEndsAt=new Date(now.getTime()+7*86_400_000); await subscription.save(); expired++; }
       if (subscription.cancelAtPeriodEnd && subscription.currentPeriodEnd <= now) { subscription.status='CANCELLED'; subscription.cancelledAt=now; await subscription.save(); cancelled++; continue; }
+      if (subscription.provider === 'PAYSTACK' && subscription.status === 'ACTIVE' && subscription.currentPeriodEnd <= now) { subscription.status='PAST_DUE'; await subscription.save(); expired++; continue; }
       if (subscription.pendingPlanId && subscription.pendingPlanEffectiveAt && subscription.pendingPlanEffectiveAt <= now) { subscription.planId=subscription.pendingPlanId; subscription.pendingPlanId=undefined; subscription.pendingPlanEffectiveAt=undefined; subscription.currentPeriodStart=now; const plan=await SubscriptionPlan.findById(subscription.planId); if(plan) subscription.currentPeriodEnd=addInterval(now,plan.billingInterval); await subscription.save(); upgraded++; }
     }
     return { expired, cancelled, upgraded };
   }
 
-  static async assertFeature(organizationId: string, feature: string) { const sub=await OrganizationSubscription.findOne({organizationId}).populate('planId').lean(); if(!sub || !['ACTIVE','TRIALING'].includes(sub.status)) throw new AppError(402,'SUBSCRIPTION_REQUIRED','An active subscription is required'); const plan=sub.planId as unknown as {entitlements?:{features?:string[]}}; if(!plan.entitlements?.features?.includes(feature)) throw new AppError(403,'FEATURE_NOT_ENTITLED',`Subscription does not include feature: ${feature}`); }
+  static async assertFeature(organizationId: string, feature: string) { const sub=await OrganizationSubscription.findOne({organizationId}).populate('planId').lean(); if(!sub || !['ACTIVE','TRIALING'].includes(sub.status) || (sub.provider === 'PAYSTACK' && sub.currentPeriodEnd <= new Date())) throw new AppError(402,'SUBSCRIPTION_REQUIRED','An active subscription is required'); const plan=sub.planId as unknown as {entitlements?:{features?:string[]}}; if(!plan.entitlements?.features?.includes(feature)) throw new AppError(403,'FEATURE_NOT_ENTITLED',`Subscription does not include feature: ${feature}`); }
 }

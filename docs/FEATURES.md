@@ -369,7 +369,7 @@ obvious.
 
 The Properties page loads organization-scoped records and opens the property creation form. Unit counts are derived from the hierarchy; create buildings, floors and units separately. The Tenants page offers pre-registration by name, international phone number, property and vacant unit. Saving reserves the unit through the existing onboarding API; it does not complete verification or claim an SMS was delivered.
 
-Integrations provides camera registration using a non-secret gateway reference and payment initiation for an existing pending payment through M-Pesa, Paystack or Stripe. Gateway installation and provider secrets remain server-managed prerequisites. Registered cameras start OFFLINE until availability is established. Forms show backend errors and provider responses; initiating a payment does not assert settlement.
+Integrations provides camera registration using a non-secret gateway reference and payment initiation for an existing pending payment through M-Pesa or Paystack. Gateway installation and provider secrets remain server-managed prerequisites. Registered cameras start OFFLINE until availability is established. Forms show backend errors and provider responses; initiating a payment does not assert settlement.
 
 The top-bar and tenant greetings use browser local time, refresh every minute and on window focus: morning before 12:00, afternoon before 18:00, evening thereafter.
 

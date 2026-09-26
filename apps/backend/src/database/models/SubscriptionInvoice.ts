@@ -14,7 +14,7 @@ const subscriptionInvoiceSchema = new Schema({
   status: { type: String, enum: ['DRAFT', 'OPEN', 'PAID', 'PAST_DUE', 'VOID', 'UNCOLLECTIBLE'], required: true, default: 'OPEN', index: true },
   dueDate: { type: Date, required: true },
   paidAt: { type: Date },
-  provider: { type: String, enum: ['INTERNAL', 'MPESA', 'STRIPE', 'OTHER'], default: 'INTERNAL' },
+  provider: { type: String, enum: ['INTERNAL', 'MPESA', 'PAYSTACK', 'STRIPE', 'OTHER'], default: 'INTERNAL' },
   providerInvoiceId: { type: String },
   lineItems: { type: [Schema.Types.Mixed], default: [] },
   metadata: { type: Schema.Types.Mixed, default: {} },

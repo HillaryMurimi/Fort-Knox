@@ -8,5 +8,5 @@ describe('billing schemas', () => {
     expect(result.trialDays).toBe(0);
   });
   it('rejects invalid plan keys', () => { expect(() => createPlanSchema.parse({ key:'bad-key', name:'Bad', amount:1, billingInterval:'MONTH', entitlements:{maxProperties:1,maxUnits:1,maxUsers:1,maxTenants:1,features:[]} })).toThrow(); });
-  it('defaults internal billing provider', () => { expect(createSubscriptionSchema.parse({planKey:'PROFESSIONAL'}).provider).toBe('INTERNAL'); });
+  it('defaults to Paystack billing provider', () => { expect(createSubscriptionSchema.parse({planKey:'PROFESSIONAL'}).provider).toBe('PAYSTACK'); });
 });

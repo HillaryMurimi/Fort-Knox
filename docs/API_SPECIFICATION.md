@@ -183,7 +183,6 @@ POST   /payments/:paymentId/refund
 
 POST   /webhooks/payments/mpesa
 POST   /webhooks/payments/paystack
-POST   /webhooks/payments/stripe
 
 GET    /expenses
 POST   /expenses
@@ -207,7 +206,6 @@ POST /integrations/payments/:paymentId/provider-initiate
 POST /integrations/payments/:paymentId/provider-reconcile
 POST /integrations/webhooks/MPESA
 POST /integrations/webhooks/PAYSTACK
-POST /integrations/webhooks/STRIPE
 ```
 
 Landlord settlement destination endpoints are:

@@ -2,7 +2,6 @@ import { env } from '../../config/env.js';
 export const integrationConfig={
  mpesa:{enabled:Boolean(env.MPESA_CONSUMER_KEY&&env.MPESA_CONSUMER_SECRET&&env.MPESA_SHORT_CODE&&env.MPESA_PASSKEY),baseUrl:env.MPESA_BASE_URL,consumerKey:env.MPESA_CONSUMER_KEY,consumerSecret:env.MPESA_CONSUMER_SECRET,shortCode:env.MPESA_SHORT_CODE,passkey:env.MPESA_PASSKEY,callbackUrl:env.MPESA_CALLBACK_URL,webhookSecret:env.MPESA_WEBHOOK_SECRET},
  paystack:{enabled:Boolean(env.PAYSTACK_SECRET_KEY),baseUrl:env.PAYSTACK_BASE_URL,secretKey:env.PAYSTACK_SECRET_KEY,callbackUrl:env.PAYSTACK_CALLBACK_URL},
- stripe:{enabled:Boolean(env.STRIPE_SECRET_KEY),secretKey:env.STRIPE_SECRET_KEY,webhookSecret:env.STRIPE_WEBHOOK_SECRET},
  email:{provider:env.EMAIL_PROVIDER,from:env.EMAIL_FROM},
  sendgrid:{apiKey:env.SENDGRID_API_KEY},
  sms:{provider:env.SMS_PROVIDER,from:env.SMS_FROM},

@@ -79,8 +79,7 @@ P&L/reporting foundation.
 
 ## Phase 10 --- Payment Integrations
 
-Deliver: - `PaymentProvider`. - M-Pesa adapter. - Paystack adapter. - Stripe adapter where
-required. - Webhook verification. - Idempotency. - Reconciliation. -
+Deliver: - `PaymentProvider`. - M-Pesa adapter. - Paystack adapter. - Webhook verification. - Idempotency. - Reconciliation. -
 Provider contract tests.
 
 Never fake production success.

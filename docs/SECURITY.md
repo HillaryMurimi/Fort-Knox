@@ -75,7 +75,7 @@ Protect against IDOR/BOLA.
 -   Avoid silent destructive edits to financial history.
 -   Paystack webhooks require `x-paystack-signature` HMAC-SHA512
     verification using the server-side secret key.
--   Confirmed Paystack and Stripe transactions must match the expected
+-   Confirmed Paystack transactions must match the expected
     currency and minor-unit amount. Confirmed M-Pesa callbacks must match
     the expected KES amount.
 -   Persist only a redacted provider webhook projection plus a hash of the
@@ -138,7 +138,7 @@ permanent URLs.
 ## 10. Secrets
 
 Never commit: - Database credentials. - JWT/session secrets. - M-Pesa
-secrets. - Paystack secrets. - Stripe secrets. - SMS/email credentials. - Camera/NVR
+secrets. - Paystack secrets. - SMS/email credentials. - Camera/NVR
 passwords. - Storage secrets.
 
 Use environment injection/secret management. Rotate secrets. Keep

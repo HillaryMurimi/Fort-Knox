@@ -115,7 +115,7 @@ It is especially useful when visiting every building no longer scales, staff upd
 
 **Active development with working role workspaces, backend domain modules and a public product experience.** This repository includes production configuration checks, automated tests, CI and container definitions. It is not a claim that every deployment is ready to handle live customer money or security operations.
 
-Real adapters exist for M-Pesa, Paystack, Stripe, Twilio, SendGrid, S3-compatible storage and an HTTPS CCTV gateway. They require provider accounts, credentials and deployment testing. Per-landlord M-Pesa merchant settlement needs further implementation; current Daraja merchant configuration is deployment-wide.
+Real adapters exist for M-Pesa, Paystack, Twilio, SendGrid, S3-compatible storage and an HTTPS CCTV gateway. Paystack hosts rent and recurring subscription checkout; billing access starts only after a verified payment event. They require provider accounts, credentials and deployment testing. Per-landlord M-Pesa merchant settlement needs further implementation; current Daraja merchant configuration is deployment-wide.
 
 Crypto checkout/reconciliation, Cloudinary delivery, push notifications, generic SMTP, malware scanning and a complete announcements workflow remain incomplete. Some secondary workspace actions still require service integration. The landing-page demo form currently prepares a request locally; it does not deliver leads to a CRM.
 
