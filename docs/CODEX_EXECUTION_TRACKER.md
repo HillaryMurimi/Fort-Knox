@@ -431,3 +431,13 @@ Provision and validate the staging environment with real M-Pesa, Paystack, Twili
 - Frontend production build: PASS, 30 static pages generated.
 
 Remaining external integration: connect `DemoRequestService` to a protected lead endpoint or CRM, connect `pmcc:marketing` events to the approved analytics provider, and replace placeholder contact details/domain metadata with the final production brand configuration.
+
+## Slice 22 - Landlord Password Confirmation (2026-09-26)
+
+- Added required password confirmation with accessible mismatch feedback and new-password autocomplete.
+- Matching is exact (no trimming), with the backend's 12-200 character limits. Confirmation never leaves the browser.
+- Signup now blocks repeated submissions while the owner bootstrap request is pending.
+- Added four validation tests covering matching, mismatches, whitespace and length boundaries.
+- Frontend typecheck, lint (24 existing warnings), all 46 tests and production build passed.
+- API, database, role authorization and phone step-up behavior are unchanged.
+- Next: provider-backed social sign-in, organization setup, guided exploration and the animated digital-twin landing redesign.
