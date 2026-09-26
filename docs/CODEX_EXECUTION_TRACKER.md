@@ -457,3 +457,11 @@ Remaining external integration: connect `DemoRequestService` to a protected lead
 - Added responsive operational indicators, animated collection visualization, attention queue, scoped access map and direct signup/demo entry points. Public numbers are explicitly illustrative.
 - Added WebGL fallback, resource cleanup, reduced-motion handling and a Playwright browser check for canvas rendering, camera pixel changes, interactions and overflow across 390px, 768px and 1440px viewports.
 - Existing demo request service still requires a real lead API/CRM. The scene is a product illustration and does not claim live property telemetry or CCTV feeds.
+
+## Slice 25 - Explicit Existing-Owner Social Linking (2026-09-26)
+
+- Added a `/welcome` choice to link a provider identity to an existing owner account without creating another organization.
+- Linking requires the account email and current password, active LANDLORD membership, and an OTP sent to the registered phone. Identity creation and link audit occur only after OTP verification in a MongoDB transaction; contact matching alone never links accounts.
+- Added challenge, OTP-completion and contract tests for valid credentials, wrong password, inactive owner membership, invalid phone code and rejection of injected fields.
+- Backend `npm run verify:production` passed: typecheck, lint (285 warnings, no errors), 124 tests passed/4 skipped, build and static release certification. Frontend `npm run verify:production` passed: typecheck, lint (24 warnings, no errors), 46 tests and production build.
+- Remaining: provision Google/Facebook/Apple applications and SMS, and test the full callback, linking and sign-in flows against a staging replica set. Unconfigured provider buttons remain disabled.

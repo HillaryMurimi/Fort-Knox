@@ -8,3 +8,8 @@ export const socialSignupSchema = z.object({
   organizationName: z.string().trim().min(2).max(120),
 }).strict();
 export const socialCodeSchema = z.object({ code: z.string().regex(/^\d{6}$/) }).strict();
+export const socialLinkSchema = z.object({
+  existingAccount: z.literal(true),
+  email: z.string().trim().toLowerCase().email().max(254),
+  password: z.string().min(8).max(200),
+}).strict();

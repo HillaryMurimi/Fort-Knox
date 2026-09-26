@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../../src/app.js';
-import { socialSignupSchema } from '../../src/modules/auth/social.schemas.js';
+import { socialLinkSchema, socialSignupSchema } from '../../src/modules/auth/social.schemas.js';
 import { availableSocialProviders } from '../../src/integrations/auth/social-provider.js';
 import { env } from '../../src/config/env.js';
 
@@ -33,5 +33,10 @@ describe('social owner sign-in boundary', () => {
     expect(socialSignupSchema.safeParse({ ...valid, role: 'SUPER_ADMIN' }).success).toBe(false);
     expect(socialSignupSchema.safeParse({ ...valid, unitId: '123' }).success).toBe(false);
     expect(socialSignupSchema.safeParse({ ...valid, phone: '0700000000' }).success).toBe(false);
+  });
+  it('requires a password for explicit existing-account linking', () => {
+    expect(socialLinkSchema.safeParse({ existingAccount: true, email: 'owner@example.com', password: 'long-password' }).success).toBe(true);
+    expect(socialLinkSchema.safeParse({ existingAccount: true, email: 'owner@example.com' }).success).toBe(false);
+    expect(socialLinkSchema.safeParse({ existingAccount: true, email: 'owner@example.com', password: 'long-password', userId: 'another-user' }).success).toBe(false);
   });
 });

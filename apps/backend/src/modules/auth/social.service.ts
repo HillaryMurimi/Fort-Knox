@@ -14,7 +14,7 @@ import { AppError } from '../../core/errors/AppError.js';
 import { getSmsProvider } from '../../core/integrations/messaging-providers.js';
 import { env } from '../../config/env.js';
 import { socialAuthorizationUrl, verifySocialCode, type SocialProvider } from '../../integrations/auth/social-provider.js';
-import { socialSignupSchema } from './social.schemas.js';
+import { socialLinkSchema, socialSignupSchema } from './social.schemas.js';
 import { issueSession } from './auth.service.js';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -59,6 +59,7 @@ export async function challengeSocial(token: string, input: unknown) {
   if (!flow) throw expired();
   let signup: z.infer<typeof socialSignupSchema> | undefined;
   let phone: string;
+  let linkedUserId: mongoose.Types.ObjectId | undefined;
   if (flow.userId) {
     z.object({}).strict().parse(input);
     const user = await User.findOne({ _id: flow.userId, status: 'ACTIVE', isPlatformAdmin: false });
@@ -67,14 +68,25 @@ export async function challengeSocial(token: string, input: unknown) {
     if (!user || !membership || !(await Organization.exists({ _id: membership.organizationId, status: 'ACTIVE' }))) throw new AppError(403, 'SOCIAL_OWNER_REQUIRED', 'An active owner account is required for social sign-in.');
     phone = user.phone;
   } else {
-    signup = socialSignupSchema.parse(input);
-    phone = signup.phone;
-    // Never merge identities by email or phone. Existing accounts use their established login.
-    if (await User.exists({ $or: [{ email: signup.email }, { phone }] })) throw new AppError(409, 'ACCOUNT_EXISTS', 'Use the existing account sign-in method. Automatic social account linking is not supported.');
+    if (typeof input === 'object' && input !== null && 'existingAccount' in input) {
+      const credentials = socialLinkSchema.parse(input);
+      const user = await User.findOne({ email: credentials.email, status: 'ACTIVE', isPlatformAdmin: false }).select('+passwordHash');
+      if (!user?.passwordHash || !(await bcrypt.compare(credentials.password, user.passwordHash))) throw new AppError(401, 'LINK_CREDENTIALS_INVALID', 'The existing owner credentials are invalid.');
+      const ownerRole = await Role.findOne({ key: 'LANDLORD', system: true, organizationId: null });
+      const membership = ownerRole && await OrganizationMembership.findOne({ userId: user._id, roleIds: ownerRole._id, status: 'ACTIVE' });
+      if (!membership || !(await Organization.exists({ _id: membership.organizationId, status: 'ACTIVE' }))) throw new AppError(403, 'SOCIAL_OWNER_REQUIRED', 'An active owner account is required for social sign-in.');
+      linkedUserId = user._id;
+      phone = user.phone;
+    } else {
+      signup = socialSignupSchema.parse(input);
+      phone = signup.phone;
+      // Contact matches never link an account. Existing owners must prove password and phone possession.
+      if (await User.exists({ $or: [{ email: signup.email }, { phone }] })) throw new AppError(409, 'ACCOUNT_EXISTS', 'An account already exists for this email or phone. Choose Link existing owner account.');
+    }
   }
   const code = env.NODE_ENV === 'production' ? String(randomInt(100000, 1000000)) : '123456';
   const codeHash = await bcrypt.hash(code, 10);
-  const claimed = await SocialAuthFlow.updateOne({ _id: flow._id, status: 'VERIFIED' }, { $set: { ...signup, phone, codeHash, codeExpiresAt: new Date(Date.now() + env.OTP_TTL_SECONDS * 1000), status: 'CHALLENGED' } });
+  const claimed = await SocialAuthFlow.updateOne({ _id: flow._id, status: 'VERIFIED' }, { $set: { ...signup, ...(linkedUserId ? { userId: linkedUserId } : {}), phone, codeHash, codeExpiresAt: new Date(Date.now() + env.OTP_TTL_SECONDS * 1000), status: 'CHALLENGED' } });
   if (!claimed.modifiedCount) throw expired();
   try {
     if (env.NODE_ENV === 'production') await getSmsProvider().send({ to: phone, body: `Your Fort Knox sign-in code is ${code}. It expires in ${Math.ceil(env.OTP_TTL_SECONDS / 60)} minutes. Do not share it.` });
@@ -100,6 +112,12 @@ export async function finishSocial(token: string, code: string, meta: { userAgen
       const membership = role && await OrganizationMembership.findOne({ userId: flow.userId, roleIds: role._id, status: 'ACTIVE' }).session(session);
       const organization = membership && await Organization.exists({ _id: membership.organizationId, status: 'ACTIVE' }).session(session);
       if (!user || !organization) throw new AppError(403, 'ACCOUNT_INACTIVE', 'Account is inactive.');
+      const existingIdentity = await SocialIdentity.findOne({ provider: flow.provider, subject: flow.subject }).session(session);
+      if (existingIdentity && String(existingIdentity.userId) !== String(user._id)) throw new AppError(409, 'SOCIAL_IDENTITY_CONFLICT', 'This provider identity is already linked to another account.');
+      if (!existingIdentity) {
+        await SocialIdentity.create([{ provider: flow.provider, subject: flow.subject!, userId: user._id }], { session });
+        await AuditLog.create([{ actorUserId: user._id, organizationId: membership!.organizationId, action: 'auth.social.link', resourceType: 'User', resourceId: user._id, occurredAt: new Date(), metadata: { provider: flow.provider } }], { session });
+      }
       return user._id;
     }
     const details = socialSignupSchema.parse({ firstName: flow.firstName, lastName: flow.lastName, email: flow.email, phone: flow.phone, organizationName: flow.organizationName });
