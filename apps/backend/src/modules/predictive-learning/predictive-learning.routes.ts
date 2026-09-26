@@ -1,0 +1,11 @@
+import { Router } from 'express';
+import { requireAuth } from '../../middleware/auth.middleware.js';
+import { asyncHandler } from '../../core/http/asyncHandler.js';
+import * as c from './predictive-learning.controller.js';
+export const predictiveLearningRouter=Router();
+predictiveLearningRouter.use(requireAuth);
+predictiveLearningRouter.post('/organizations/:organizationId/predictive-learning/label-outcomes',asyncHandler(c.label));
+predictiveLearningRouter.post('/organizations/:organizationId/predictive-learning/train',asyncHandler(c.train));
+predictiveLearningRouter.post('/organizations/:organizationId/predictive-learning/predict',asyncHandler(c.predict));
+predictiveLearningRouter.get('/organizations/:organizationId/predictive-learning/models',asyncHandler(c.models));
+predictiveLearningRouter.post('/organizations/:organizationId/predictive-learning/promote',asyncHandler(c.promote));

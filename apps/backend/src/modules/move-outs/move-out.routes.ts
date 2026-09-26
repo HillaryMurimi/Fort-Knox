@@ -1,0 +1,12 @@
+import { Router } from 'express';
+import { requireAuth } from '../../middleware/auth.middleware.js';
+import { asyncHandler } from '../../core/http/asyncHandler.js';
+import * as controller from './move-out.controller.js';
+export const moveOutRouter = Router();
+moveOutRouter.use(requireAuth);
+moveOutRouter.get('/organizations/:organizationId/move-outs', asyncHandler(controller.list));
+moveOutRouter.get('/move-outs/:moveOutId', asyncHandler(controller.get));
+moveOutRouter.post('/tenancies/:tenancyId/move-out', asyncHandler(controller.initiate));
+moveOutRouter.post('/move-outs/:moveOutId/inspect', asyncHandler(controller.inspect));
+moveOutRouter.post('/move-outs/:moveOutId/reconcile', asyncHandler(controller.reconcile));
+moveOutRouter.post('/move-outs/:moveOutId/complete', asyncHandler(controller.complete));

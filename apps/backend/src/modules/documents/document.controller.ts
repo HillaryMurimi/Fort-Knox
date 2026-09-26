@@ -1,0 +1,5 @@
+import type { Request, Response } from 'express'; import { apiResponse } from '../../core/response/apiResponse.js'; import { requiredParam } from '../../core/http/params.js'; import * as s from './document.schemas.js'; import { DocumentService } from './document.service.js';
+export async function list(req:Request,res:Response){res.json(apiResponse(await DocumentService.list(req.auth!,requiredParam(req.params.organizationId,'organizationId'))));}
+export async function get(req:Request,res:Response){res.json(apiResponse(await DocumentService.get(req.auth!,requiredParam(req.params.documentId,'documentId'))));}
+export async function create(req:Request,res:Response){res.status(201).json(apiResponse(await DocumentService.create(req.auth!,requiredParam(req.params.organizationId,'organizationId'),s.createDocumentSchema.parse(req.body))));}
+export async function update(req:Request,res:Response){res.json(apiResponse(await DocumentService.update(req.auth!,requiredParam(req.params.documentId,'documentId'),s.updateDocumentSchema.parse(req.body))));}

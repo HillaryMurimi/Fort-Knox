@@ -1,0 +1,2 @@
+import { Router } from 'express'; import { requireAuth } from '../../middleware/auth.middleware.js'; import { asyncHandler } from '../../core/http/asyncHandler.js'; import * as c from './evidence.controller.js';
+export const evidenceRouter=Router(); evidenceRouter.use(requireAuth); evidenceRouter.get('/organizations/:organizationId/evidence',asyncHandler(c.list)); evidenceRouter.post('/organizations/:organizationId/evidence',asyncHandler(c.create));

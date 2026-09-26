@@ -1,0 +1,3 @@
+import {Schema,model,type InferSchemaType} from 'mongoose';
+const schema=new Schema({provider:{type:String,required:true,index:true},eventId:{type:String,required:true},externalReference:{type:String,index:true},payloadHash:{type:String,required:true},payload:{type:Schema.Types.Mixed},status:{type:String,enum:['RECEIVED','PROCESSED','FAILED','IGNORED'],default:'RECEIVED',index:true},error:{type:String,maxlength:2000},receivedAt:{type:Date,default:Date.now},processedAt:Date},{timestamps:true});
+schema.index({provider:1,eventId:1},{unique:true}); export type WebhookEventDocument=InferSchemaType<typeof schema>; export const WebhookEvent=model('WebhookEvent',schema);

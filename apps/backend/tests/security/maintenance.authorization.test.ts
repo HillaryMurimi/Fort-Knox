@@ -1,0 +1,6 @@
+import { describe, expect, it } from 'vitest';
+import { AuthorizationService } from '../../src/core/authorization/authorization.service.js';
+import type { AuthenticatedUser } from '../../src/core/types/auth.js';
+const oid='507f1f77bcf86cd799439011'; const oid2='507f1f77bcf86cd799439012';
+const user=(permission:string,propertyId=oid):AuthenticatedUser=>({userId:oid,phone:'+254700000000',isPlatformAdmin:false,activeOrganizationId:oid,memberships:[{organizationId:oid,roles:['CARETAKER'],permissions:[permission],scope:{allProperties:false,propertyIds:[propertyId],buildingIds:[],unitIds:[]}}]});
+describe('maintenance authorization boundaries',()=>{it('allows a scoped property maintenance action',()=>{expect(()=>AuthorizationService.assertCan(user('maintenance.create'), 'maintenance.create',{organizationId:oid,propertyId:oid})).not.toThrow();});it('denies another property',()=>{expect(()=>AuthorizationService.assertCan(user('maintenance.create'), 'maintenance.create',{organizationId:oid,propertyId:oid2})).toThrow();});it('does not let frontend-supplied permission become authority',()=>{expect(()=>AuthorizationService.assertCan(user('maintenance.view'), 'maintenance.approve',{organizationId:oid,propertyId:oid})).toThrow();});});

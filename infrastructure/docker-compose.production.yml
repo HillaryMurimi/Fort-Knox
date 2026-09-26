@@ -1,0 +1,39 @@
+services:
+  api:
+    build:
+      context: ../apps/backend
+    env_file:
+      - ../apps/backend/.env.production
+    restart: unless-stopped
+    expose:
+      - "9000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9000/api/v1/health/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    stop_grace_period: 20s
+
+  worker:
+    build:
+      context: ../apps/backend
+    command: ["node", "dist/jobs-worker.js"]
+    env_file:
+      - ../apps/backend/.env.production
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  web:
+    build:
+      context: ../apps/frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set NEXT_PUBLIC_API_URL to the public HTTPS API URL}
+    environment:
+      NODE_ENV: production
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy

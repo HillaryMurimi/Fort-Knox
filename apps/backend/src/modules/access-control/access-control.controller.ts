@@ -1,0 +1,1 @@
+import {Request,Response} from'express';import {apiResponse} from'../../core/response/apiResponse.js';export async function context(req:Request,res:Response){res.json(apiResponse({userId:req.auth!.userId, isPlatformAdmin:req.auth!.isPlatformAdmin, memberships:req.auth!.memberships}));}

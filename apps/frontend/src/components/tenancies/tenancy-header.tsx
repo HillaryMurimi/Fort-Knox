@@ -1,0 +1,3 @@
+import { TenancyStatusBadge } from './tenancy-status-badge';
+import type { Tenancy } from '@/lib/data/resource-types';
+export function TenancyHeader({ tenancy }: { tenancy: Tenancy }) { return <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><div className="text-[11px] uppercase tracking-[.16em] text-[#d97745] font-semibold">Tenancy</div><h1 className="text-2xl sm:text-3xl font-semibold mt-1">{tenancy.leaseNumber}</h1><p className="text-sm text-muted-foreground mt-1">Contractual relationship between tenant and unit.</p></div><TenancyStatusBadge status={tenancy.status}/></div>; }

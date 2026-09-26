@@ -1,0 +1,13 @@
+import { Router } from 'express';
+import { asyncHandler } from '../../core/http/asyncHandler.js';
+import * as c from './auth.controller.js';
+export const authRouter = Router();
+authRouter.post('/login', asyncHandler(c.login));
+authRouter.post('/otp/request', asyncHandler(c.requestLoginOtp));
+authRouter.post('/otp/verify', asyncHandler(c.verifyLogin));
+authRouter.post('/verify-otp', asyncHandler(c.verifyLogin));
+authRouter.post('/verify-step-up', asyncHandler(c.verifyStepUpOtp));
+authRouter.post('/refresh', asyncHandler(c.refresh));
+authRouter.post('/logout', asyncHandler(c.logout));
+authRouter.post('/bootstrap-landlord', asyncHandler(c.bootstrap));
+authRouter.post('/invitations/accept', asyncHandler(c.acceptInvitation));

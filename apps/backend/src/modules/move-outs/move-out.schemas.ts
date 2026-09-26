@@ -1,0 +1,13 @@
+import { z } from 'zod';
+const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Must be a valid MongoDB ObjectId');
+const date = z.coerce.date();
+const meterReading = z.object({ meterType: z.string().trim().min(1).max(50), reading: z.number().finite().nonnegative(), unit: z.string().trim().max(20).optional(), recordedAt: date }).strict();
+const deduction = z.object({ category: z.enum(['DAMAGE', 'UNPAID_RENT', 'UNPAID_SERVICE_CHARGE', 'UTILITY', 'CLEANING', 'OTHER']), description: z.string().trim().min(1).max(1000), amount: z.number().finite().nonnegative(), evidenceIds: z.array(objectId).max(100).default([]) }).strict();
+export const initiateMoveOutSchema = z.object({ requestedMoveOutDate: date, notes: z.string().trim().max(5000).optional() }).strict();
+export const inspectMoveOutSchema = z.object({ condition: z.enum(['EXCELLENT', 'GOOD', 'FAIR', 'POOR', 'DAMAGED']), notes: z.string().trim().max(5000).optional(), evidenceIds: z.array(objectId).max(100).default([]) }).strict();
+export const reconcileMoveOutSchema = z.object({ actualMoveOutDate: date, meterReadings: z.array(meterReading).max(50).default([]), deductions: z.array(deduction).max(100).default([]), outstandingBalance: z.number().finite().nonnegative().default(0), reconciliationNotes: z.string().trim().max(5000).optional() }).strict();
+export const moveOutParamsSchema = z.object({ moveOutId: objectId }).strict();
+export const organizationParamsSchema = z.object({ organizationId: objectId }).strict();
+export type InitiateMoveOutInput = z.infer<typeof initiateMoveOutSchema>;
+export type InspectMoveOutInput = z.infer<typeof inspectMoveOutSchema>;
+export type ReconcileMoveOutInput = z.infer<typeof reconcileMoveOutSchema>;

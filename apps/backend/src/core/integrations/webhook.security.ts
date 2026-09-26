@@ -1,0 +1,4 @@
+import crypto from 'node:crypto';
+export function hashPayload(payload:Buffer|string){return crypto.createHash('sha256').update(payload).digest('hex');}
+export function verifyHmacSignature(payload:Buffer|string,signature:string|undefined,secret:string|undefined,algorithm:'sha512'|'sha256'|'sha1'='sha256'){if(!signature||!secret)return false;const expected=crypto.createHmac(algorithm,secret).update(payload).digest('hex');const normalized=signature.replace(/^sha512=/,'').replace(/^sha256=/,'').replace(/^sha1=/,'');try{return crypto.timingSafeEqual(Buffer.from(expected),Buffer.from(normalized));}catch{return false;}}
+export function requireWebhookSignature(payload:Buffer|string,signature:string|undefined,secret:string|undefined){if(!secret)throw new Error('WEBHOOK_SECRET_NOT_CONFIGURED');if(!verifyHmacSignature(payload,signature,secret))throw new Error('INVALID_WEBHOOK_SIGNATURE');}

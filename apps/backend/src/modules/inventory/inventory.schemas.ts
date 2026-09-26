@@ -1,0 +1,6 @@
+import { z } from 'zod';
+const oid=z.string().regex(/^[a-f\d]{24}$/i);
+export const organizationParamsSchema=z.object({organizationId:oid}).strict(); export const inventoryParamsSchema=z.object({inventoryId:oid}).strict();
+export const createInventorySchema=z.object({unitId:oid,assetTag:z.string().trim().min(1).max(80),name:z.string().trim().min(2).max(180),category:z.string().trim().min(2).max(100),serialNumber:z.string().trim().max(160).optional(),condition:z.enum(['NEW','GOOD','FAIR','POOR','DAMAGED']).default('GOOD'),purchaseCost:z.number().finite().nonnegative().optional(),purchaseDate:z.coerce.date().optional(),warrantyExpiry:z.coerce.date().optional(),maintenanceIntervalDays:z.number().int().positive().optional(),notes:z.string().trim().max(5000).optional(),evidenceIds:z.array(oid).max(100).default([])}).strict();
+export const updateInventorySchema=createInventorySchema.partial().extend({status:z.enum(['ACTIVE','MISSING','UNDER_REPAIR','DISPOSED']).optional(),lastServicedAt:z.coerce.date().optional(),nextServiceDueAt:z.coerce.date().optional()}).strict();
+export type CreateInventoryInput=z.infer<typeof createInventorySchema>; export type UpdateInventoryInput=z.infer<typeof updateInventorySchema>;

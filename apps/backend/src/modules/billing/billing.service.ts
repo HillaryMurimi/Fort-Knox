@@ -1,0 +1,91 @@
+import { SubscriptionPlan } from '../../database/models/SubscriptionPlan.js';
+import { OrganizationSubscription } from '../../database/models/OrganizationSubscription.js';
+import { SubscriptionInvoice } from '../../database/models/SubscriptionInvoice.js';
+import { UsageRecord } from '../../database/models/UsageRecord.js';
+import { BillingEvent } from '../../database/models/BillingEvent.js';
+import { Organization } from '../../database/models/Organization.js';
+import { Property } from '../../database/models/Property.js';
+import { Unit } from '../../database/models/Unit.js';
+import { User } from '../../database/models/User.js';
+import { OrganizationMembership } from '../../database/models/OrganizationMembership.js';
+import { Tenant } from '../../database/models/Tenant.js';
+import { AppError } from '../../core/errors/AppError.js';
+import { AuthorizationService } from '../../core/authorization/authorization.service.js';
+import { getBillingProvider, type BillingProviderKey } from '../../core/billing/billing-provider.js';
+
+function addInterval(date: Date, interval: 'MONTH' | 'QUARTER' | 'YEAR') { const d = new Date(date); if (interval === 'YEAR') d.setUTCFullYear(d.getUTCFullYear() + 1); else d.setUTCMonth(d.getUTCMonth() + (interval === 'QUARTER' ? 3 : 1)); return d; }
+function invoiceNumber() { return `INV-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.random().toString(36).slice(2,8).toUpperCase()}`; }
+
+export class BillingService {
+  static async listPlans(activeOnly = true) { return SubscriptionPlan.find(activeOnly ? { active: true } : {}).sort({ amount: 1 }).lean(); }
+  static async createPlan(auth: NonNullable<Express.Request['auth']>, data: Record<string, unknown>) { AuthorizationService.assertPlatformAdmin(auth); return SubscriptionPlan.create(data); }
+  static async updatePlan(auth: NonNullable<Express.Request['auth']>, planId: string, data: Record<string, unknown>) { AuthorizationService.assertPlatformAdmin(auth); const plan = await SubscriptionPlan.findByIdAndUpdate(planId, data, { new: true, runValidators: true }); if (!plan) throw new AppError(404,'NOT_FOUND','Subscription plan not found'); return plan; }
+
+  static async getSubscription(auth: NonNullable<Express.Request['auth']>, organizationId: string) {
+    AuthorizationService.assertCan(auth, 'billing.subscription.view', { organizationId });
+    return OrganizationSubscription.findOne({ organizationId }).populate('planId').lean();
+  }
+
+  static async subscribe(auth: NonNullable<Express.Request['auth']>, organizationId: string, planKey: string, providerKey: BillingProviderKey) {
+    AuthorizationService.assertCan(auth, 'billing.subscription.manage', { organizationId });
+    const organization = await Organization.findById(organizationId).lean(); if (!organization) throw new AppError(404,'NOT_FOUND','Organization not found');
+    const plan = await SubscriptionPlan.findOne({ key: planKey, active: true }); if (!plan) throw new AppError(404,'PLAN_NOT_FOUND','Active subscription plan not found');
+    const existing = await OrganizationSubscription.findOne({ organizationId });
+    if (existing && ['ACTIVE','TRIALING','PAST_DUE','PAUSED'].includes(existing.status)) throw new AppError(409,'SUBSCRIPTION_EXISTS','Organization already has an active subscription');
+    const now = new Date(); const periodEnd = addInterval(now, plan.billingInterval); const trialEnd = plan.trialDays > 0 ? new Date(now.getTime() + plan.trialDays * 86400000) : undefined;
+    const provider = getBillingProvider(providerKey);
+    const customer = await provider.createCustomer({ organizationId, name: organization.name });
+    const remote = await provider.createSubscription({ customerReference: customer.providerCustomerId, planKey: plan.key, currency: plan.currency, amount: plan.amount, interval: plan.billingInterval });
+    const subscription = await OrganizationSubscription.findOneAndUpdate({ organizationId }, { planId: plan._id, status: trialEnd ? 'TRIALING' : 'ACTIVE', currentPeriodStart: now, currentPeriodEnd: periodEnd, trialEndsAt: trialEnd, provider: providerKey, providerCustomerId: remote.providerCustomerId, providerSubscriptionId: remote.providerSubscriptionId, createdBy: auth.userId, updatedBy: auth.userId }, { upsert: true, new: true, setDefaultsOnInsert: true });
+    await SubscriptionInvoice.create({ organizationId, subscriptionId: subscription._id, invoiceNumber: invoiceNumber(), periodStart: now, periodEnd, subtotal: plan.amount, tax: 0, total: plan.amount, amountPaid: 0, currency: plan.currency, status: trialEnd ? 'DRAFT' : 'OPEN', dueDate: now, provider: providerKey, createdBy: auth.userId, updatedBy: auth.userId, lineItems: [{ description: plan.name, quantity: 1, unitAmount: plan.amount }] });
+    return subscription.populate('planId');
+  }
+
+  static async cancel(auth: NonNullable<Express.Request['auth']>, organizationId: string, atPeriodEnd: boolean) { AuthorizationService.assertCan(auth,'billing.subscription.manage',{organizationId}); const subscription = await OrganizationSubscription.findOne({organizationId}); if (!subscription) throw new AppError(404,'NOT_FOUND','Subscription not found'); const provider = getBillingProvider(subscription.provider as BillingProviderKey); if (subscription.providerSubscriptionId) await provider.cancelSubscription(subscription.providerSubscriptionId, atPeriodEnd); subscription.cancelAtPeriodEnd = atPeriodEnd; subscription.updatedBy = auth.userId; if (!atPeriodEnd) { subscription.status='CANCELLED'; subscription.cancelledAt=new Date(); } await subscription.save(); return subscription; }
+
+  static async listInvoices(auth: NonNullable<Express.Request['auth']>, organizationId: string, query: { status?: string; page: number; pageSize: number }) { AuthorizationService.assertCan(auth,'billing.invoice.view',{organizationId}); const filter: Record<string, unknown> = { organizationId }; if (query.status) filter.status=query.status; const [items,total]=await Promise.all([SubscriptionInvoice.find(filter).sort({dueDate:-1}).skip((query.page-1)*query.pageSize).limit(query.pageSize).lean(), SubscriptionInvoice.countDocuments(filter)]); return { items, pagination:{page:query.page,pageSize:query.pageSize,total,totalPages:Math.ceil(total/query.pageSize),hasNextPage:query.page*query.pageSize<total,hasPreviousPage:query.page>1} }; }
+
+  static async recordUsage(auth: NonNullable<Express.Request['auth']>, organizationId: string, data: { metric: 'PROPERTIES'|'UNITS'|'USERS'|'TENANTS'|'STORAGE_BYTES'|'API_REQUESTS'; periodStart: Date; periodEnd: Date; quantity: number; source: 'SNAPSHOT'|'EVENT'|'MANUAL'|'SYSTEM'; sourceRef?: string }) { AuthorizationService.assertCan(auth,'billing.usage.manage',{organizationId}); return UsageRecord.findOneAndUpdate({organizationId,metric:data.metric,periodStart:data.periodStart,periodEnd:data.periodEnd}, {...data}, {upsert:true,new:true,setDefaultsOnInsert:true}); }
+
+  static async usageSnapshot(auth: NonNullable<Express.Request['auth']>, organizationId: string, periodStart: Date, periodEnd: Date) { AuthorizationService.assertCan(auth,'billing.usage.view',{organizationId}); const [properties,units,users,tenants]=await Promise.all([Property.countDocuments({organizationId}),Unit.countDocuments({organizationId}),OrganizationMembership.countDocuments({organizationId,status:'ACTIVE'}),Tenant.countDocuments({organizationId})]); return { periodStart, periodEnd, metrics:{PROPERTIES:properties,UNITS:units,USERS:users,TENANTS:tenants} }; }
+
+  static async entitlements(auth: NonNullable<Express.Request['auth']>, organizationId: string) { AuthorizationService.assertCan(auth,'billing.entitlement.view',{organizationId}); const sub=await OrganizationSubscription.findOne({organizationId}).populate('planId').lean(); if (!sub) return {status:'UNSUBSCRIBED',entitlements:null}; return {status:sub.status, plan:sub.planId}; }
+
+  static async ingestEvent(data: { eventId:string; organizationId?:string; provider: BillingProviderKey; type:'SUBSCRIPTION_CREATED'|'SUBSCRIPTION_UPDATED'|'SUBSCRIPTION_CANCELLED'|'INVOICE_CREATED'|'INVOICE_PAID'|'INVOICE_FAILED'|'PAYMENT_FAILED'|'PAYMENT_REVERSED'; externalReference?:string; payload?:unknown }) { const existing=await BillingEvent.findOne({eventId:data.eventId}); if(existing) return existing; return BillingEvent.create({...data,status:'RECEIVED'}); }
+
+
+  static async changePlan(auth: NonNullable<Express.Request['auth']>, organizationId: string, planKey: string, atPeriodEnd: boolean) {
+    AuthorizationService.assertCan(auth, 'billing.subscription.manage', { organizationId });
+    const subscription = await OrganizationSubscription.findOne({ organizationId });
+    if (!subscription) throw new AppError(404, 'NOT_FOUND', 'Subscription not found');
+    const plan = await SubscriptionPlan.findOne({ key: planKey, active: true });
+    if (!plan) throw new AppError(404, 'PLAN_NOT_FOUND', 'Active subscription plan not found');
+    if (String(subscription.planId) === String(plan._id)) return subscription.populate('planId');
+    if (atPeriodEnd) { subscription.pendingPlanId = plan._id; subscription.pendingPlanEffectiveAt = subscription.currentPeriodEnd; subscription.updatedBy = auth.userId; await subscription.save(); return subscription.populate('planId'); }
+    const now = new Date(); subscription.planId = plan._id; subscription.currentPeriodStart = now; subscription.currentPeriodEnd = addInterval(now, plan.billingInterval); subscription.pendingPlanId = undefined; subscription.pendingPlanEffectiveAt = undefined; subscription.updatedBy = auth.userId; await subscription.save();
+    return subscription.populate('planId');
+  }
+
+  static async markInvoicePaid(auth: NonNullable<Express.Request['auth']>, organizationId: string, invoiceId: string, amount: number) {
+    AuthorizationService.assertCan(auth, 'billing.invoice.manage', { organizationId });
+    const invoice = await SubscriptionInvoice.findOne({ _id: invoiceId, organizationId });
+    if (!invoice) throw new AppError(404, 'NOT_FOUND', 'Subscription invoice not found');
+    if (invoice.status === 'PAID') return invoice;
+    if (amount < invoice.total) throw new AppError(400, 'PAYMENT_INCOMPLETE', 'Payment amount is less than the invoice total');
+    invoice.amountPaid = invoice.total; invoice.status = 'PAID'; invoice.paidAt = new Date(); invoice.updatedBy = auth.userId; await invoice.save();
+    await OrganizationSubscription.findOneAndUpdate({ organizationId, _id: invoice.subscriptionId }, { status: 'ACTIVE', gracePeriodEndsAt: undefined, updatedBy: auth.userId });
+    return invoice;
+  }
+
+  static async reconcile() {
+    const now = new Date(); const subscriptions = await OrganizationSubscription.find({ status: { $in: ['TRIALING','ACTIVE','PAST_DUE'] } }); let expired=0; let cancelled=0; let upgraded=0;
+    for (const subscription of subscriptions) {
+      if (subscription.status === 'TRIALING' && subscription.trialEndsAt && subscription.trialEndsAt <= now) { subscription.status='PAST_DUE'; subscription.gracePeriodEndsAt=new Date(now.getTime()+7*86_400_000); await subscription.save(); expired++; }
+      if (subscription.cancelAtPeriodEnd && subscription.currentPeriodEnd <= now) { subscription.status='CANCELLED'; subscription.cancelledAt=now; await subscription.save(); cancelled++; continue; }
+      if (subscription.pendingPlanId && subscription.pendingPlanEffectiveAt && subscription.pendingPlanEffectiveAt <= now) { subscription.planId=subscription.pendingPlanId; subscription.pendingPlanId=undefined; subscription.pendingPlanEffectiveAt=undefined; subscription.currentPeriodStart=now; const plan=await SubscriptionPlan.findById(subscription.planId); if(plan) subscription.currentPeriodEnd=addInterval(now,plan.billingInterval); await subscription.save(); upgraded++; }
+    }
+    return { expired, cancelled, upgraded };
+  }
+
+  static async assertFeature(organizationId: string, feature: string) { const sub=await OrganizationSubscription.findOne({organizationId}).populate('planId').lean(); if(!sub || !['ACTIVE','TRIALING'].includes(sub.status)) throw new AppError(402,'SUBSCRIPTION_REQUIRED','An active subscription is required'); const plan=sub.planId as unknown as {entitlements?:{features?:string[]}}; if(!plan.entitlements?.features?.includes(feature)) throw new AppError(403,'FEATURE_NOT_ENTITLED',`Subscription does not include feature: ${feature}`); }
+}

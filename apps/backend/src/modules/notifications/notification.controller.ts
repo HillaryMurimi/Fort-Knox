@@ -1,0 +1,6 @@
+import type { Request, Response } from 'express'; import { apiResponse } from '../../core/response/apiResponse.js'; import { requiredParam } from '../../core/http/params.js'; import * as s from './notification.schemas.js'; import { NotificationService } from './notification.service.js';
+export async function list(req:Request,res:Response){res.json(apiResponse(await NotificationService.list(req.auth!,requiredParam(req.params.organizationId,'organizationId'),s.notificationQuerySchema.parse(req.query))));}
+export async function create(req:Request,res:Response){res.status(201).json(apiResponse(await NotificationService.create(req.auth!,requiredParam(req.params.organizationId,'organizationId'),s.createNotificationSchema.parse(req.body))));}
+export async function read(req:Request,res:Response){res.json(apiResponse(await NotificationService.markRead(req.auth!,requiredParam(req.params.notificationId,'notificationId'))));}
+export async function preferences(req:Request,res:Response){res.json(apiResponse(await NotificationService.listPreferences(req.auth!,requiredParam(req.params.organizationId,'organizationId'))));}
+export async function setPreference(req:Request,res:Response){res.json(apiResponse(await NotificationService.upsertPreference(req.auth!,requiredParam(req.params.organizationId,'organizationId'),s.preferenceSchema.parse(req.body))));}

@@ -1,0 +1,12 @@
+{
+  "name": "property-command-center",
+  "private": true,
+  "scripts": {
+    "typecheck": "npm --prefix apps/backend run typecheck && npm --prefix apps/frontend run typecheck",
+    "lint": "npm --prefix apps/backend run lint && npm --prefix apps/frontend run lint",
+    "test": "npm --prefix apps/backend test && npm --prefix apps/frontend test",
+    "build": "npm --prefix apps/backend run build && npm --prefix apps/frontend run build",
+    "certify:release": "npm --prefix apps/backend run certify:release",
+    "verify:production": "npm --prefix apps/backend run verify:production && npm --prefix apps/frontend run verify:production"
+  }
+}

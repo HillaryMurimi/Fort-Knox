@@ -1,0 +1,4 @@
+import { describe, expect, it } from 'vitest';
+import { createMaintenanceSchema } from '../../src/modules/maintenance/maintenance.schemas.js'; import { createInspectionSchema } from '../../src/modules/inspections/inspection.schemas.js'; import { createInventorySchema } from '../../src/modules/inventory/inventory.schemas.js';
+const oid='507f1f77bcf86cd799439011';
+describe('maintenance/inspection/inventory schemas',()=>{it('rejects malformed maintenance payloads',()=>{expect(()=>createMaintenanceSchema.parse({unitId:'bad',title:'x',description:'x',category:'PLUMBING'})).toThrow();});it('validates inspection checklist',()=>{const v=createInspectionSchema.parse({unitId:oid,type:'ROUTINE',checklist:[{item:'Door',condition:'GOOD'}]});expect(v.checklist).toHaveLength(1);});it('normalizes inventory asset data',()=>{const v=createInventorySchema.parse({unitId:oid,assetTag:' ac-1 ',name:'Water heater',category:'APPLIANCE'});expect(v.assetTag).toBe('ac-1');});});

@@ -1,0 +1,3 @@
+import { Badge } from '@/components/ui';
+import type { Tenant } from '@/lib/data/resource-types';
+export function TenantHeader({ tenant }: { tenant: Tenant }) { const tone=tenant.status==='ACTIVE'?'green':tenant.status==='BLACKLISTED'?'red':tenant.status==='PROSPECT'?'blue':'neutral'; return <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><div className="text-[11px] uppercase tracking-[.16em] text-[#d97745] font-semibold">Tenant record</div><h1 className="text-2xl sm:text-3xl font-semibold mt-1">Tenant {tenant._id.slice(-8)}</h1><p className="text-sm text-muted-foreground mt-1">User {tenant.userId}</p></div><Badge tone={tone}>{tenant.status}</Badge></div>; }

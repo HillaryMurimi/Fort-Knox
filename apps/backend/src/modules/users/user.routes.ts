@@ -1,0 +1,2 @@
+import { Router } from 'express'; import { requireAuth } from '../../middleware/auth.middleware.js'; import { asyncHandler } from '../../core/http/asyncHandler.js'; import * as c from './user.controller.js';
+export const userRouter=Router(); userRouter.use(requireAuth); userRouter.get('/me',asyncHandler(c.me)); userRouter.get('/organization/:organizationId',asyncHandler(c.list)); userRouter.post('/organization/:organizationId',asyncHandler(c.create)); userRouter.patch('/organization/:organizationId/:userId',asyncHandler(c.update));

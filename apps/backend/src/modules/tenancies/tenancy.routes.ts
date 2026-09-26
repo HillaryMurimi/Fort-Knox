@@ -1,0 +1,12 @@
+import { Router } from 'express';
+import { requireAuth } from '../../middleware/auth.middleware.js';
+import { asyncHandler } from '../../core/http/asyncHandler.js';
+import * as controller from './tenancy.controller.js';
+export const tenancyRouter = Router();
+tenancyRouter.use(requireAuth);
+tenancyRouter.get('/organizations/:organizationId/tenancies', asyncHandler(controller.list));
+tenancyRouter.post('/organizations/:organizationId/tenancies', asyncHandler(controller.create));
+tenancyRouter.get('/tenancies/:tenancyId', asyncHandler(controller.get));
+tenancyRouter.patch('/tenancies/:tenancyId', asyncHandler(controller.update));
+tenancyRouter.post('/tenancies/:tenancyId/activate', asyncHandler(controller.activate));
+tenancyRouter.post('/tenancies/:tenancyId/terminate', asyncHandler(controller.terminate));

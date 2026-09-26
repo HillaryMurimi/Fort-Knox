@@ -1,0 +1,7 @@
+import { Router } from 'express'; import { requireAuth } from '../../middleware/auth.middleware.js'; import { asyncHandler } from '../../core/http/asyncHandler.js'; import * as c from './maintenance.controller.js';
+import { maintenanceMediaUpload } from './maintenance-media.middleware.js';
+export const maintenanceRouter=Router(); maintenanceRouter.use(requireAuth);
+maintenanceRouter.get('/organizations/:organizationId/maintenance',asyncHandler(c.list)); maintenanceRouter.post('/organizations/:organizationId/maintenance',asyncHandler(c.create));
+maintenanceRouter.get('/organizations/:organizationId/maintenance-policy',asyncHandler(c.getPolicy)); maintenanceRouter.put('/organizations/:organizationId/maintenance-policy',asyncHandler(c.setPolicy));
+maintenanceRouter.get('/maintenance/:maintenanceId',asyncHandler(c.get)); maintenanceRouter.post('/maintenance/:maintenanceId/triage',asyncHandler(c.triage)); maintenanceRouter.post('/maintenance/:maintenanceId/assign',asyncHandler(c.assign)); maintenanceRouter.post('/maintenance/:maintenanceId/quote',asyncHandler(c.quote)); maintenanceRouter.post('/maintenance/:maintenanceId/approve',asyncHandler(c.approve)); maintenanceRouter.post('/maintenance/:maintenanceId/progress',asyncHandler(c.progress)); maintenanceRouter.post('/maintenance/:maintenanceId/verify',asyncHandler(c.verify)); maintenanceRouter.post('/maintenance/:maintenanceId/close',asyncHandler(c.close));
+maintenanceRouter.post('/maintenance/:maintenanceId/evidence',maintenanceMediaUpload,asyncHandler(c.addEvidence));

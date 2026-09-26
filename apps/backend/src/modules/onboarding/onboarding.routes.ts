@@ -1,0 +1,10 @@
+import { Router } from 'express';
+import { requireAuth } from '../../middleware/auth.middleware.js';
+import { asyncHandler } from '../../core/http/asyncHandler.js';
+import * as controller from './onboarding.controller.js';
+export const onboardingRouter = Router();
+onboardingRouter.post('/tenant-onboarding/verify', asyncHandler(controller.verify));
+onboardingRouter.use(requireAuth);
+onboardingRouter.post('/organizations/:organizationId/tenant-onboarding', asyncHandler(controller.start));
+onboardingRouter.post('/tenant-onboarding/:onboardingId/send-otp', asyncHandler(controller.sendOtp));
+onboardingRouter.get('/tenant-onboarding/:onboardingId', asyncHandler(controller.get));

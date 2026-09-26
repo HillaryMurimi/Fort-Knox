@@ -1,0 +1,2 @@
+import { Badge } from '@/components/ui';
+export function OnboardingStatus({ status }: { status: string }) { const tone=status==='COMPLETED'?'green':status==='REJECTED'||status==='EXPIRED'?'red':status==='OTP_SENT'||status==='VERIFIED'?'blue':'orange'; return <div className="rounded-xl border border-border p-4"><div className="text-xs text-muted-foreground">Onboarding</div><div className="flex items-center justify-between gap-3 mt-2"><span className="text-sm font-semibold">Tenant onboarding status</span><Badge tone={tone}>{status.replaceAll('_',' ')}</Badge></div></div>; }

@@ -1,0 +1,15 @@
+import { Router } from 'express';
+import { requireAuth } from '../../middleware/auth.middleware.js';
+import { asyncHandler } from '../../core/http/asyncHandler.js';
+import * as c from './decision-automation.controller.js';
+export const decisionAutomationRouter=Router();
+decisionAutomationRouter.use(requireAuth);
+decisionAutomationRouter.get('/organizations/:organizationId/decision-automation',asyncHandler(c.overview));
+decisionAutomationRouter.post('/organizations/:organizationId/decision-automation/evaluate',asyncHandler(c.evaluate));
+decisionAutomationRouter.post('/organizations/:organizationId/decision-automation/bootstrap',asyncHandler(c.bootstrap));
+decisionAutomationRouter.get('/organizations/:organizationId/decision-automation/policy',asyncHandler(c.policy));
+decisionAutomationRouter.patch('/organizations/:organizationId/decision-automation/policy',asyncHandler(c.updatePolicy));
+decisionAutomationRouter.get('/organizations/:organizationId/decision-automation/actions',asyncHandler(c.actions));
+decisionAutomationRouter.patch('/decision-automation/actions/:actionId',asyncHandler(c.updateAction));
+decisionAutomationRouter.get('/organizations/:organizationId/decision-automation/tenant-risks',asyncHandler(c.tenantRisks));
+decisionAutomationRouter.get('/organizations/:organizationId/decision-automation/vacancy-forecasts',asyncHandler(c.vacancyForecasts));

@@ -1,0 +1,7 @@
+import { Schema, model, type InferSchemaType } from 'mongoose';
+const schema=new Schema({
+ organizationId:{type:Schema.Types.ObjectId,ref:'Organization',required:true,index:true}, propertyId:{type:Schema.Types.ObjectId,ref:'Property',required:true,index:true}, buildingId:{type:Schema.Types.ObjectId,ref:'Building',required:true}, floorId:{type:Schema.Types.ObjectId,ref:'Floor',required:true}, unitId:{type:Schema.Types.ObjectId,ref:'Unit',required:true}, tenantId:{type:Schema.Types.ObjectId,ref:'Tenant',required:true,index:true}, tenancyId:{type:Schema.Types.ObjectId,ref:'Tenancy',required:true,index:true}, asOf:{type:Date,required:true,index:true}, score:{type:Number,min:0,max:100,required:true}, grade:{type:String,enum:['LOW','MODERATE','HIGH','CRITICAL'],required:true}, probability:{type:Number,min:0,max:1,required:true}, outstandingAmount:{type:Number,min:0,default:0}, monthlyObligation:{type:Number,min:0,default:0}, daysPastDue:{type:Number,min:0,default:0}, paymentConsistency:{type:Number,min:0,max:100,default:100}, trendVelocity:{type:Number,default:0}, drivers:[{code:String,label:String,impact:Number}], confidence:{type:Number,min:0,max:1,required:true}, modelVersion:{type:String,required:true}, createdBy:{type:Schema.Types.ObjectId,ref:'User'}
+},{timestamps:true});
+schema.index({organizationId:1,tenantId:1,asOf:-1}); schema.index({organizationId:1,score:-1,asOf:-1});
+export type TenantArrearsRiskDocument=InferSchemaType<typeof schema>;
+export const TenantArrearsRisk=model('TenantArrearsRisk',schema);

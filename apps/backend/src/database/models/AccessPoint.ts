@@ -1,0 +1,6 @@
+import { Schema, model, type InferSchemaType } from 'mongoose';
+const schema=new Schema({
+ organizationId:{type:Schema.Types.ObjectId,ref:'Organization',required:true,index:true},propertyId:{type:Schema.Types.ObjectId,ref:'Property',required:true,index:true},buildingId:{type:Schema.Types.ObjectId,ref:'Building',index:true},floorId:{type:Schema.Types.ObjectId,ref:'Floor',index:true},unitId:{type:Schema.Types.ObjectId,ref:'Unit',index:true},
+ name:{type:String,required:true,trim:true,maxlength:160},pointCode:{type:String,required:true,trim:true,maxlength:80},type:{type:String,enum:['MAIN_GATE','PEDESTRIAN_GATE','DOOR','TURNSTILE','LIFT','PARKING','OTHER'],required:true},status:{type:String,enum:['ACTIVE','OFFLINE','DISABLED','MAINTENANCE'],default:'ACTIVE',index:true},provider:{type:String,trim:true,maxlength:80},deviceRef:{type:String,trim:true,maxlength:200},metadata:{type:Map,of:Schema.Types.Mixed,default:()=>({})},createdBy:{type:Schema.Types.ObjectId,ref:'User',required:true},updatedBy:{type:Schema.Types.ObjectId,ref:'User',required:true}
+},{timestamps:true}); schema.index({organizationId:1,pointCode:1},{unique:true}); schema.index({organizationId:1,propertyId:1,status:1});
+export type AccessPointDocument=InferSchemaType<typeof schema>; export const AccessPoint=model('AccessPoint',schema);

@@ -1,0 +1,348 @@
+# Property Management Command Center --- Architecture
+
+## 1. Architectural Goals
+
+The architecture must support: - Multi-organization property
+portfolios. - Strong server-side authorization. - Auditable business
+operations. - Replaceable third-party integrations. - Real
+payment/CCTV/notification/storage providers. - Incremental scaling. -
+Testability. - Reliable financial and security workflows. - A premium
+React command-center frontend.
+
+Initial implementation is a modular monolith. Do not prematurely split
+business domains into microservices. Modules must nevertheless have
+explicit boundaries so high-load capabilities can later be extracted.
+
+## 2. Repository
+
+``` text
+property-command-center/
+├── AGENTS.md
+├── README.md
+├── .env.example
+├── docker-compose.yml
+├── package.json
+├── pnpm-workspace.yaml
+├── docs/
+│   ├── MASTER_CONTEXT.md
+│   ├── ARCHITECTURE.md
+│   ├── FEATURES.md
+│   ├── ROLES_PERMISSIONS.md
+│   ├── DATABASE_DESIGN.md
+│   ├── API_SPECIFICATION.md
+│   ├── SECURITY.md
+│   ├── CCTV_ARCHITECTURE.md
+│   ├── TESTING_STRATEGY.md
+│   └── DEVELOPMENT_ROADMAP.md
+├── apps/
+│   ├── backend/
+│   └── frontend/
+├── packages/
+│   ├── shared-types/
+│   ├── validation/
+│   ├── permissions/
+│   └── config/
+└── infrastructure/
+    ├── docker/
+    ├── nginx/
+    ├── monitoring/
+    └── deployment/
+```
+
+## 3. Backend Structure
+
+``` text
+apps/backend/
+├── src/
+│   ├── app.ts
+│   ├── server.ts
+│   ├── config/
+│   ├── core/
+│   │   ├── errors/
+│   │   ├── http/
+│   │   ├── logging/
+│   │   ├── pagination/
+│   │   ├── response/
+│   │   └── types/
+│   ├── middleware/
+│   ├── database/
+│   │   ├── models/
+│   │   ├── repositories/
+│   │   ├── indexes/
+│   │   └── seed/
+│   ├── modules/
+│   │   ├── auth/
+│   │   ├── users/
+│   │   ├── roles/
+│   │   ├── permissions/
+│   │   ├── organizations/
+│   │   ├── properties/
+│   │   ├── buildings/
+│   │   ├── floors/
+│   │   ├── units/
+│   │   ├── tenants/
+│   │   ├── tenancies/
+│   │   ├── onboarding/
+│   │   ├── move-outs/
+│   │   ├── payments/
+│   │   ├── rent/
+│   │   ├── arrears/
+│   │   ├── service-charges/
+│   │   ├── expenses/
+│   │   ├── financial-reports/
+│   │   ├── maintenance/
+│   │   ├── contractors/
+│   │   ├── inspections/
+│   │   ├── inventory/
+│   │   ├── cctv/
+│   │   ├── cameras/
+│   │   ├── security-events/
+│   │   ├── incidents/
+│   │   ├── documents/
+│   │   ├── media/
+│   │   ├── evidence/
+│   │   ├── notifications/
+│   │   ├── announcements/
+│   │   ├── messaging/
+│   │   ├── reports/
+│   │   ├── analytics/
+│   │   ├── property-health/
+│   │   ├── intelligence/
+│   │   ├── audit/
+│   │   ├── subscriptions/
+│   │   ├── billing/
+│   │   ├── feature-flags/
+│   │   └── admin/
+│   ├── integrations/
+│   │   ├── payments/
+│   │   ├── notifications/
+│   │   ├── storage/
+│   │   ├── streaming/
+│   │   └── maps/
+│   ├── events/
+│   ├── jobs/
+│   ├── routes/
+│   └── utils/
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   ├── authorization/
+│   ├── security/
+│   └── e2e/
+└── scripts/
+```
+
+A feature module should normally contain its
+route/controller/service/repository/model/schema/types/policies/events/tests
+as appropriate.
+
+## 4. Request Flow
+
+Typical synchronous request:
+
+``` text
+Client
+  ↓
+Edge / reverse proxy
+  ↓
+Express middleware
+  ↓
+Authentication
+  ↓
+Authorization + scope resolution
+  ↓
+Validation
+  ↓
+Route
+  ↓
+Controller
+  ↓
+Domain service
+  ↓
+Repository / provider abstraction
+  ↓
+MongoDB / external provider
+  ↓
+Domain event / audit
+  ↓
+Response
+```
+
+Controllers translate HTTP to application calls. Business rules belong
+in services/domain policies. Repositories encapsulate persistence
+queries. Vendor integrations implement provider interfaces.
+
+## 5. Multi-Tenancy
+
+Use an organization-centric tenancy model. Organization-scoped documents
+should carry `organizationId` where appropriate.
+Property/building/unit-scoped resources must also be constrained through
+their ownership chain.
+
+Never trust `organizationId`, `propertyId`, `buildingId`, or `unitId`
+merely because the client submitted it. Resolve accessible scope from
+the authenticated principal and verify resource membership server-side.
+
+Use compound indexes beginning with `organizationId` for high-volume
+organization-scoped queries when query patterns justify them.
+
+## 6. Authorization Architecture
+
+Create a reusable authorization service/policy layer.
+
+Conceptual input:
+
+``` ts
+authorize({
+  principal,
+  permission: "maintenance.approve",
+  resource,
+  scope,
+  context
+})
+```
+
+Evaluation should account for: - Account state. - Organization
+membership. - Role. - Permission. - Property/building assignment. -
+Resource ownership/relationship. - Feature entitlement. - Step-up
+authentication when required. - Resource state/business invariants.
+
+Never encode authorization only as UI conditions.
+
+## 7. Integration Boundary
+
+Business services depend on interfaces, not vendor SDKs.
+
+``` text
+PaymentProvider
+├── MpesaPaymentProvider
+├── PaystackPaymentProvider
+├── StripePaymentProvider
+└── BankPaymentProvider
+
+NotificationProvider
+├── SmsProvider
+├── EmailProvider
+├── PushProvider
+└── FutureWhatsAppProvider
+
+StorageProvider
+├── S3StorageProvider
+└── CloudinaryStorageProvider
+
+StreamingProvider
+├── WebRtcGatewayProvider
+└── VendorGatewayProvider
+```
+
+Vendor webhook payloads are normalized into internal events before
+business logic consumes them.
+
+## 8. Event Architecture
+
+Use domain/application events for side effects that should not be
+tightly coupled to HTTP controllers.
+
+Examples: - `TenantPreRegistered` - `OtpVerified` - `TenancyActivated` -
+`MaintenanceCreated` - `MaintenanceApprovalRequired` -
+`MaintenanceApproved` - `PaymentReceived` - `PaymentReconciled` -
+`SecurityEventCreated` - `IncidentEscalated` - `TenantMovedOut`
+
+Use a durable queue when delivery must survive process restarts. The
+initial in-process event bus may be acceptable for non-critical local
+development, but production-critical notifications/webhook processing
+should migrate to durable jobs.
+
+## 9. Financial Consistency
+
+Store authoritative monetary amounts as integer minor units unless a
+documented currency-specific decimal strategy is required.
+
+Payment webhooks: 1. Authenticate/verify provider message. 2. Persist
+provider event ID. 3. Enforce idempotency. 4. Normalize event. 5.
+Reconcile against expected payment/account. 6. Persist financial records
+atomically where possible. 7. Emit business event. 8. Return
+provider-appropriate acknowledgement.
+
+Never mark payment successful based solely on a frontend callback.
+
+Paystack amounts cross the provider boundary in currency minor units.
+PMCC verifies the signed `charge.success` payload, transaction reference,
+amount, and currency before applying a payment. M-Pesa success callbacks
+must match the server-initiated amount and KES currency before allocation.
+
+This adapter handles operational property payments. Platform subscription
+billing remains a separate boundary because Paystack recurring billing
+requires an initial customer authorization and provider plan code before a
+subscription can become active.
+
+## 10. Frontend Architecture
+
+``` text
+apps/frontend/src/
+├── app/
+├── assets/
+├── components/
+│   ├── ui/
+│   ├── layout/
+│   ├── navigation/
+│   ├── forms/
+│   ├── tables/
+│   ├── charts/
+│   ├── maps/
+│   ├── property/
+│   ├── maintenance/
+│   ├── finance/
+│   ├── security/
+│   └── cctv/
+├── features/
+│   ├── auth/
+│   ├── landlord/
+│   ├── caretaker/
+│   ├── tenant/
+│   ├── contractor/
+│   ├── admin/
+│   ├── properties/
+│   ├── maintenance/
+│   ├── finance/
+│   ├── security/
+│   ├── cctv/
+│   └── intelligence/
+├── pages/
+├── hooks/
+├── lib/
+├── services/
+├── api/
+├── stores/
+├── schemas/
+├── types/
+├── animations/
+├── permissions/
+├── constants/
+└── utils/
+```
+
+Use feature-oriented composition. Keep generic UI primitives separate
+from domain components.
+
+## 11. Observability
+
+Production readiness should include: - Structured JSON logs. -
+Request/correlation IDs. - Actor IDs when safe. - Audit events for
+privileged actions. - Metrics for HTTP latency/error rate. - Queue
+metrics. - Payment webhook/reconciliation metrics. - Notification
+delivery metrics. - CCTV gateway health. - Database health. - Alerting
+hooks.
+
+Do not log OTPs, passwords, access tokens, refresh tokens, sensitive
+media URLs, or excessive PII.
+
+## 12. Deployment
+
+Target containerized deployment: - Reverse proxy/load balancer. -
+Backend instances. - Frontend/static delivery. - MongoDB/managed
+MongoDB. - Redis/queue infrastructure when introduced. - Object/media
+storage. - Streaming gateway isolated from core API. - Secret
+manager/environment injection. - Centralized monitoring/logging.
+
+Use health/readiness endpoints and graceful shutdown.

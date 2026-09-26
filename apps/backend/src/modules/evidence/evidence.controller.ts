@@ -1,0 +1,3 @@
+import type { Request, Response } from 'express'; import { apiResponse } from '../../core/response/apiResponse.js'; import { requiredParam } from '../../core/http/params.js'; import * as s from './evidence.schemas.js'; import { EvidenceService } from './evidence.service.js';
+export async function create(req:Request,res:Response){res.status(201).json(apiResponse(await EvidenceService.create(req.auth!,requiredParam(req.params.organizationId,'organizationId'),s.createEvidenceSchema.parse(req.body))));}
+export async function list(req:Request,res:Response){res.json(apiResponse(await EvidenceService.list(req.auth!,requiredParam(req.params.organizationId,'organizationId'),s.evidenceQuerySchema.parse(req.query))));}

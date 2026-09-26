@@ -1,0 +1,2 @@
+import { Router } from 'express'; import { requireAuth } from '../../middleware/auth.middleware.js'; import { asyncHandler } from '../../core/http/asyncHandler.js'; import * as c from './job.controller.js';
+export const jobRouter=Router(); jobRouter.use(requireAuth); jobRouter.get('/organizations/:organizationId/jobs',asyncHandler(c.list)); jobRouter.post('/jobs',asyncHandler(c.enqueue)); jobRouter.post('/jobs/run-due',asyncHandler(c.run));

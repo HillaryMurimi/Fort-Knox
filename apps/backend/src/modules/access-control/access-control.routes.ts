@@ -1,0 +1,1 @@
+import{Router}from'express';import{requireAuth}from'../../middleware/auth.middleware.js';import{asyncHandler}from'../../core/http/asyncHandler.js';import * as c from'./access-control.controller.js';export const accessControlRouter=Router();accessControlRouter.use(requireAuth);accessControlRouter.get('/context',asyncHandler(c.context));

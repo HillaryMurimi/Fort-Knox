@@ -1,0 +1,6 @@
+import type { Request,Response } from 'express'; import { apiResponse } from '../../core/response/apiResponse.js'; import { requiredParam } from '../../core/http/params.js'; import * as s from './contractor.schemas.js'; import { ContractorService } from './contractor.service.js';
+export async function list(req:Request,res:Response):Promise<void>{res.json(apiResponse(await ContractorService.list(req.auth!,requiredParam(req.params.organizationId,'organizationId'))));}
+export async function get(req:Request,res:Response):Promise<void>{res.json(apiResponse(await ContractorService.get(req.auth!,requiredParam(req.params.contractorId,'contractorId'))));}
+export async function create(req:Request,res:Response):Promise<void>{res.status(201).json(apiResponse(await ContractorService.create(req.auth!,requiredParam(req.params.organizationId,'organizationId'),s.createContractorSchema.parse(req.body))));}
+export async function update(req:Request,res:Response):Promise<void>{res.json(apiResponse(await ContractorService.update(req.auth!,requiredParam(req.params.contractorId,'contractorId'),s.updateContractorSchema.parse(req.body))));}
+export async function performance(req:Request,res:Response):Promise<void>{res.json(apiResponse(await ContractorService.performance(req.auth!,requiredParam(req.params.contractorId,'contractorId'))));}

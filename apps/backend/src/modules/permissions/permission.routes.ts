@@ -1,0 +1,1 @@
+import{Router}from'express';import{requireAuth}from'../../middleware/auth.middleware.js';import{asyncHandler}from'../../core/http/asyncHandler.js';import*as c from'./permission.controller.js';export const permissionRouter=Router();permissionRouter.use(requireAuth);permissionRouter.get('/organization/:organizationId',asyncHandler(c.list));

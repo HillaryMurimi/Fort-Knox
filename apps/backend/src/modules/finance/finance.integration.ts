@@ -1,0 +1,2 @@
+import type { Types } from 'mongoose'; import { FinanceService } from './finance.service.js';
+export async function recordMaintenanceExpenditure(input:{organizationId:Types.ObjectId;propertyId:Types.ObjectId;buildingId:Types.ObjectId;floorId:Types.ObjectId;unitId:Types.ObjectId;maintenanceRequestId:Types.ObjectId;amount:number;incurredAt:Date;contractorId?:Types.ObjectId;currency?:string;createdBy:Types.ObjectId}) { return FinanceService.recordMaintenanceExpense(input); }

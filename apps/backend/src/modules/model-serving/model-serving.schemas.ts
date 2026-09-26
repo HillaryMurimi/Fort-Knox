@@ -1,0 +1,13 @@
+import { z } from 'zod';
+export const domainSchema=z.enum(['ARREARS','VACANCY','REVENUE']);
+export const servingPolicySchema=z.object({enabled:z.boolean().optional(),mode:z.enum(['SHADOW','CANARY','ACTIVE']).optional(),canaryPercent:z.number().min(0).max(100).optional(),minConfidence:z.number().min(0).max(1).optional(),mlActionMinConfidence:z.number().min(0).max(1).optional(),requireValidation:z.boolean().optional(),maxDriftPsi:z.number().min(0).max(10).optional(),maxPerformanceDegradation:z.number().min(0).max(1).optional(),autoRollbackOnCriticalDrift:z.boolean().optional(),autoRollbackOnPerformanceDegradation:z.boolean().optional(),approvalValidityHours:z.number().int().min(1).max(720).optional(),domains:z.object({ARREARS:z.boolean().optional(),VACANCY:z.boolean().optional(),REVENUE:z.boolean().optional()}).optional()}).strict();
+export const deploymentSchema=z.object({domain:domainSchema,championModelId:z.string().regex(/^[0-9a-fA-F]{24}$/),challengerModelId:z.string().regex(/^[0-9a-fA-F]{24}$/).optional(),mode:z.enum(['SHADOW','CANARY','ACTIVE']).default('SHADOW'),canaryPercent:z.number().min(0).max(100).default(0)}).strict();
+export const rollbackSchema=z.object({domain:domainSchema,reason:z.string().min(3).max(500)}).strict();
+export const monitorSchema=z.object({domain:domainSchema.optional(),windowDays:z.number().int().min(7).max(365).default(30)}).strict();
+export const servingQuerySchema=z.object({domain:domainSchema.optional(),limit:z.coerce.number().int().min(1).max(100).default(50)}).strict();
+export type ServingPolicyInput=z.infer<typeof servingPolicySchema>; export type DeploymentInput=z.infer<typeof deploymentSchema>; export type MonitorInput=z.infer<typeof monitorSchema>; export type ApprovalRequestInput=z.infer<typeof approvalRequestSchema>; export type ApprovalDecisionInput=z.infer<typeof approvalDecisionSchema>; export type IncidentQueryInput=z.infer<typeof incidentQuerySchema>; export type IncidentUpdateInput=z.infer<typeof incidentUpdateSchema>;
+
+export const approvalRequestSchema=z.object({domain:domainSchema,mode:z.enum(['CANARY','ACTIVE']),reason:z.string().min(3).max(500)}).strict();
+export const approvalDecisionSchema=z.object({decision:z.enum(['APPROVED','REJECTED','REVOKED']),reason:z.string().min(3).max(500).optional()}).strict();
+export const incidentQuerySchema=z.object({domain:domainSchema.optional(),status:z.enum(['OPEN','ACKNOWLEDGED','RESOLVED','DISMISSED']).optional(),limit:z.coerce.number().int().min(1).max(100).default(50)}).strict();
+export const incidentUpdateSchema=z.object({status:z.enum(['ACKNOWLEDGED','RESOLVED','DISMISSED']),reason:z.string().min(3).max(500).optional()}).strict();

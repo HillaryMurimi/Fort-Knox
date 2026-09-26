@@ -1,0 +1,3 @@
+import { describe, expect, it } from 'vitest';
+import { policySchema } from '../../src/modules/maintenance/maintenance.schemas.js';
+describe('maintenance approval policy validation',()=>{it('requires a non-negative threshold',()=>{expect(()=>policySchema.parse({approvalThreshold:-1})).toThrow();});it('accepts strict policy input',()=>{const result=policySchema.parse({approvalThreshold:5000,emergencyAutoApprove:true,autoApproveRoles:['LANDLORD'],currency:'KES'});expect(result.approvalThreshold).toBe(5000);expect(result.currency).toBe('KES');});it('rejects unknown fields',()=>{expect(()=>policySchema.parse({approvalThreshold:5000,unknown:true})).toThrow();});});
