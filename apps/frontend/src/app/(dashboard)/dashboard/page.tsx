@@ -19,6 +19,7 @@ import {
 } from "@/hooks/queries/use-command-center-queries";
 import type { CommandCenterProperty, HealthGrade } from "@/types/api";
 import { LandlordControlPanel } from "@/components/landlords/landlord-control-panel";
+import { WorkspaceScene } from "@/components/workspaces/workspace-scene";
 
 type Range = "7D" | "30D" | "90D";
 
@@ -197,6 +198,8 @@ export default function Dashboard() {
           </div>
         }
       />
+
+      <WorkspaceScene role="landlord" />
 
       <section className="grid grid-cols-2 xl:grid-cols-5 gap-3">
         <Stat

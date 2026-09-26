@@ -465,3 +465,12 @@ Remaining external integration: connect `DemoRequestService` to a protected lead
 - Added challenge, OTP-completion and contract tests for valid credentials, wrong password, inactive owner membership, invalid phone code and rejection of injected fields.
 - Backend `npm run verify:production` passed: typecheck, lint (285 warnings, no errors), 124 tests passed/4 skipped, build and static release certification. Frontend `npm run verify:production` passed: typecheck, lint (24 warnings, no errors), 46 tests and production build.
 - Remaining: provision Google/Facebook/Apple applications and SMS, and test the full callback, linking and sign-in flows against a staging replica set. Unconfigured provider buttons remain disabled.
+
+## Slice 26 - Role Workspace 3D Illustrations (2026-09-26)
+
+- Added a roof-open furnished Three.js home with animated residents to the tenant workspace, using the supplied video as a visual reference.
+- Reused the existing portfolio digital twin with role-specific camera focus for landlord, property manager, caretaker and contractor workspace bands.
+- Kept all operational actions and data outside the illustrative scenes; no tenant unit details, job status or security feed are inferred from the model.
+- Added responsive scene framing, offscreen animation pause, reduced-motion behavior, WebGL fallback and browser canvas checks for each role plus mobile tenant view.
+- Frontend `npm run verify:production` passed: typecheck, lint (24 existing warnings, no errors), 46 tests and production build. `npm run verify:workspace-scenes -- http://localhost:3102` passed for all five roles and the 390px tenant viewport with nonblank canvas pixels, visible animation, no WebGL context loss, no page errors and no horizontal overflow.
+- Remaining: test on target devices and review whether the illustrations should be personalized from approved property assets in a future, separately authorized feature.

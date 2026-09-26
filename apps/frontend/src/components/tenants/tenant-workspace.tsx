@@ -8,6 +8,7 @@ import {
   MessageSquare, Phone, ReceiptText, RefreshCw, ShieldCheck, Trash2, UserRound, Video, Wrench,
 } from 'lucide-react';
 import { RoleLanding } from '@/components/auth/role-landing';
+import { WorkspaceScene } from '@/components/workspaces/workspace-scene';
 import { LocalGreeting } from '@/components/local-greeting';
 import { PayRentDialog } from '@/components/payments/pay-rent-dialog';
 import { Alert, Badge, Button, Card, Dialog, EmptyState, Input, Label, Select, Skeleton, Textarea, Tooltip } from '@/components/ui';
@@ -72,6 +73,7 @@ export function TenantWorkspace() {
       : !tenant || !tenancy ? <div className="mt-6"><EmptyState icon={Home} title="No active tenancy is connected" description="Your account is signed in, but management has not attached an active or pending tenancy yet." action={<Button variant="outline" onClick={() => setPanel('contact')}><LifeBuoy size={16} /> Contact management</Button>} /></div>
       : <div className="mt-6 space-y-6">
         <ResidenceBanner tenancy={tenancy} propertyName={propertyQuery.data?.name} buildingName={buildingQuery.data?.name} unitName={unitQuery.data?.name} organizationName={activeOrganization?.name} balance={balance} />
+        <WorkspaceScene role="tenant" />
         <section aria-label="Tenancy overview" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <OverviewButton icon={CreditCard} label="Rent balance" value={balance > 0 ? currency(balance, nextCharge?.currency ?? 'KES') : 'Paid up'} detail={balance > 0 ? 'Review charges and pay securely' : 'No outstanding rent charges'} tone={balance > 0 ? 'attention' : 'positive'} onClick={() => setPanel('rent')} />
           <OverviewButton icon={CalendarDays} label="Next due date" value={nextCharge ? formatDate(nextCharge.dueDate, { day: '2-digit', month: 'short' }) : 'No balance due'} detail={nextCharge ? `${nextCharge.currency} ${nextCharge.balanceAmount.toLocaleString('en-KE')} outstanding` : 'Open the rent ledger'} onClick={() => setPanel('rent')} />

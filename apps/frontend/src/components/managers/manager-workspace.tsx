@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { WorkspaceScene } from "@/components/workspaces/workspace-scene";
 import { useState, type FormEvent } from "react";
 import {
   AlertTriangle,
@@ -217,6 +218,7 @@ export function ManagerWorkspace() {
           </>
         }
       />
+      <WorkspaceScene role="manager" />
       {success && (
         <Alert tone="success" title="Action completed">
           <div className="flex flex-wrap items-center justify-between gap-3">

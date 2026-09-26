@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { WorkspaceScene } from "@/components/workspaces/workspace-scene";
 import {
   AlertTriangle,
   Bell,
@@ -218,6 +219,8 @@ export function CaretakerWorkspace() {
           </div>
         }
       />
+
+      <WorkspaceScene role="caretaker" />
 
       {error && (
         <Alert

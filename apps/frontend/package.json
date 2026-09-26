@@ -9,6 +9,7 @@
         "lint": "eslint src",
         "test": "vitest run",
         "verify:landing": "node scripts/verify-landing.mjs",
+        "verify:workspace-scenes": "node scripts/verify-workspace-scenes.mjs",
         "typecheck": "tsc --noEmit",
         "verify:production": "npm run typecheck && npm run lint && npm test && npm run build"
     },

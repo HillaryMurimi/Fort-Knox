@@ -1,0 +1,48 @@
+.scene {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-height: 260px;
+  overflow: hidden;
+  background: #0c1c28;
+  border: 1px solid #284654;
+}
+.tenant {
+  height: clamp(260px, 38vw, 390px);
+  background: #e9e9e5;
+  border-color: #d4d9d7;
+}
+.operational { height: clamp(240px, 28vw, 340px); }
+.canvas, .canvas :global(.property-scene), .canvas canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.canvas :global(.property-scene) {
+  background: #0d1d28 url('/marketing/portfolio-blue-hour.png') center/cover no-repeat;
+}
+.tenant .canvas { background: #e9e9e5 url('/workspaces/tenant-home.webp') center/contain no-repeat; }
+.caption {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  max-width: 100%;
+  padding: 11px 17px;
+  background: #0b1b24e8;
+  color: #f5fbfb;
+  font-size: 13px;
+  font-weight: 650;
+}
+.caption small { color: #b8ced0; font-size: 11px; font-weight: 450; }
+.tenant .caption { background: #f7f8f2ed; color: #253a39; }
+.tenant .caption small { color: #586c68; }
+@media (max-width: 600px) {
+  .scene { min-height: 230px; }
+  .caption { right: 0; }
+}

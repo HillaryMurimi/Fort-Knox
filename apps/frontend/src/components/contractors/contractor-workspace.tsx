@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { WorkspaceScene } from '@/components/workspaces/workspace-scene';
 import {
   Bell, BriefcaseBusiness, Camera, Check, ChevronRight, CircleDollarSign, Clock3, FileCheck2,
   ImagePlus, MapPin, Play, RefreshCw, Search, Trash2, Upload, Video, Wrench,
@@ -62,6 +63,7 @@ export function ContractorWorkspace() {
 
   return <div className="space-y-6 pb-10">
     <PageTitle eyebrow="Field operations" title={`Welcome, ${user?.firstName ?? 'Contractor'}`} description={`Assigned work for ${activeOrganization?.name ?? 'your organization'}. Quotes, job updates, and evidence remain tied to each authorized request.`} action={<Button variant="outline" onClick={() => setNotificationsOpen(true)}><Bell size={16} /> Updates {unread > 0 && <Badge tone="red">{unread}</Badge>}</Button>} />
+    <WorkspaceScene role="contractor" />
 
     {success && <Alert tone="success" title="Job updated"><div className="flex flex-wrap items-center justify-between gap-3"><span>{success}</span><Button variant="ghost" size="sm" onClick={() => setSuccess(null)}>Dismiss</Button></div></Alert>}
     {(maintenance.error || progress.error) && <Alert tone="destructive" title="The job could not be updated">{maintenance.error?.message ?? progress.error?.message}</Alert>}
