@@ -8,6 +8,7 @@ import { Alert, Button, Input, TabsList, TabsTrigger } from '@/components/ui';
 import { useAuth } from '@/hooks/use-auth';
 import { getRoleRedirect } from '@/lib/auth/role-redirect';
 import type { LoginChallengeResponse, LoginResponse } from '@/types/auth';
+import { SocialButtons } from '@/components/auth/social-buttons';
 
 type Step = 'CREDENTIALS' | 'OTP';
 type Method = 'email' | 'phone';
@@ -122,9 +123,9 @@ export default function LoginPage() {
               <Button type="button" variant="ghost" onClick={() => { setStep('CREDENTIALS'); setCode(''); setError(null); setDevCode(null); }} className="w-full">Back</Button>
             </form>
           )}
+          {step === 'CREDENTIALS' && <div className="mt-5"><SocialButtons /></div>}
         </div>
       </section>
     </main>
   );
 }
-

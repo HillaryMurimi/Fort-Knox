@@ -31,7 +31,7 @@ export function createApp() {
   app.use(publicRateLimit);
   const pinoHttp = pinoHttpModule as unknown as (options: { logger: typeof logger; genReqId: (req: Request) => string }) => RequestHandler;
   app.use(pinoHttp({ logger, genReqId: (req) => req.requestId ?? randomUUID() }));
-  if (env.NODE_ENV !== 'test') app.use(morgan('combined'));
+  if (env.NODE_ENV !== 'test') app.use(morgan('combined', { skip: (req) => req.path.startsWith(`${env.API_PREFIX}/auth/social`) }));
 
   app.get('/', (_req, res) => res.json({ success: true, data: { name: 'Property Management Command Center API', version: 'v1' } }));
   app.use(`${env.API_PREFIX}/auth`, authRateLimit);

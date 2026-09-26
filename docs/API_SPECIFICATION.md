@@ -1,5 +1,9 @@
 # Property Management Command Center --- API Specification
 
+## Social owner sign-in
+
+`GET /api/v1/auth/social/providers` reports configured providers. `POST /api/v1/auth/social/{provider}/start` returns a provider authorization URL and sets a short-lived HttpOnly flow cookie. The provider calls `GET /api/v1/auth/social/{provider}/callback`, which verifies state, code and identity, then redirects to `/welcome`. The browser uses `GET /api/v1/auth/social/session`, `POST /api/v1/auth/social/challenge` and `POST /api/v1/auth/social/finish` to complete organization setup and phone verification. `finish` sets the existing HttpOnly refresh cookie; the client calls `POST /api/v1/auth/refresh` for its access token. Provider tokens and phone codes are never returned in production responses. Social requests use the authentication rate limiter. Mutating endpoints require the configured web Origin, and signup details cannot select a role or tenancy.
+
 ## 1. Conventions
 
 Base path:

@@ -441,3 +441,11 @@ Remaining external integration: connect `DemoRequestService` to a protected lead
 - Frontend typecheck, lint (24 existing warnings), all 46 tests and production build passed.
 - API, database, role authorization and phone step-up behavior are unchanged.
 - Next: provider-backed social sign-in, organization setup, guided exploration and the animated digital-twin landing redesign.
+
+## Slice 23 - Social Owner Onboarding and Exploration (2026-09-26)
+
+- Added Google, Facebook and Apple authorization code entry points with server-side provider identity verification, browser-bound state, provider-subject mapping and one-use pending flows.
+- New owners name their organization and verify their phone before a LANDLORD session is issued. Returning linked owners verify their registered phone; existing accounts are not linked by contact fields.
+- Added social choices to login and signup, the `/welcome` setup/verification screen and `/explore` guided owner tour linking workspace pages.
+- Added rate-limited public auth routes, Origin checks, redacted callback logging, transaction-backed owner creation, OpenAPI entries and optional validated provider configuration.
+- Remaining: provision real OAuth application credentials and exact callback URLs, test each provider end-to-end in staging with SMS and a MongoDB replica set, then review provider policies and legal consent wording before release. Unconfigured providers remain disabled.

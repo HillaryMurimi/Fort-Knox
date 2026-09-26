@@ -7,6 +7,7 @@ import { ArrowLeft, Building2 } from 'lucide-react';
 import { Alert, Button, Input } from '@/components/ui';
 import { useAuth } from '@/hooks/use-auth';
 import { passwordConfirmationError } from '@/lib/auth/signup-validation';
+import { SocialButtons } from '@/components/auth/social-buttons';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -58,6 +59,7 @@ export default function SignupPage() {
           <div className="border-t border-[var(--border)] pt-5"><div className="mb-4 text-xs font-bold uppercase text-[var(--accent-strong)]">Organization</div><div className="grid gap-4 sm:grid-cols-2">{field('name', 'Organization name')}{field('slug', 'Organization slug', 'text', 'Optional')}</div></div>
           {error && <Alert tone="destructive">{error}</Alert>}
           <Button loading={isLoading || isSubmitting} disabled={isSubmitting} className="w-full">Create organization</Button>
+          <SocialButtons />
         </div>
       </form>
     </div>

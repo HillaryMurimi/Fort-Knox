@@ -7,7 +7,7 @@ import { InvitationService } from '../invitations/invitation.service.js';
 import { env } from '../../config/env.js';
 
 const cookieOptions = { httpOnly: true, secure: env.REFRESH_COOKIE_SECURE, sameSite: 'lax' as const, path: `${env.API_PREFIX}/auth`, maxAge: 30 * 24 * 60 * 60 * 1000 };
-const setRefreshCookie = (res: Response, token: string) => res.cookie(env.REFRESH_COOKIE_NAME, token, cookieOptions);
+export const setRefreshCookie = (res: Response, token: string) => res.cookie(env.REFRESH_COOKIE_NAME, token, cookieOptions);
 const clearRefreshCookie = (res: Response) => res.clearCookie(env.REFRESH_COOKIE_NAME, { httpOnly: true, secure: env.REFRESH_COOKIE_SECURE, sameSite: 'lax' as const, path: `${env.API_PREFIX}/auth` });
 
 export const login: RequestHandler = async (req, res) => {

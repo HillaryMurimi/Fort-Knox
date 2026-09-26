@@ -25,6 +25,12 @@ export function buildOpenApiDocument() {
       },
     },
     paths: {
+      '/auth/social/providers': { get: { security: [], summary: 'Configured social sign-in providers' } },
+      '/auth/social/{provider}/start': { post: { security: [], summary: 'Start browser-bound social authorization' } },
+      '/auth/social/{provider}/callback': { get: { security: [], summary: 'Verify provider authorization and continue owner setup' } },
+      '/auth/social/session': { get: { security: [], summary: 'Get pending social owner setup status' } },
+      '/auth/social/challenge': { post: { security: [], summary: 'Send social owner phone verification code' } },
+      '/auth/social/finish': { post: { security: [], summary: 'Verify phone and issue owner session' } },
       '/health/live': { get: { security: [], summary: 'Liveness probe', responses: { '200': { description: 'Process is alive' } } } },
       '/health/ready': { get: { security: [], summary: 'Readiness probe', responses: { '200': { description: 'API and database are ready' }, '503': { description: 'Not ready' } } } },
       '/operations/readiness': { get: { summary: 'Protected readiness diagnostics', responses: { '200': { description: 'Ready' }, '503': { description: 'Not ready' } } } },

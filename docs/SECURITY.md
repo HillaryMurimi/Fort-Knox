@@ -1,5 +1,9 @@
 # Property Management Command Center --- Security
 
+## Federated owner authentication
+
+Social login uses one-time server-stored authorization state and a HttpOnly browser cookie. Google uses PKCE; Google and Apple ID tokens are verified against rotating provider keys with issuer, audience, expiry and nonce checks. Facebook's `/me` identity is resolved only after a server-side authorization code exchange. Provider subjects are unique per provider. Existing local accounts are never auto-linked by email or phone. A phone OTP and active LANDLORD membership are required before social sessions are issued. New owner, organization, membership, identity and audit records are created in a MongoDB transaction; the production Mongo deployment must support transactions. OAuth codes and callback URLs are excluded from request logging. Provider credentials are optional, and a provider is exposed only when its complete credential set and public callback base URL are present.
+
 ## 1. Security Objectives
 
 PMCC handles financial, tenancy, operational, identity, document, and

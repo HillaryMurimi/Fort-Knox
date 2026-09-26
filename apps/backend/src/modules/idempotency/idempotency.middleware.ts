@@ -11,7 +11,7 @@ function hashBody(body: unknown): string {
 }
 
 export const idempotencyMiddleware: RequestHandler = async (req, res, next) => {
-  if (!MUTATING.has(req.method) || req.path.endsWith('/health') || req.path.includes('/operations')) {
+  if (!MUTATING.has(req.method) || req.path.endsWith('/health') || req.path.includes('/operations') || req.path.startsWith('/auth/social/')) {
     next();
     return;
   }

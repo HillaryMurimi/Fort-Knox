@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import { asyncHandler } from '../core/http/asyncHandler.js';
+import * as social from '../modules/auth/social.controller.js';
 
 import {
   acceptInvitation,
@@ -14,6 +15,13 @@ import {
 } from '../modules/auth/auth.controller.js';
 
 export const authRouter = Router();
+
+authRouter.get('/social/providers', asyncHandler(social.providers));
+authRouter.get('/social/session', asyncHandler(social.status));
+authRouter.post('/social/challenge', asyncHandler(social.challenge));
+authRouter.post('/social/finish', asyncHandler(social.finish));
+authRouter.post('/social/:provider/start', asyncHandler(social.start));
+authRouter.get('/social/:provider/callback', asyncHandler(social.callback));
 
 /**
  * Unified authentication entry point.

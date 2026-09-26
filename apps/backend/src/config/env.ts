@@ -17,6 +17,16 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(9000),
   API_PREFIX: z.string().default('/api/v1'),
   WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
+  PUBLIC_API_URL: optionalValue(z.string().url()),
+  GOOGLE_CLIENT_ID: optionalValue(z.string().min(1)),
+  GOOGLE_CLIENT_SECRET: optionalValue(z.string().min(1)),
+  FACEBOOK_CLIENT_ID: optionalValue(z.string().min(1)),
+  FACEBOOK_CLIENT_SECRET: optionalValue(z.string().min(1)),
+  FACEBOOK_GRAPH_VERSION: z.string().regex(/^v\d+\.0$/).default('v25.0'),
+  APPLE_CLIENT_ID: optionalValue(z.string().min(1)),
+  APPLE_TEAM_ID: optionalValue(z.string().min(1)),
+  APPLE_KEY_ID: optionalValue(z.string().min(1)),
+  APPLE_PRIVATE_KEY: optionalValue(z.string().min(1)),
   MONGODB_URI: z.string().min(1),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
@@ -78,6 +88,13 @@ const envSchema = z.object({
   paired('STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET');
   paired('WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_ACCESS_TOKEN');
   paired('NVR_BASE_URL', 'NVR_API_KEY');
+  paired('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET');
+  paired('FACEBOOK_CLIENT_ID', 'FACEBOOK_CLIENT_SECRET');
+  for (const key of ['APPLE_TEAM_ID', 'APPLE_KEY_ID', 'APPLE_PRIVATE_KEY'] as const) paired('APPLE_CLIENT_ID', key);
+  if (value.GOOGLE_CLIENT_ID || value.FACEBOOK_CLIENT_ID || value.APPLE_CLIENT_ID) {
+    if (!value.PUBLIC_API_URL) context.addIssue({ code: 'custom', path: ['PUBLIC_API_URL'], message: 'Required for social sign-in callbacks' });
+    if (value.NODE_ENV === 'production' && !value.PUBLIC_API_URL?.startsWith('https://')) context.addIssue({ code: 'custom', path: ['PUBLIC_API_URL'], message: 'OAuth callbacks require HTTPS in production' });
+  }
 
   if (value.NODE_ENV !== 'production') return;
 

@@ -375,6 +375,10 @@ The top-bar and tenant greetings use browser local time, refresh every minute an
 
 ## Public Product Experience
 
+## Owner social onboarding
+
+Landlords can start Google, Facebook or Apple authorization when that provider is configured on the server. A one-time, browser-bound callback creates a pending flow. New owners supply their name, email, international phone and organization name, then verify the phone with an OTP before a session and LANDLORD membership are issued. Returning social owners also verify their registered phone. Provider identity is keyed by provider and subject; matching email alone never links an existing account. Provider secrets and tokens stay on the backend. Initial onboarding opens `/explore`, a guided owner tour with links to the workspace screens.
+
 The public `/` route is a product-led advertising experience for owners, developers, estate managers and portfolio operators. It presents the approved Control and Fort Knox capabilities through reusable, simulated React product demonstrations rather than screenshots or claims of live customer data.
 
 The story moves from fragmented property administration into portfolio visibility, financial control, maintenance accountability, scoped role access, CCTV governance, evidence, intelligence and an executive action queue. Public demonstrations are illustrative and do not call protected APIs or weaken backend authorization.
