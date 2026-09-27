@@ -415,7 +415,20 @@ PATCH /admin/feature-flags/:key
 GET /admin/system-health
 ```
 
-## 19. Pagination and Filtering
+## 19. Paystack Billing
+
+Paystack organization billing commands under `/api/v1/billing`:
+
+```text
+POST /organizations/:organizationId/subscription
+POST /organizations/:organizationId/subscription/recover-checkout
+POST /organizations/:organizationId/subscription/change-plan
+POST /organizations/:organizationId/subscription/cancel
+```
+
+`recover-checkout` requires `billing.subscription.manage`. It verifies the current Paystack transaction; a confirmed payment activates through server-side verification, a pending payment retains its link, and only a provider-reported failed/abandoned payment can receive a new link. Paystack plan changes update the dedicated provider plan for the next renewal; PMCC applies the new entitlement plan only after the corresponding paid provider event.
+
+## 20. Pagination and Filtering
 
 Use consistent query conventions: - `page` - `pageSize` - `sort` -
 `order` - `search` - domain filters such as `propertyId`, `buildingId`,
@@ -423,7 +436,7 @@ Use consistent query conventions: - `page` - `pageSize` - `sort` -
 
 Enforce maximum page size.
 
-## 20. HTTP Semantics
+## 21. HTTP Semantics
 
 Typical: - 200 successful read/update/action. - 201 created. - 202
 accepted for asynchronous work. - 204 successful no-content operation. -
@@ -433,7 +446,7 @@ resource. - 409 conflict/state/idempotency conflict. - 422 semantic
 validation when adopted consistently. - 429 rate limited. - 500
 unexpected server error.
 
-## 21. API Documentation
+## 22. API Documentation
 
 Maintain an OpenAPI specification in `docs/api/openapi.yaml`. API
 changes should update OpenAPI and tests in the same change.

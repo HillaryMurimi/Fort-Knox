@@ -83,6 +83,7 @@ These options must remain disabled or hidden until implemented and security-test
 - Exercise login/OTP, invitation, tenant onboarding, rent payment, signed webhook confirmation, reversal, maintenance media, every role workspace, CCTV authorization and cross-organization denial in staging.
 - Confirm `/api/v1/health/live` returns 200 and `/api/v1/health/ready` returns 200 only while MongoDB is connected.
 - Perform a small real-money M-Pesa and Paystack transaction, refund/reversal and settlement reconciliation before opening access broadly.
+- Complete [Paystack billing staging acceptance](PAYSTACK_STAGING_ACCEPTANCE.md) for hosted checkout, a genuine renewal and cancellation before enabling paid subscriptions for customers.
 
 ## Deployment Notes
 

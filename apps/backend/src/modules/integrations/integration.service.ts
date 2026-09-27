@@ -23,6 +23,8 @@ import { integrationConfig } from '../../core/integrations/config.js';
 import { verifyHmacSignature, hashPayload } from '../../core/integrations/webhook.security.js';
 import { withRetry } from '../../core/integrations/retry.js';
 import { toPaystackMinorUnits } from '../../core/integrations/paystack.provider.js';
+import { choosePaidRenewalPlan } from '../../core/billing/renewal-plan.js';
+import { PaystackBillingProvider } from '../../core/billing/billing-provider.js';
 import type { PaymentInitiationResult, PaymentProviderKey, PaystackChannel } from '../../core/integrations/provider.types.js';
 import type { AuthenticatedUser } from '../../core/types/auth.js';
 
@@ -363,10 +365,15 @@ export class IntegrationService {
     if (eventType === 'subscription.create' && eventData) {
       const customer = eventData.customer as Record<string, unknown> | undefined;
       const plan = eventData.plan as Record<string, unknown> | undefined;
-      const subscription = await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerCustomerId: String(customer?.customer_code ?? ''), providerPlanCode: String(plan?.plan_code ?? '') });
-      if (subscription && eventData.subscription_code) {
-        subscription.providerSubscriptionId = String(eventData.subscription_code);
-        if (typeof eventData.email_token === 'string') subscription.providerEmailToken = eventData.email_token;
+      const code = String(eventData.subscription_code ?? '');
+      if (!code) return;
+      const details = customer?.customer_code && plan?.plan_code && typeof eventData.email_token === 'string'
+        ? { customerCode: String(customer.customer_code), planCode: String(plan.plan_code), subscriptionCode: code, emailToken: eventData.email_token }
+        : await new PaystackBillingProvider().fetchSubscription(code);
+      const subscription = await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerCustomerId: details.customerCode, providerPlanCode: details.planCode });
+      if (subscription) {
+        subscription.providerSubscriptionId = details.subscriptionCode;
+        if (details.emailToken) subscription.providerEmailToken = details.emailToken;
         await subscription.save();
       }
       return;
@@ -391,7 +398,7 @@ export class IntegrationService {
       const recurring = eventData.subscription as Record<string, unknown> | undefined;
       const transaction = eventData.transaction as Record<string, unknown> | undefined;
       if (recurring?.subscription_code && transaction?.status === 'success' && transaction.reference) {
-        const initial = await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerCheckoutReference: String(transaction.reference) });
+        const initial = await OrganizationSubscription.findOne({ provider: 'PAYSTACK', $or: [{ providerCheckoutReference: String(transaction.reference) }, { checkoutReferences: String(transaction.reference) }] });
         if (initial) {
           initial.providerSubscriptionId = String(recurring.subscription_code);
           if (typeof recurring.email_token === 'string') initial.providerEmailToken = recurring.email_token;
@@ -413,17 +420,16 @@ export class IntegrationService {
       providerTransactionId: reference,
     });
     if (!payment) {
-      const subscription = await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerCheckoutReference: reference });
+      const subscription = await OrganizationSubscription.findOne({ provider: 'PAYSTACK', $or: [{ providerCheckoutReference: reference }, { checkoutReferences: reference }] });
       if (!subscription) {
         const recurring = data.subscription as Record<string, unknown> | string | undefined;
         const recurringCode = typeof recurring === 'string' ? recurring : String(recurring?.subscription_code ?? '');
         const active = recurringCode ? await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerSubscriptionId: recurringCode, status: { $in: ['ACTIVE', 'PAST_DUE'] } }) : null;
         if (!active) return;
-        const plan = await SubscriptionPlan.findById(active.planId);
-        if (!plan) throw new AppError(409, 'BILLING_PLAN_MISSING', 'Subscription plan is missing');
-        if (Number(data.amount) !== toPaystackMinorUnits(plan.amount) || String(data.currency ?? '').toUpperCase() !== plan.currency.toUpperCase()) {
-          throw new AppError(409, 'PROVIDER_AMOUNT_MISMATCH', 'Renewal charge does not match the subscription plan');
-        }
+        const currentPlan = await SubscriptionPlan.findById(active.planId);
+        const pendingPlan = active.pendingPlanId ? await SubscriptionPlan.findById(active.pendingPlanId) : null;
+        if (!currentPlan) throw new AppError(409, 'BILLING_PLAN_MISSING', 'Subscription plan is missing');
+        const { plan, applyPending } = choosePaidRenewalPlan(currentPlan, pendingPlan, Number(data.amount), String(data.currency ?? ''));
         const prior = await SubscriptionInvoice.findOne({ provider: 'PAYSTACK', providerInvoiceId: reference });
         if (prior) return;
         const paidAt = this.validDate(data.paid_at) ?? new Date();
@@ -432,20 +438,24 @@ export class IntegrationService {
         else periodEnd.setUTCMonth(periodEnd.getUTCMonth() + (plan.billingInterval === 'QUARTER' ? 3 : 1));
         await SubscriptionInvoice.create({ organizationId: active.organizationId, subscriptionId: active._id, invoiceNumber: `INV-PS-${reference}`, periodStart: paidAt, periodEnd, subtotal: plan.amount, tax: 0, total: plan.amount, amountPaid: plan.amount, currency: plan.currency, status: 'PAID', dueDate: paidAt, paidAt, provider: 'PAYSTACK', providerInvoiceId: reference, createdBy: active.createdBy, updatedBy: active.updatedBy, lineItems: [{ description: plan.name, quantity: 1, unitAmount: plan.amount }] });
         active.status = 'ACTIVE'; active.currentPeriodStart = paidAt; active.currentPeriodEnd = periodEnd;
+        if (pendingPlan && applyPending) { active.planId = pendingPlan._id; active.pendingPlanId = undefined; active.pendingPlanEffectiveAt = undefined; }
         await active.save();
+        if (pendingPlan && applyPending) await AuditService.record({ organizationId: active.organizationId, action: 'BILLING_PLAN_CHANGE_APPLIED', resourceType: 'OrganizationSubscription', resourceId: active._id, metadata: { planId: String(plan._id), chargeReference: reference } });
         return;
       }
-      if (subscription.status === 'CANCELLED') return;
+      if (subscription.status === 'CANCELLED') throw new AppError(409, 'CHARGE_AFTER_CANCELLATION', 'Paystack reported a charge after cancellation; refund review is required');
       const invoice = await SubscriptionInvoice.findOne({ subscriptionId: subscription._id, provider: 'PAYSTACK' }).sort({ createdAt: -1 });
       if (!invoice) throw new AppError(409, 'BILLING_INVOICE_MISSING', 'Subscription invoice is missing');
       if (Number(data.amount) !== toPaystackMinorUnits(invoice.total) || String(data.currency ?? '').toUpperCase() !== invoice.currency.toUpperCase()) {
         throw new AppError(409, 'PROVIDER_AMOUNT_MISMATCH', 'Subscription charge does not match its invoice');
       }
+      if (invoice.status === 'PAID' && invoice.providerInvoiceId && invoice.providerInvoiceId !== reference) throw new AppError(409, 'DUPLICATE_SUBSCRIPTION_CHARGE', 'A second subscription charge requires refund review');
       if (invoice.status === 'PAID' && subscription.status === 'ACTIVE') return;
       if (invoice.status !== 'PAID') {
         invoice.status = 'PAID';
         invoice.amountPaid = invoice.total;
         invoice.paidAt = this.validDate(data.paid_at) ?? new Date();
+        invoice.providerInvoiceId = reference;
         await invoice.save();
       }
       subscription.status = 'ACTIVE';

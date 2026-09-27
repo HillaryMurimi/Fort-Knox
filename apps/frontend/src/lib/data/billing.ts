@@ -11,6 +11,7 @@ export const billingClient = {
   plans: () => api<BillingPlan[]>('/billing/plans'),
   subscription: (organizationId: string) => api<BillingSubscription | null>(`/billing/organizations/${organizationId}/subscription`),
   subscribe: (organizationId: string, input: SubscribeInput) => api<BillingSubscription>(`/billing/organizations/${organizationId}/subscription`, { method: 'POST', body: JSON.stringify(input) }),
+  recoverCheckout: (organizationId: string) => api<BillingSubscription>(`/billing/organizations/${organizationId}/subscription/recover-checkout`, { method: 'POST' }),
   changePlan: (organizationId: string, input: ChangePlanInput) => api<BillingSubscription>(`/billing/organizations/${organizationId}/subscription/change-plan`, { method: 'POST', body: JSON.stringify(input) }),
   cancel: (organizationId: string, atPeriodEnd: boolean) => api<BillingSubscription>(`/billing/organizations/${organizationId}/subscription/cancel`, { method: 'POST', body: JSON.stringify({ atPeriodEnd }) }),
   invoices: (organizationId: string, status?: InvoiceStatus, page = 1, pageSize = 25) => {

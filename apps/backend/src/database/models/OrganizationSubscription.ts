@@ -15,8 +15,11 @@ const organizationSubscriptionSchema = new Schema({
   providerCustomerId: { type: String },
   providerSubscriptionId: { type: String },
   providerCheckoutReference: { type: String },
+  checkoutReferences: { type: [String], default: [] },
   providerCheckoutUrl: { type: String },
+  checkoutRecoveryLockedAt: { type: Date, select: false },
   providerPlanCode: { type: String },
+  billingEmail: { type: String, select: false },
   providerEmailToken: { type: String, select: false },
   gracePeriodEndsAt: { type: Date },
   metadata: { type: Schema.Types.Mixed, default: {} },
@@ -26,5 +29,7 @@ const organizationSubscriptionSchema = new Schema({
 
 organizationSubscriptionSchema.index({ provider: 1, providerSubscriptionId: 1 }, { unique: true, sparse: true });
 organizationSubscriptionSchema.index({ provider: 1, providerCheckoutReference: 1 }, { unique: true, sparse: true });
+organizationSubscriptionSchema.index({ provider: 1, checkoutReferences: 1 });
+organizationSubscriptionSchema.index({ provider: 1, providerPlanCode: 1 }, { unique: true, sparse: true });
 export type OrganizationSubscriptionDocument = InferSchemaType<typeof organizationSubscriptionSchema>;
 export const OrganizationSubscription = model('OrganizationSubscription', organizationSubscriptionSchema);

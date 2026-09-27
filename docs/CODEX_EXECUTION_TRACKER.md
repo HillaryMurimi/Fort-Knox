@@ -483,3 +483,11 @@ Remaining external integration: connect `DemoRequestService` to a protected lead
 - Kept separate frontend and backend environment templates because they describe distinct deployments. Supply Paystack test/live secret, callback origin and a registered webhook URL in deployment configuration.
 - Remaining: validate live merchant card recurrence, supported currency, renewal event payloads, webhook delivery and cancellation on staging; implement provider-coordinated plan migration and abandoned-checkout recovery. Historical Stripe enum values remain read-only for existing records.
 - Verification: backend `npm run verify:production` passed (127 tests, 4 skipped, build and static certification); frontend `npm run verify:production` passed (46 tests and build). The Mongo-backed E2E suite could not start: mongodb-memory-server began downloading a 781 MB MongoDB binary and exceeded its setup timeout. Run it again after provisioning or caching the binary.
+
+## Slice 28 - Paystack Billing Lifecycle Staging Preparation (2026-09-27)
+
+- Added pending-checkout reconciliation and abandoned/failed checkout retry on the same dedicated Paystack plan, preserving prior references for late-charge review. Paid status still requires provider verification and exact amount/currency match.
+- Added provider-coordinated, at-period-end plan changes. Current entitlements remain unchanged until a matching paid renewal event; in-use Paystack catalog pricing is locked against unilateral edits.
+- Resolved subscription codes and private cancellation tokens from Paystack when webhook payloads contain numeric customer/plan IDs. Added cancellation, checkout recovery and renewal contract coverage plus a live staging acceptance checklist.
+- Remaining: execute the checklist with a configured Paystack test merchant, public HTTPS webhook, real checkout and renewal; investigate duplicate/late charges and settlement, and run Mongo-backed E2E after the test binary is provisioned. This slice is not live-merchant certified.
+- Verification: root typecheck, lint and build passed; backend suite had 129 passing tests plus one transient Windows `EPERM` import failure, and that isolated file passed all 5 tests on rerun. Frontend tests passed (46). Mongo-backed E2E and live Paystack staging remain unexecuted here.

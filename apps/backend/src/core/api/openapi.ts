@@ -39,6 +39,7 @@ export function buildOpenApiDocument() {
       '/organizations/{organizationId}/model-serving/policy': { get: { summary: 'Model serving policy' }, patch: { summary: 'Update model serving policy' } },
       '/billing/plans': { get: { summary: 'List subscription plans' }, post: { summary: 'Create subscription plan' } },
       '/billing/organizations/{organizationId}/subscription': { get: { summary: 'Get organization subscription' }, post: { summary: 'Subscribe organization' } },
+      '/billing/organizations/{organizationId}/subscription/recover-checkout': { post: { summary: 'Verify or retry pending Paystack checkout' } },
       '/billing/organizations/{organizationId}/subscription/change-plan': { post: { summary: 'Change subscription plan' } },
       '/billing/organizations/{organizationId}/subscription/cancel': { post: { summary: 'Cancel subscription' } },
       '/billing/organizations/{organizationId}/invoices': { get: { summary: 'List subscription invoices' } },

@@ -25,6 +25,10 @@ export function useSubscribeMutation(organizationId?: string) {
   const qc = useQueryClient();
   return useMutation({ mutationFn: (input: SubscribeInput) => billingClient.subscribe(organizationId!, input), onSuccess: () => organizationId && invalidate(qc, organizationId) });
 }
+export function useRecoverCheckoutMutation(organizationId?: string) {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: () => billingClient.recoverCheckout(organizationId!), onSuccess: () => organizationId && invalidate(qc, organizationId) });
+}
 export function useChangePlanMutation(organizationId?: string) {
   const qc = useQueryClient();
   return useMutation({ mutationFn: (input: ChangePlanInput) => billingClient.changePlan(organizationId!, input), onSuccess: () => organizationId && invalidate(qc, organizationId) });

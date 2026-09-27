@@ -29,21 +29,34 @@ export interface BillingProviderSubscription {
   status: 'PENDING';
 }
 
-interface Envelope<T> { status: boolean; message: string; data: T }
+interface Envelope<T> { status: boolean; message: string; data?: T }
 
 export class PaystackBillingProvider {
   readonly key = 'PAYSTACK' as const;
 
-  private async request<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  async fetchSubscription(code: string) {
+    const secret = integrationConfig.paystack.secretKey;
+    if (!secret) throw new Error('PAYSTACK_NOT_CONFIGURED');
+    const response = await requestJson<Envelope<{ subscription_code?: string; email_token?: string; customer?: { customer_code?: string }; plan?: { plan_code?: string } }>>(`${integrationConfig.paystack.baseUrl}/subscription/${encodeURIComponent(code)}`, {
+      headers: { authorization: `Bearer ${secret}` },
+    });
+    const data = response.data;
+    if (!response.status || !data || data.subscription_code !== code || !data.customer?.customer_code || !data.plan?.plan_code) {
+      throw new Error('PAYSTACK_SUBSCRIPTION_INVALID');
+    }
+    return { customerCode: data.customer.customer_code, planCode: data.plan.plan_code, subscriptionCode: data.subscription_code, emailToken: data.email_token };
+  }
+
+  private async request<T>(path: string, body: Record<string, unknown>, method: 'POST' | 'PUT' = 'POST'): Promise<T> {
     const secret = integrationConfig.paystack.secretKey;
     if (!secret) throw new Error('PAYSTACK_NOT_CONFIGURED');
     const response = await requestJson<Envelope<T>>(`${integrationConfig.paystack.baseUrl}/${path}`, {
-      method: 'POST',
+      method,
       headers: { authorization: `Bearer ${secret}` },
       body: JSON.stringify(body),
     });
-    if (!response.status || !response.data) throw new Error(`PAYSTACK_BILLING_FAILED:${response.message}`);
-    return response.data;
+    if (!response.status) throw new Error(`PAYSTACK_BILLING_FAILED:${response.message}`);
+    return response.data as T;
   }
 
   async createCustomer(input: CreateCustomerInput) {
@@ -65,18 +78,7 @@ export class PaystackBillingProvider {
       interval: { MONTH: 'monthly', QUARTER: 'quarterly', YEAR: 'annually' }[input.interval],
     });
     if (!plan.plan_code) throw new Error('PAYSTACK_PLAN_MISSING');
-    const transaction = await this.request<{ authorization_url: string; reference: string }>('transaction/initialize', {
-      email: input.email,
-      amount: String(amount),
-      currency: input.currency.toUpperCase(),
-      plan: plan.plan_code,
-      channels: ['card'],
-      callback_url: `${env.WEB_ORIGIN}/billing`,
-      metadata: { organizationId: input.organizationId, planKey: input.planKey, purpose: 'SUBSCRIPTION' },
-    });
-    if (!transaction.reference || !transaction.authorization_url.startsWith('https://checkout.paystack.com/')) {
-      throw new Error('PAYSTACK_CHECKOUT_INVALID');
-    }
+    const transaction = await this.initializeCheckout(plan.plan_code, input);
     return {
       providerCustomerId: input.customerReference,
       checkoutReference: transaction.reference,
@@ -84,6 +86,37 @@ export class PaystackBillingProvider {
       providerPlanCode: plan.plan_code,
       status: 'PENDING',
     };
+  }
+
+  private async initializeCheckout(planCode: string, input: CreateSubscriptionInput) {
+    const transaction = await this.request<{ authorization_url: string; reference: string }>('transaction/initialize', {
+      email: input.email,
+      amount: String(toPaystackMinorUnits(input.amount)),
+      currency: input.currency.toUpperCase(),
+      plan: planCode,
+      channels: ['card'],
+      callback_url: `${env.WEB_ORIGIN}/billing`,
+      metadata: { organizationId: input.organizationId, planKey: input.planKey, purpose: 'SUBSCRIPTION' },
+    });
+    if (!transaction.reference || !transaction.authorization_url.startsWith('https://checkout.paystack.com/')) {
+      throw new Error('PAYSTACK_CHECKOUT_INVALID');
+    }
+    return transaction;
+  }
+
+  async retryCheckout(planCode: string, input: CreateSubscriptionInput) {
+    const transaction = await this.initializeCheckout(planCode, input);
+    return { checkoutReference: transaction.reference, checkoutUrl: transaction.authorization_url };
+  }
+
+  async updatePlan(planCode: string, input: { planKey: string; amount: number; currency: string; interval: CreateSubscriptionInput['interval'] }) {
+    await this.request(`plan/${encodeURIComponent(planCode)}`, {
+      name: `PMCC ${input.planKey}`,
+      amount: toPaystackMinorUnits(input.amount),
+      currency: input.currency.toUpperCase(),
+      interval: { MONTH: 'monthly', QUARTER: 'quarterly', YEAR: 'annually' }[input.interval],
+      update_existing_subscriptions: true,
+    }, 'PUT');
   }
 
   async cancelSubscription(code: string, token: string): Promise<void> {

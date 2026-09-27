@@ -17,6 +17,7 @@ import {
   useBillingUsageQuery,
   useCancelSubscriptionMutation,
   useChangePlanMutation,
+  useRecoverCheckoutMutation,
   useSubscribeMutation,
 } from "@/hooks/queries/use-billing-queries";
 import type {
@@ -59,6 +60,7 @@ export default function BillingPage() {
 
   const subscribe = useSubscribeMutation(organizationId);
   const change = useChangePlanMutation(organizationId);
+  const recover = useRecoverCheckoutMutation(organizationId);
   const cancel = useCancelSubscriptionMutation(organizationId);
   const provider = "PAYSTACK" as const;
   const [billingEmail, setBillingEmail] = useState("");
@@ -111,7 +113,7 @@ export default function BillingPage() {
       );
     else
       change.mutate(
-        { planKey: p.key, atPeriodEnd: atEnd },
+        { planKey: p.key, atPeriodEnd: sub.data?.provider === "PAYSTACK" ? true : atEnd },
         { onSettled: () => setBusy(undefined) },
       );
   }
@@ -352,7 +354,7 @@ export default function BillingPage() {
                       className="btn-primary w-full mt-5"
                       disabled={
                         selected ||
-                        (sub.data?.provider === "PAYSTACK" && sub.data.status !== "CANCELLED" && sub.data.status !== "EXPIRED") ||
+                        (sub.data?.provider === "PAYSTACK" && !["ACTIVE", "CANCELLED", "EXPIRED"].includes(sub.data.status)) ||
                         busy === p.key ||
                         subscribe.isPending ||
                         change.isPending
@@ -361,7 +363,9 @@ export default function BillingPage() {
                     >
                       {busy === p.key
                         ? "Applying…"
-                        : sub.data
+                        : sub.data?.provider === "PAYSTACK" && sub.data.status === "ACTIVE"
+                          ? "Change at renewal"
+                          : sub.data
                           ? "Select plan"
                           : "Start subscription"}
                     </button>
@@ -370,8 +374,13 @@ export default function BillingPage() {
               })}
             </div>
             {sub.data?.status === "PENDING" && sub.data.providerCheckoutUrl && (
-              <a className="btn-primary mt-4 inline-flex" href={sub.data.providerCheckoutUrl} target="_blank" rel="noopener noreferrer">Open secure Paystack checkout</a>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <a className="btn-primary inline-flex" href={sub.data.providerCheckoutUrl} target="_blank" rel="noopener noreferrer">Open secure Paystack checkout</a>
+                <button className="btn-secondary" disabled={recover.isPending} onClick={() => recover.mutate()}>{recover.isPending ? "Checking payment..." : "Check payment / retry"}</button>
+              </div>
             )}
+            {(recover.error || change.error || subscribe.error) && <p role="alert" className="mt-3 text-sm text-[var(--destructive)]">{(recover.error ?? change.error ?? subscribe.error)?.message}</p>}
+            {sub.data?.provider === "PAYSTACK" && sub.data.status === "ACTIVE" && <p className="mt-3 text-xs text-muted-foreground">Plan changes take effect after the next confirmed renewal.</p>}
             {!sub.data && (
               <div className="mt-4 flex items-center gap-3 text-xs text-muted-foreground">
                 <span>New subscription provider:</span>
@@ -533,7 +542,7 @@ export default function BillingPage() {
 
           {sub.data &&
             sub.data.status !== "CANCELLED" &&
-            sub.data.status !== "EXPIRED" && (
+            sub.data.status !== "EXPIRED" && sub.data.status !== "PENDING" && (
               <div className="card p-5 mt-6">
                 <SectionHeader title="Subscription controls" />
                 <div className="grid md:grid-cols-[1fr_auto] gap-5 items-center">
@@ -574,16 +583,6 @@ export default function BillingPage() {
                 </div>
               </div>
             )}
-          <div className="mt-4 text-[11px] text-muted-foreground">
-            Contract boundary: Phase 19 exposes plans, organization
-            subscription, invoice history, usage snapshots and entitlements.
-            BillingEvent and IntegrationAttempt records have no
-            organization-facing read endpoints, so this UI does not fabricate
-            event/retry tables. Backend usage snapshots currently return
-            Properties, Units, Users and Tenants; STORAGE_BYTES and API_REQUESTS
-            are recordable metrics but are not returned by the snapshot
-            endpoint.
-          </div>
         </>
       )}
     </>

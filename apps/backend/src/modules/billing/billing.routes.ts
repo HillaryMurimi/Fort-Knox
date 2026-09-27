@@ -10,6 +10,7 @@ billingRouter.post('/plans',asyncHandler(c.createPlan));
 billingRouter.patch('/plans/:planId',asyncHandler(c.updatePlan));
 billingRouter.get('/organizations/:organizationId/subscription',asyncHandler(c.getSubscription));
 billingRouter.post('/organizations/:organizationId/subscription',asyncHandler(c.subscribe));
+billingRouter.post('/organizations/:organizationId/subscription/recover-checkout',asyncHandler(c.recoverCheckout));
 billingRouter.post('/organizations/:organizationId/subscription/change-plan',asyncHandler(c.changePlan));
 billingRouter.post('/organizations/:organizationId/subscription/cancel',asyncHandler(c.cancel));
 billingRouter.get('/organizations/:organizationId/invoices',asyncHandler(c.invoices));

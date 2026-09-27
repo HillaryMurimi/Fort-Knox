@@ -12,6 +12,9 @@ import { Tenant } from '../../database/models/Tenant.js';
 import { AppError } from '../../core/errors/AppError.js';
 import { AuthorizationService } from '../../core/authorization/authorization.service.js';
 import { PaystackBillingProvider, type BillingProviderKey } from '../../core/billing/billing-provider.js';
+import { PaystackProvider } from '../../core/integrations/paystack.provider.js';
+import { IntegrationService } from '../integrations/integration.service.js';
+import { AuditService } from '../audit/audit.service.js';
 
 function addInterval(date: Date, interval: 'MONTH' | 'QUARTER' | 'YEAR') { const d = new Date(date); if (interval === 'YEAR') d.setUTCFullYear(d.getUTCFullYear() + 1); else d.setUTCMonth(d.getUTCMonth() + (interval === 'QUARTER' ? 3 : 1)); return d; }
 function invoiceNumber() { return `INV-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.random().toString(36).slice(2,8).toUpperCase()}`; }
@@ -19,7 +22,14 @@ function invoiceNumber() { return `INV-${new Date().toISOString().slice(0,10).re
 export class BillingService {
   static async listPlans(activeOnly = true) { return SubscriptionPlan.find(activeOnly ? { active: true } : {}).sort({ amount: 1 }).lean(); }
   static async createPlan(auth: NonNullable<Express.Request['auth']>, data: Record<string, unknown>) { AuthorizationService.assertPlatformAdmin(auth); return SubscriptionPlan.create(data); }
-  static async updatePlan(auth: NonNullable<Express.Request['auth']>, planId: string, data: Record<string, unknown>) { AuthorizationService.assertPlatformAdmin(auth); const plan = await SubscriptionPlan.findByIdAndUpdate(planId, data, { new: true, runValidators: true }); if (!plan) throw new AppError(404,'NOT_FOUND','Subscription plan not found'); return plan; }
+  static async updatePlan(auth: NonNullable<Express.Request['auth']>, planId: string, data: Record<string, unknown>) {
+    AuthorizationService.assertPlatformAdmin(auth);
+    const existing = await SubscriptionPlan.findById(planId);
+    if (!existing) throw new AppError(404, 'NOT_FOUND', 'Subscription plan not found');
+    const priceChanged = (data.amount !== undefined && data.amount !== existing.amount) || (data.currency !== undefined && data.currency !== existing.currency) || (data.billingInterval !== undefined && data.billingInterval !== existing.billingInterval);
+    if (priceChanged && await OrganizationSubscription.exists({ planId, provider: 'PAYSTACK', status: { $in: ['PENDING', 'ACTIVE', 'PAST_DUE', 'PAUSED'] } })) throw new AppError(409, 'PLAN_PRICE_LOCKED', 'Create a new plan instead of changing the price of an in-use Paystack plan');
+    return SubscriptionPlan.findByIdAndUpdate(planId, data, { new: true, runValidators: true });
+  }
 
   static async getSubscription(auth: NonNullable<Express.Request['auth']>, organizationId: string) {
     AuthorizationService.assertCan(auth, 'billing.subscription.view', { organizationId });
@@ -35,20 +45,49 @@ export class BillingService {
     if (existing && ['PENDING','ACTIVE','TRIALING','PAST_DUE','PAUSED'].includes(existing.status)) throw new AppError(409,'SUBSCRIPTION_EXISTS','Organization already has an active or pending subscription');
     const now = new Date(); const periodEnd = addInterval(now, plan.billingInterval); const trialEnd = plan.trialDays > 0 ? new Date(now.getTime() + plan.trialDays * 86400000) : undefined;
     let remote: Awaited<ReturnType<PaystackBillingProvider['createSubscription']>> | undefined;
+    let payerEmail: string | undefined;
     if (providerKey === 'PAYSTACK') {
-      const payerEmail = email ?? (await User.findById(auth.userId).select('email').lean())?.email;
+      payerEmail = email ?? (await User.findById(auth.userId).select('email').lean())?.email ?? undefined;
       if (!payerEmail) throw new AppError(400, 'BILLING_EMAIL_REQUIRED', 'A billing email is required for Paystack checkout');
       if (plan.amount <= 0) throw new AppError(400, 'INVALID_PLAN_AMOUNT', 'Paystack plans must have a positive amount');
       const provider = new PaystackBillingProvider();
       const customer = await provider.createCustomer({ organizationId, name: organization.name, email: payerEmail });
       remote = await provider.createSubscription({ customerReference: customer.providerCustomerId, email: payerEmail, organizationId, planKey: plan.key, currency: plan.currency, amount: plan.amount, interval: plan.billingInterval });
     }
-    const subscription = await OrganizationSubscription.findOneAndUpdate({ organizationId }, { planId: plan._id, status: providerKey === 'PAYSTACK' ? 'PENDING' : trialEnd ? 'TRIALING' : 'ACTIVE', currentPeriodStart: now, currentPeriodEnd: periodEnd, trialEndsAt: providerKey === 'INTERNAL' ? trialEnd : undefined, provider: providerKey, providerCustomerId: remote?.providerCustomerId, providerCheckoutReference: remote?.checkoutReference, providerCheckoutUrl: remote?.checkoutUrl, providerPlanCode: remote?.providerPlanCode, providerSubscriptionId: undefined, cancelAtPeriodEnd: false, createdBy: auth.userId, updatedBy: auth.userId }, { upsert: true, new: true, setDefaultsOnInsert: true });
+    const subscription = await OrganizationSubscription.findOneAndUpdate({ organizationId }, { $set: { planId: plan._id, status: providerKey === 'PAYSTACK' ? 'PENDING' : trialEnd ? 'TRIALING' : 'ACTIVE', currentPeriodStart: now, currentPeriodEnd: periodEnd, trialEndsAt: providerKey === 'INTERNAL' ? trialEnd : undefined, provider: providerKey, providerCustomerId: remote?.providerCustomerId, providerCheckoutReference: remote?.checkoutReference, providerCheckoutUrl: remote?.checkoutUrl, providerPlanCode: remote?.providerPlanCode, billingEmail: payerEmail, checkoutReferences: [], cancelAtPeriodEnd: false, createdBy: auth.userId, updatedBy: auth.userId }, $unset: { providerSubscriptionId: 1, providerEmailToken: 1, pendingPlanId: 1, pendingPlanEffectiveAt: 1, cancelledAt: 1 } }, { upsert: true, new: true, setDefaultsOnInsert: true });
     await SubscriptionInvoice.create({ organizationId, subscriptionId: subscription._id, invoiceNumber: invoiceNumber(), periodStart: now, periodEnd, subtotal: plan.amount, tax: 0, total: plan.amount, amountPaid: 0, currency: plan.currency, status: providerKey === 'INTERNAL' && trialEnd ? 'DRAFT' : 'OPEN', dueDate: now, provider: providerKey, createdBy: auth.userId, updatedBy: auth.userId, lineItems: [{ description: plan.name, quantity: 1, unitAmount: plan.amount }] });
-    return subscription.populate('planId');
+    return OrganizationSubscription.findById(subscription._id).populate('planId');
   }
 
   static async cancel(auth: NonNullable<Express.Request['auth']>, organizationId: string, atPeriodEnd: boolean) { AuthorizationService.assertCan(auth,'billing.subscription.manage',{organizationId}); const subscription = await OrganizationSubscription.findOne({organizationId}).select('+providerEmailToken'); if (!subscription) throw new AppError(404,'NOT_FOUND','Subscription not found'); if (subscription.provider === 'PAYSTACK') { if (!subscription.providerSubscriptionId || !subscription.providerEmailToken) throw new AppError(409,'SUBSCRIPTION_NOT_READY','Paystack subscription is not ready for cancellation'); await new PaystackBillingProvider().cancelSubscription(subscription.providerSubscriptionId, subscription.providerEmailToken); } subscription.cancelAtPeriodEnd = atPeriodEnd; subscription.updatedBy = auth.userId; if (!atPeriodEnd) { subscription.status='CANCELLED'; subscription.cancelledAt=new Date(); } await subscription.save(); return OrganizationSubscription.findById(subscription._id); }
+
+  static async recoverCheckout(auth: NonNullable<Express.Request['auth']>, organizationId: string) {
+    AuthorizationService.assertCan(auth, 'billing.subscription.manage', { organizationId });
+    const subscription = await OrganizationSubscription.findOne({ organizationId, provider: 'PAYSTACK', status: 'PENDING' }).select('+billingEmail');
+    if (!subscription || !subscription.providerCheckoutReference) throw new AppError(409, 'NO_PENDING_CHECKOUT', 'No pending Paystack checkout exists');
+    const verified = await new PaystackProvider().query(subscription.providerCheckoutReference);
+    if (verified.providerTransactionId !== subscription.providerCheckoutReference) throw new AppError(409, 'PROVIDER_REFERENCE_MISMATCH', 'Paystack returned a different checkout reference');
+    if (verified.status === 'CONFIRMED') {
+      await IntegrationService.processPaystack({ event: 'charge.success', data: { status: 'success', reference: verified.providerTransactionId, amount: verified.amountMinorUnits, currency: verified.currency, paid_at: verified.paidAt?.toISOString() } });
+      return OrganizationSubscription.findById(subscription._id).populate('planId');
+    }
+    if (verified.status === 'PENDING') return OrganizationSubscription.findById(subscription._id).populate('planId');
+    const plan = await SubscriptionPlan.findById(subscription.planId);
+    if (!plan || !subscription.providerPlanCode || !subscription.providerCustomerId || !subscription.billingEmail) throw new AppError(409, 'CHECKOUT_RECOVERY_UNAVAILABLE', 'Checkout recovery needs a configured Paystack plan and billing email');
+    const lockedAt = new Date();
+    const claimed = await OrganizationSubscription.findOneAndUpdate({ _id: subscription._id, providerCheckoutReference: verified.providerTransactionId, status: 'PENDING', $or: [{ checkoutRecoveryLockedAt: { $exists: false } }, { checkoutRecoveryLockedAt: { $lt: new Date(lockedAt.getTime() - 120_000) } }] }, { $set: { checkoutRecoveryLockedAt: lockedAt } });
+    if (!claimed) throw new AppError(409, 'CHECKOUT_RECOVERY_IN_PROGRESS', 'Checkout recovery is already in progress');
+    try {
+      const retry = await new PaystackBillingProvider().retryCheckout(subscription.providerPlanCode, { customerReference: subscription.providerCustomerId, email: subscription.billingEmail, organizationId, planKey: plan.key, currency: plan.currency, amount: plan.amount, interval: plan.billingInterval });
+      const updated = await OrganizationSubscription.findOneAndUpdate({ _id: subscription._id, providerCheckoutReference: verified.providerTransactionId, checkoutRecoveryLockedAt: lockedAt, status: 'PENDING' }, { $push: { checkoutReferences: verified.providerTransactionId }, $set: { providerCheckoutReference: retry.checkoutReference, providerCheckoutUrl: retry.checkoutUrl, updatedBy: auth.userId }, $unset: { checkoutRecoveryLockedAt: 1 } }, { new: true });
+      if (!updated) throw new AppError(409, 'CHECKOUT_RECOVERY_CONFLICT', 'Checkout changed during recovery; contact support before making another payment');
+      await AuditService.record({ organizationId: subscription.organizationId, actorUserId: auth.userId, action: 'BILLING_CHECKOUT_RETRIED', resourceType: 'OrganizationSubscription', resourceId: subscription._id, metadata: { previousReference: verified.providerTransactionId, newReference: retry.checkoutReference } });
+      return OrganizationSubscription.findById(subscription._id).populate('planId');
+    } catch (error) {
+      await OrganizationSubscription.updateOne({ _id: subscription._id, checkoutRecoveryLockedAt: lockedAt }, { $unset: { checkoutRecoveryLockedAt: 1 } });
+      throw error;
+    }
+  }
 
   static async listInvoices(auth: NonNullable<Express.Request['auth']>, organizationId: string, query: { status?: string; page: number; pageSize: number }) { AuthorizationService.assertCan(auth,'billing.invoice.view',{organizationId}); const filter: Record<string, unknown> = { organizationId }; if (query.status) filter.status=query.status; const [items,total]=await Promise.all([SubscriptionInvoice.find(filter).sort({dueDate:-1}).skip((query.page-1)*query.pageSize).limit(query.pageSize).lean(), SubscriptionInvoice.countDocuments(filter)]); return { items, pagination:{page:query.page,pageSize:query.pageSize,total,totalPages:Math.ceil(total/query.pageSize),hasNextPage:query.page*query.pageSize<total,hasPreviousPage:query.page>1} }; }
 
@@ -65,9 +104,23 @@ export class BillingService {
     AuthorizationService.assertCan(auth, 'billing.subscription.manage', { organizationId });
     const subscription = await OrganizationSubscription.findOne({ organizationId });
     if (!subscription) throw new AppError(404, 'NOT_FOUND', 'Subscription not found');
-    if (subscription.provider === 'PAYSTACK') throw new AppError(409, 'PLAN_CHANGE_REQUIRES_RESUBSCRIBE', 'Paystack plan changes require a new checkout after cancellation');
     const plan = await SubscriptionPlan.findOne({ key: planKey, active: true });
     if (!plan) throw new AppError(404, 'PLAN_NOT_FOUND', 'Active subscription plan not found');
+    if (subscription.provider === 'PAYSTACK') {
+      if (!atPeriodEnd) throw new AppError(409, 'PLAN_CHANGE_AT_RENEWAL_ONLY', 'Paystack plan changes take effect at the next paid renewal');
+      if (subscription.status !== 'ACTIVE' || subscription.cancelAtPeriodEnd || subscription.currentPeriodEnd <= new Date() || !subscription.providerSubscriptionId || !subscription.providerPlanCode) throw new AppError(409, 'SUBSCRIPTION_NOT_READY', 'An active renewing Paystack subscription is required');
+      const shared = await OrganizationSubscription.exists({ provider: 'PAYSTACK', providerPlanCode: subscription.providerPlanCode, organizationId: { $ne: subscription.organizationId } });
+      if (shared) throw new AppError(409, 'SHARED_PROVIDER_PLAN', 'Cannot change a Paystack plan shared with another organization');
+      if (plan.amount <= 0) throw new AppError(400, 'INVALID_PLAN_AMOUNT', 'Paystack plans must have a positive amount');
+      if (String(subscription.planId) === String(plan._id) && !subscription.pendingPlanId) return subscription.populate('planId');
+      await new PaystackBillingProvider().updatePlan(subscription.providerPlanCode, { planKey: plan.key, amount: plan.amount, currency: plan.currency, interval: plan.billingInterval });
+      subscription.pendingPlanId = String(subscription.planId) === String(plan._id) ? undefined : plan._id;
+      subscription.pendingPlanEffectiveAt = subscription.pendingPlanId ? subscription.currentPeriodEnd : undefined;
+      subscription.updatedBy = auth.userId;
+      await subscription.save();
+      await AuditService.record({ organizationId: subscription.organizationId, actorUserId: auth.userId, action: 'BILLING_PLAN_CHANGE_SCHEDULED', resourceType: 'OrganizationSubscription', resourceId: subscription._id, metadata: { fromPlanId: String(subscription.planId), toPlanId: String(plan._id), effectiveAt: subscription.currentPeriodEnd.toISOString() } });
+      return subscription.populate('planId');
+    }
     if (String(subscription.planId) === String(plan._id)) return subscription.populate('planId');
     if (atPeriodEnd) { subscription.pendingPlanId = plan._id; subscription.pendingPlanEffectiveAt = subscription.currentPeriodEnd; subscription.updatedBy = auth.userId; await subscription.save(); return subscription.populate('planId'); }
     const now = new Date(); subscription.planId = plan._id; subscription.currentPeriodStart = now; subscription.currentPeriodEnd = addInterval(now, plan.billingInterval); subscription.pendingPlanId = undefined; subscription.pendingPlanEffectiveAt = undefined; subscription.updatedBy = auth.userId; await subscription.save();
@@ -93,7 +146,7 @@ export class BillingService {
       if (subscription.status === 'TRIALING' && subscription.trialEndsAt && subscription.trialEndsAt <= now) { subscription.status='PAST_DUE'; subscription.gracePeriodEndsAt=new Date(now.getTime()+7*86_400_000); await subscription.save(); expired++; }
       if (subscription.cancelAtPeriodEnd && subscription.currentPeriodEnd <= now) { subscription.status='CANCELLED'; subscription.cancelledAt=now; await subscription.save(); cancelled++; continue; }
       if (subscription.provider === 'PAYSTACK' && subscription.status === 'ACTIVE' && subscription.currentPeriodEnd <= now) { subscription.status='PAST_DUE'; await subscription.save(); expired++; continue; }
-      if (subscription.pendingPlanId && subscription.pendingPlanEffectiveAt && subscription.pendingPlanEffectiveAt <= now) { subscription.planId=subscription.pendingPlanId; subscription.pendingPlanId=undefined; subscription.pendingPlanEffectiveAt=undefined; subscription.currentPeriodStart=now; const plan=await SubscriptionPlan.findById(subscription.planId); if(plan) subscription.currentPeriodEnd=addInterval(now,plan.billingInterval); await subscription.save(); upgraded++; }
+      if (subscription.provider !== 'PAYSTACK' && subscription.pendingPlanId && subscription.pendingPlanEffectiveAt && subscription.pendingPlanEffectiveAt <= now) { subscription.planId=subscription.pendingPlanId; subscription.pendingPlanId=undefined; subscription.pendingPlanEffectiveAt=undefined; subscription.currentPeriodStart=now; const plan=await SubscriptionPlan.findById(subscription.planId); if(plan) subscription.currentPeriodEnd=addInterval(now,plan.billingInterval); await subscription.save(); upgraded++; }
     }
     return { expired, cancelled, upgraded };
   }

@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose, { Types } from 'mongoose';
 import crypto from 'node:crypto';
@@ -19,6 +19,9 @@ import { SubscriptionPlan } from '../../src/database/models/SubscriptionPlan.js'
 import { OrganizationSubscription } from '../../src/database/models/OrganizationSubscription.js';
 import { SubscriptionInvoice } from '../../src/database/models/SubscriptionInvoice.js';
 import { EntitlementService } from '../../src/core/billing/entitlement.service.js';
+import { BillingService } from '../../src/modules/billing/billing.service.js';
+import { PaystackBillingProvider } from '../../src/core/billing/billing-provider.js';
+import { PaystackProvider } from '../../src/core/integrations/paystack.provider.js';
 
 describe.skipIf(!process.env.RUN_E2E)('backend release E2E certification', () => {
   let mongo: MongoMemoryServer;
@@ -97,10 +100,26 @@ describe.skipIf(!process.env.RUN_E2E)('backend release E2E certification', () =>
     expect(updatedInvoice.status).toBe('PAID');
     expect(updatedInvoice.amountPaid).toBe(30000);
     expect(updatedSubscription.status).toBe('ACTIVE');
-    await IntegrationService.processPaystack({ event: 'subscription.create', data: { customer: { customer_code: 'CUS_e2e' }, plan: { plan_code: 'PLN_e2e' }, subscription_code: 'SUB_e2e', email_token: 'private-token' } });
+    const platformAdmin = { userId, isPlatformAdmin: true, memberships: [] };
+    await expect(BillingService.updatePlan(platformAdmin, String(plan._id), { amount: 1 })).rejects.toMatchObject({ code: 'PLAN_PRICE_LOCKED' });
+    const fetchSubscription = vi.spyOn(PaystackBillingProvider.prototype, 'fetchSubscription').mockResolvedValue({ customerCode: 'CUS_e2e', planCode: 'PLN_e2e', subscriptionCode: 'SUB_e2e', emailToken: 'private-token' });
+    await IntegrationService.processPaystack({ event: 'subscription.create', data: { customer: 42, plan: 7, subscription_code: 'SUB_e2e' } });
+    expect(fetchSubscription).toHaveBeenCalledWith('SUB_e2e');
+    fetchSubscription.mockRestore();
     await expect(IntegrationService.processPaystack({ event: 'invoice.update', data: { paid: true, status: 'success', subscription: { subscription_code: 'SUB_e2e' }, transaction: { status: 'success', reference: 'renew_e2e', amount: 1, currency: 'KES' } } })).rejects.toMatchObject({ code: 'PROVIDER_AMOUNT_MISMATCH' });
     await IntegrationService.processPaystack({ event: 'invoice.update', data: { paid: true, status: 'success', subscription: { subscription_code: 'SUB_e2e' }, transaction: { status: 'success', reference: 'renew_e2e', amount: 3000000, currency: 'KES' } } });
     expect(await SubscriptionInvoice.countDocuments({ organizationId, provider: 'PAYSTACK', status: 'PAID' })).toBe(2);
+    const upgrade = await SubscriptionPlan.create({ key: 'E2E_UPGRADE', name: 'E2E Upgrade', amount: 45000, currency: 'KES', billingInterval: 'MONTH', active: true, entitlements: { maxProperties: 10, maxUnits: 200, maxUsers: 10, maxTenants: 200, features: [] } });
+    const updatePlan = vi.spyOn(PaystackBillingProvider.prototype, 'updatePlan').mockResolvedValue(undefined);
+    await BillingService.changePlan(platformAdmin, String(organizationId), upgrade.key, true);
+    expect(updatePlan).toHaveBeenCalledWith('PLN_e2e', { planKey: upgrade.key, amount: upgrade.amount, currency: upgrade.currency, interval: upgrade.billingInterval });
+    updatePlan.mockRestore();
+    expect(String((await OrganizationSubscription.findById(subscription._id).orFail()).planId)).toBe(String(plan._id));
+    await expect(IntegrationService.processPaystack({ event: 'invoice.update', data: { paid: true, status: 'success', subscription: { subscription_code: 'SUB_e2e' }, transaction: { status: 'success', reference: 'upgrade_e2e', amount: 3000000, currency: 'USD' } } })).rejects.toMatchObject({ code: 'PROVIDER_AMOUNT_MISMATCH' });
+    await IntegrationService.processPaystack({ event: 'invoice.update', data: { paid: true, status: 'success', subscription: { subscription_code: 'SUB_e2e' }, transaction: { status: 'success', reference: 'upgrade_e2e', amount: 4500000, currency: 'KES' } } });
+    const upgraded = await OrganizationSubscription.findById(subscription._id).orFail();
+    expect(String(upgraded.planId)).toBe(String(upgrade._id));
+    expect(upgraded.pendingPlanId).toBeUndefined();
     await OrganizationSubscription.findByIdAndUpdate(subscription._id, { currentPeriodEnd: new Date(Date.now() - 1000) });
     await expect(EntitlementService.getPlan(String(organizationId))).rejects.toMatchObject({ code: 'SUBSCRIPTION_REQUIRED' });
   });
@@ -110,5 +129,41 @@ describe.skipIf(!process.env.RUN_E2E)('backend release E2E certification', () =>
     integrationConfig.paystack.secretKey = 'sk_test_e2e';
     await expect(IntegrationService.handleWebhook('PAYSTACK', payload, 'invalid')).rejects.toMatchObject({ code: 'INVALID_WEBHOOK_SIGNATURE' });
     integrationConfig.paystack.secretKey = undefined;
+  });
+
+  it('recovers a provider-abandoned checkout without granting access', async () => {
+    const plan = await SubscriptionPlan.create({ key: 'RECOVERY', name: 'Recovery Plan', amount: 1000, currency: 'KES', billingInterval: 'MONTH', active: true, entitlements: { maxProperties: 1, maxUnits: 10, maxUsers: 2, maxTenants: 10, features: [] } });
+    const start = new Date();
+    const end = new Date(Date.now() + 30 * 86400000);
+    const subscription = await OrganizationSubscription.create({ organizationId, planId: plan._id, status: 'PENDING', currentPeriodStart: start, currentPeriodEnd: end, provider: 'PAYSTACK', providerCustomerId: 'CUS_recovery', providerPlanCode: 'PLN_recovery', providerCheckoutReference: 'abandoned_1', providerCheckoutUrl: 'https://checkout.paystack.com/old', billingEmail: 'owner@example.com', createdBy: userId, updatedBy: userId });
+    await SubscriptionInvoice.create({ organizationId, subscriptionId: subscription._id, invoiceNumber: 'INV-RECOVERY', periodStart: start, periodEnd: end, subtotal: 1000, tax: 0, total: 1000, amountPaid: 0, currency: 'KES', status: 'OPEN', dueDate: start, provider: 'PAYSTACK', createdBy: userId, updatedBy: userId });
+    const query = vi.spyOn(PaystackProvider.prototype, 'query').mockResolvedValue({ provider: 'PAYSTACK', providerTransactionId: 'abandoned_1', status: 'FAILED' });
+    const retry = vi.spyOn(PaystackBillingProvider.prototype, 'retryCheckout').mockResolvedValue({ checkoutReference: 'retry_2', checkoutUrl: 'https://checkout.paystack.com/new' });
+    const result = await BillingService.recoverCheckout({ userId, isPlatformAdmin: true, memberships: [] }, String(organizationId));
+    expect(result?.status).toBe('PENDING');
+    expect(result?.providerCheckoutReference).toBe('retry_2');
+    expect(result?.checkoutReferences).toContain('abandoned_1');
+    expect(result?.toObject()).not.toHaveProperty('billingEmail');
+    expect(retry).toHaveBeenCalledTimes(1);
+    query.mockResolvedValue({ provider: 'PAYSTACK', providerTransactionId: 'retry_2', status: 'PENDING' });
+    const stillPending = await BillingService.recoverCheckout({ userId, isPlatformAdmin: true, memberships: [] }, String(organizationId));
+    expect(stillPending?.providerCheckoutReference).toBe('retry_2');
+    expect(retry).toHaveBeenCalledTimes(1);
+    query.mockResolvedValue({ provider: 'PAYSTACK', providerTransactionId: 'retry_2', status: 'CONFIRMED', amountMinorUnits: 100000, currency: 'KES' });
+    const paid = await BillingService.recoverCheckout({ userId, isPlatformAdmin: true, memberships: [] }, String(organizationId));
+    expect(paid?.status).toBe('ACTIVE');
+    expect((await SubscriptionInvoice.findOne({ subscriptionId: subscription._id }).orFail()).status).toBe('PAID');
+    query.mockRestore(); retry.mockRestore();
+  });
+
+  it('cancels at Paystack and never returns the private email token', async () => {
+    const plan = await SubscriptionPlan.create({ key: 'CANCEL', name: 'Cancellation Plan', amount: 1000, currency: 'KES', billingInterval: 'MONTH', active: true, entitlements: { maxProperties: 1, maxUnits: 10, maxUsers: 2, maxTenants: 10, features: [] } });
+    await OrganizationSubscription.create({ organizationId, planId: plan._id, status: 'ACTIVE', currentPeriodStart: new Date(), currentPeriodEnd: new Date(Date.now() + 30 * 86400000), provider: 'PAYSTACK', providerCustomerId: 'CUS_cancel', providerSubscriptionId: 'SUB_cancel', providerPlanCode: 'PLN_cancel', providerEmailToken: 'private-token', createdBy: userId, updatedBy: userId });
+    const disable = vi.spyOn(PaystackBillingProvider.prototype, 'cancelSubscription').mockResolvedValue(undefined);
+    const result = await BillingService.cancel({ userId, isPlatformAdmin: true, memberships: [] }, String(organizationId), false);
+    expect(disable).toHaveBeenCalledWith('SUB_cancel', 'private-token');
+    expect(result?.status).toBe('CANCELLED');
+    expect(result?.toObject()).not.toHaveProperty('providerEmailToken');
+    disable.mockRestore();
   });
 });

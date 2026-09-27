@@ -34,4 +34,43 @@ describe('PaystackBillingProvider', () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify({ status: true, message: 'ok', data: responses.shift() }), { status: 200 })));
     await expect(new PaystackBillingProvider().createSubscription({ customerReference: 'CUS_123', email: 'owner@example.com', organizationId: 'org-1', planKey: 'CONTROL', currency: 'KES', amount: 1500, interval: 'MONTH' })).rejects.toThrow('PAYSTACK_CHECKOUT_INVALID');
   });
+
+  it('updates only the dedicated provider plan for existing renewals', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: true, message: 'Plan updated' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await new PaystackBillingProvider().updatePlan('PLN_org1', { planKey: 'FORT_KNOX', amount: 30000, currency: 'KES', interval: 'YEAR' });
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.paystack.test/plan/PLN_org1');
+    expect(request.method).toBe('PUT');
+    expect(JSON.parse(String(request.body))).toMatchObject({ amount: 3000000, currency: 'KES', interval: 'annually', update_existing_subscriptions: true });
+  });
+
+  it('reopens checkout on the existing plan without creating another plan', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: true, message: 'ok', data: { reference: 'retry_1', authorization_url: 'https://checkout.paystack.com/retry' } }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const retry = await new PaystackBillingProvider().retryCheckout('PLN_org1', { customerReference: 'CUS_org1', email: 'owner@example.com', organizationId: 'org1', planKey: 'CONTROL', currency: 'KES', amount: 1500, interval: 'MONTH' });
+    expect(retry.checkoutReference).toBe('retry_1');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.paystack.test/transaction/initialize');
+    expect(JSON.parse(String(request.body))).toMatchObject({ plan: 'PLN_org1', amount: '150000', channels: ['card'] });
+  });
+
+  it('disables a subscription without expecting a data envelope', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: true, message: 'Subscription disabled successfully' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(new PaystackBillingProvider().cancelSubscription('SUB_123', 'private-token')).resolves.toBeUndefined();
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.paystack.test/subscription/disable');
+    expect(JSON.parse(String(request.body))).toEqual({ code: 'SUB_123', token: 'private-token' });
+  });
+
+  it('resolves subscription codes and private cancellation token from Paystack', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: true, message: 'ok', data: { subscription_code: 'SUB_123', email_token: 'private-token', customer: { customer_code: 'CUS_123' }, plan: { plan_code: 'PLN_123' } } }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(new PaystackBillingProvider().fetchSubscription('SUB_123')).resolves.toEqual({ subscriptionCode: 'SUB_123', customerCode: 'CUS_123', planCode: 'PLN_123', emailToken: 'private-token' });
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.paystack.test/subscription/SUB_123');
+    expect(request.headers).toMatchObject({ authorization: 'Bearer sk_test_pmcc' });
+  });
 });
