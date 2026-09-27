@@ -491,3 +491,11 @@ Remaining external integration: connect `DemoRequestService` to a protected lead
 - Resolved subscription codes and private cancellation tokens from Paystack when webhook payloads contain numeric customer/plan IDs. Added cancellation, checkout recovery and renewal contract coverage plus a live staging acceptance checklist.
 - Remaining: execute the checklist with a configured Paystack test merchant, public HTTPS webhook, real checkout and renewal; investigate duplicate/late charges and settlement, and run Mongo-backed E2E after the test binary is provisioned. This slice is not live-merchant certified.
 - Verification: root typecheck, lint and build passed; backend suite had 129 passing tests plus one transient Windows `EPERM` import failure, and that isolated file passed all 5 tests on rerun. Frontend tests passed (46). Mongo-backed E2E and live Paystack staging remain unexecuted here.
+
+## Slice 29 - Cinematic Demo And Content Studio (2026-09-28)
+
+- Added isolated Acacia portfolio content, a typed 24-scene signature story, 12 reusable scenario cuts, 20 short-form campaign hooks, and deterministic playback/capture configuration.
+- Added `/demo/live`, `/demo/explore`, and `/demo/studio`, plus a shared-stage teaser on the public landing page. The routes contain no production mutation path and clearly identify all portfolio/CCTV content as simulated.
+- Added presenter shortcuts, 16-minute live timeline, self-guided scenario selection, four aspect ratios, duration and speed controls, captions, safe-area overlay, clean capture, visual styles, device silhouette, loop, and deterministic capture URLs.
+- Added arithmetic, manifest, role-scope, playback, ratio, and query tests plus Playwright screenshots across desktop, phone, vertical Studio, and clean landscape capture. See `docs/CINEMATIC_DEMO.md` for remaining editorial and export work.
+- Verification: root typecheck, lint, tests and build passed (backend 134 tests passed/6 skipped; frontend 55 passed). The final frontend `verify:production` passed with 24 existing lint warnings and no errors. `verify:cinematic-demo` passed across six viewport/format combinations with exact aspect ratios and no runtime errors, horizontal overflow, or `/api/v1` mutation requests.

@@ -29,6 +29,7 @@ import {
   X,
 } from "lucide-react";
 import { DemoRequestDialog } from "./demo-request-dialog";
+import { DemoTeaser } from "@/components/marketing/cinematic-demo/demo-teaser";
 import { trackMarketingEvent } from "@/lib/marketing/analytics";
 import type { SceneFocus } from "./property-scene";
 import "./digital-twin.css";
@@ -540,7 +541,8 @@ export function LandingPage() {
         <Hero onDemo={openDemo} />
         <Overview />
         <Operations onDemo={openDemo} />
-        <section className="dt-final">
+        <DemoTeaser />
+        <section className="dt-final" id="contact">
           <div className="dt-container">
             <span className="dt-kicker">PROPERTY COMMAND CENTER</span>
             <h2>
