@@ -61,7 +61,7 @@ describe("deterministic playback", () => {
 
 describe("capture configuration", () => {
   it("parses deterministic URLs and clamps invalid values", () => {
-    expect(parseDemoQuery(new URLSearchParams("scenario=maintenance&campaign=which-house&ratio=vertical&theme=light&autoplay=true&loop=true&controls=false&captions=false&speed=1.5&duration=20&style=Executive&platform=YouTube&safeArea=false&deviceFrame=true&labels=false&pointer=true"))).toEqual({ scenario: "maintenance", campaign: "which-house", ratio: "vertical", theme: "light", autoplay: true, loop: true, controls: false, captions: false, speed: 1.5, duration: 20, style: "Executive", platform: "YouTube", safeArea: false, deviceFrame: true, labels: false, pointer: true });
+    expect(parseDemoQuery(new URLSearchParams("scenario=maintenance&campaign=which-house&ratio=vertical&theme=light&autoplay=true&loop=true&controls=false&captions=false&speed=1.5&duration=20&platform=YouTube&safeArea=false"))).toEqual({ scenario: "maintenance", campaign: "which-house", ratio: "vertical", theme: "light", autoplay: true, loop: true, controls: false, captions: false, speed: 1.5, duration: 20, platform: "YouTube", safeArea: false });
     expect(parseDemoQuery(new URLSearchParams("ratio=broken&speed=100"))).toMatchObject({ ratio: "landscape", speed: 2 });
   });
 

@@ -513,3 +513,11 @@ Remaining external integration: connect `DemoRequestService` to a protected lead
 - Refined the full-bleed 3D hero, editorial display typography, product-panel hierarchy, cinematic demo band, mobile spacing, and translucent navigation that remains available while scrolling. Motion and theme transitions respect reduced-motion preferences.
 - Extended landing browser checks for the new light/dark section colors and fixed scrolled navigation. No API, database, RBAC, payment, or production integration behavior changed.
 - Remaining: provision the marketing lead API/CRM and approved analytics adapter; confirm production brand/contact metadata and review the final copy and visuals with portfolio owners.
+
+## Slice 32 - Executive Demo Rebuild (2026-09-28)
+
+- Replaced the former demo scene renderer, presentation shell and CSS system. Added `/demo` as an Acacia portfolio entrance, with editorial scenario rows and live/studio entry points.
+- The shared stage now composes executive portfolio, decision desk, rent flow, vacancy plan, maintenance evidence and approval, property passport, scoped role previews, Fort Knox, surveillance audit, intelligence, health and closing scenes. The existing fictional data and deterministic timeline remain the single source of demo figures and playback.
+- Studio uses a narrow capture rail and exact 9:16, 16:9, 1:1 and 4:5 canvases; vertical scenes focus on one idea. Live presenter controls are hidden until opened; clean view, theme selection, seek, speed, loop, captions and keyboard controls remain available.
+- Demo UI never calls payment, approval, CCTV or other production mutation APIs. Simulated decisions are explicitly marked as such. Remaining: editorial review, licensed audio/brand assets, and an optional automated recording/export pipeline.
+- Verification: root typecheck, lint, tests and build passed (backend 134 passed/6 skipped; frontend 55 passed). Browser QA passed across light/dark 375, 430, 1024, 1440 and 1920px viewports; four Studio ratios, scenario navigation, scoped role changes, simulated approval, theme switch, clean mode, demo home and no production mutation requests also passed. Existing lint warnings remain outside this slice.

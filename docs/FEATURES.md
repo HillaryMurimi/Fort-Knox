@@ -375,7 +375,7 @@ The top-bar and tenant greetings use browser local time, refresh every minute an
 
 ## Public Product Experience
 
-The public cinematic demo system at `/demo/live`, `/demo/explore`, and `/demo/studio` uses an isolated fictional portfolio and shared scene renderer. It provides presenter playback, self-guided workflows, and social capture formats without calling production mutation APIs. The landing page reuses the demo stage. See `docs/CINEMATIC_DEMO.md` for the capture and safety contract.
+The public cinematic demo system at `/demo`, `/demo/live`, `/demo/explore`, and `/demo/studio` uses an isolated fictional portfolio and shared scene renderer. It provides an executive scenario entrance, presenter playback, self-guided workflows, and social capture formats without calling production mutation APIs. The landing page reuses the demo stage. See `docs/CINEMATIC_DEMO.md` for the capture and safety contract.
 
 The public `/` route presents a full-bleed, interactive Three.js digital twin of an illustrative residential portfolio. It shows apartment interiors, helmeted stick-figure contractors, residents, movers and a truck, staff consultation and camera coverage. The scene offers portfolio, unit, maintenance, move-in and security camera views. The page also presents responsive portfolio indicators, an animated collections chart, an attention queue and concise role/operations explanations. All figures and activity are labeled illustrative and do not call protected APIs. WebGL failure falls back to a generated portfolio image; reduced motion disables continuous scene animation. Camera resources are released when the page unmounts.
 

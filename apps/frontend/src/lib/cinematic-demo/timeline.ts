@@ -45,7 +45,7 @@ export const ratios: Record<Ratio, { label: string; css: string; width: number; 
   portrait: { label: "4:5", css: "4 / 5", width: 1080, height: 1350 },
 };
 
-export type DemoQuery = { scenario: string; campaign?: string | undefined; ratio: Ratio; theme: "dark" | "light"; autoplay: boolean; loop: boolean; controls: boolean; captions: boolean; speed: number; duration: number; style: string; platform: string; safeArea: boolean; deviceFrame: boolean; labels: boolean; pointer: boolean };
+export type DemoQuery = { scenario: string; campaign?: string | undefined; ratio: Ratio; theme: "dark" | "light"; autoplay: boolean; loop: boolean; controls: boolean; captions: boolean; speed: number; duration: number; platform: string; safeArea: boolean };
 export function parseDemoQuery(params: URLSearchParams): DemoQuery {
   const ratio = params.get("ratio");
   const speed = Number(params.get("speed"));
@@ -61,12 +61,8 @@ export function parseDemoQuery(params: URLSearchParams): DemoQuery {
     captions: params.get("captions") !== "false",
     speed: Number.isFinite(speed) && speed > 0 ? Math.min(2, Math.max(0.5, speed)) : 1,
     duration: Number.isFinite(duration) && duration >= 6 && duration <= 90 ? duration : 15,
-    style: params.get("style") || "Cinematic",
     platform: params.get("platform") || "Instagram Reels",
     safeArea: params.get("safeArea") !== "false",
-    deviceFrame: params.get("deviceFrame") === "true",
-    labels: params.get("labels") !== "false",
-    pointer: params.get("pointer") === "true",
   };
 }
 
