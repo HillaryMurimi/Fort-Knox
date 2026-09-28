@@ -5,6 +5,9 @@ export type ProviderKey = PaymentProviderKey | 'SMTP' | 'SENDGRID' | 'TWILIO' | 
 export interface PaymentInitiationInput { organizationId:string; paymentId?:string; amount:number; currency:string; phone?:string; email?:string; reference:string; description?:string; callbackUrl?:string; metadata?:Record<string,unknown>; paystackChannels?:PaystackChannel[]; paystackSubaccountCode?:string; }
 export interface PaymentInitiationResult { provider:string; providerTransactionId:string; status:'PENDING'|'CONFIRMED'|'FAILED'; checkoutRequestId?:string; checkoutUrl?:string; accessCode?:string; customerMessage?:string; amountMinorUnits?:number; currency?:string; paidAt?:Date; raw?:unknown; }
 export interface PaymentProvider { readonly key:PaymentProviderKey; initiate(input:PaymentInitiationInput):Promise<PaymentInitiationResult>; query(providerTransactionId:string):Promise<PaymentInitiationResult>; }
+export type RefundStatus = 'PENDING' | 'PROCESSING' | 'NEEDS_ATTENTION' | 'FAILED' | 'PROCESSED';
+export interface RefundResult { providerRefundId: number; amountMinorUnits: number; currency: string; status: RefundStatus; }
+export interface RefundProvider { createRefund(transactionReference: string, reason: string): Promise<RefundResult>; getRefund(providerRefundId: number): Promise<RefundResult>; }
 
 export interface MessageInput { to:string; subject?:string; body:string; from?:string; metadata?:Record<string,unknown>; }
 export interface MessageResult { provider:string; providerMessageId:string; status:'QUEUED'|'SENT'|'DELIVERED'|'FAILED'; raw?:unknown; }

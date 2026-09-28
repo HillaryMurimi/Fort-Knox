@@ -290,6 +290,13 @@ standalone MongoDB cannot confirm payments. Ledger reversal uses a separate
 transaction for charge balances, payment status, and audit, preserving the
 original allocations as history. It does not issue a provider refund. Other
 financial workflows are not yet covered by these transaction boundaries.
+Paystack refund requests use a separate `PaymentRefund` record. The request
+and its audit commit before the external POST; an ambiguous provider response
+is quarantined as `SUBMISSION_UNKNOWN` rather than retried. Status updates
+are checked against the expected integer-minor-unit amount and currency and
+audited transactionally. Provider `PROCESSED` is not a rent-ledger reversal.
+M-Pesa operator-credential reversal and settlement correction are not yet
+automated.
 
 This adapter handles operational property payments. Platform subscription
 billing remains a separate boundary because Paystack recurring billing

@@ -1,0 +1,139 @@
+import mongoose from 'mongoose';
+import { Payment } from '../../database/models/Payment.js';
+import { PaymentRefund } from '../../database/models/PaymentRefund.js';
+import { Tenant } from '../../database/models/Tenant.js';
+import { ResourceScopeService } from '../../core/authorization/resource-scope.service.js';
+import { AppError } from '../../core/errors/AppError.js';
+import { getRefundProvider } from '../../core/integrations/payment-providers.js';
+import { getPaymentProvider } from '../../core/integrations/payment-providers.js';
+import { integrationConfig } from '../../core/integrations/config.js';
+import type { RefundResult, RefundStatus } from '../../core/integrations/provider.types.js';
+import { moneyFromMajorUnits } from '../../core/money/money.js';
+import type { AuthenticatedUser } from '../../core/types/auth.js';
+import { AuditService } from '../audit/audit.service.js';
+
+export class RefundService {
+  private static async scopedPayment(auth: AuthenticatedUser, paymentId: string) {
+    const payment = await Payment.findById(paymentId);
+    if (!payment) throw new AppError(404, 'PAYMENT_NOT_FOUND', 'Payment not found');
+    ResourceScopeService.assertUnit(auth, payment, 'financial.manage', (await Tenant.findById(payment.tenantId).lean())?.userId);
+    return payment;
+  }
+
+  static async request(auth: AuthenticatedUser, paymentId: string, reason: string) {
+    const payment = await this.scopedPayment(auth, paymentId);
+    if (payment.status !== 'CONFIRMED') throw new AppError(409, 'INVALID_PAYMENT_STATE', 'Only confirmed payments can be refunded');
+    const transactionReference = payment.providerTransactionId;
+    if (payment.provider !== 'PAYSTACK' || !transactionReference) throw new AppError(409, 'REFUND_PROVIDER_UNAVAILABLE', 'This payment does not support automated refunds');
+    if (!integrationConfig.paystack.enabled || !integrationConfig.paystack.secretKey) throw new AppError(503, 'PAYSTACK_NOT_CONFIGURED', 'Paystack refunds are not configured');
+    const provider = getRefundProvider('PAYSTACK');
+    if (!provider) throw new AppError(503, 'REFUND_PROVIDER_UNAVAILABLE', 'Refund provider is unavailable');
+    const amountMinorUnits = moneyFromMajorUnits(payment.amount, payment.currency).minorUnits;
+    const existing = await PaymentRefund.findOne({ paymentId: payment._id });
+    if (existing) return existing;
+    const verified = await getPaymentProvider('PAYSTACK').query(transactionReference);
+    const raw = verified.raw as { metadata?: unknown } | undefined;
+    let metadata = raw?.metadata;
+    if (typeof metadata === 'string') {
+      try { metadata = JSON.parse(metadata) as unknown; } catch { metadata = null; }
+    }
+    const origin = metadata && typeof metadata === 'object' ? metadata as Record<string, unknown> : null;
+    if (verified.status !== 'CONFIRMED' || verified.providerTransactionId !== transactionReference || verified.amountMinorUnits !== amountMinorUnits || verified.currency !== payment.currency || origin?.paymentId !== String(payment._id) || origin.organizationId !== String(payment.organizationId)) {
+      throw new AppError(409, 'REFUND_PAYMENT_VERIFICATION_FAILED', 'Paystack transaction does not match this payment');
+    }
+
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const [refund] = await PaymentRefund.create([{
+          organizationId: payment.organizationId, paymentId: payment._id, provider: 'PAYSTACK',
+          transactionReference, amountMinorUnits, currency: payment.currency,
+          status: 'SUBMITTING', reason, requestedBy: auth.userId,
+        }], { session });
+        if (!refund) throw new AppError(500, 'REFUND_RECORD_FAILED', 'Refund record was not created');
+        await AuditService.record({ organizationId: payment.organizationId, actorUserId: auth.userId, action: 'payment.refund.requested', resourceType: 'PaymentRefund', resourceId: refund._id, propertyId: payment.propertyId, buildingId: payment.buildingId, unitId: payment.unitId, metadata: { paymentId: String(payment._id), amountMinorUnits, currency: payment.currency } }, session);
+      });
+    } catch (error) {
+      if ((error as { code?: number }).code === 11000) return PaymentRefund.findOne({ paymentId: payment._id });
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+
+    const refund = await PaymentRefund.findOne({ paymentId: payment._id });
+    if (!refund) throw new AppError(500, 'REFUND_RECORD_FAILED', 'Refund record was not found');
+    try {
+      const result = await provider.createRefund(transactionReference, reason);
+      return this.recordProviderStatus(String(refund._id), result);
+    } catch {
+      const failureSession = await mongoose.startSession();
+      try {
+        return await failureSession.withTransaction(async () => {
+          const current = await PaymentRefund.findById(refund._id).session(failureSession);
+          if (!current || current.status !== 'SUBMITTING') return current;
+          current.status = 'SUBMISSION_UNKNOWN';
+          await current.save({ session: failureSession });
+          await AuditService.record({ organizationId: current.organizationId, action: 'payment.refund.submission-unknown', resourceType: 'PaymentRefund', resourceId: current._id, metadata: { paymentId: String(current.paymentId) } }, failureSession);
+          return current;
+        });
+      } finally {
+        await failureSession.endSession();
+      }
+    }
+  }
+
+  static async get(auth: AuthenticatedUser, paymentId: string) {
+    const payment = await this.scopedPayment(auth, paymentId);
+    return PaymentRefund.findOne({ organizationId: payment.organizationId, paymentId: payment._id });
+  }
+
+  static async reconcile(auth: AuthenticatedUser, paymentId: string) {
+    const refund = await this.get(auth, paymentId);
+    if (!refund) throw new AppError(404, 'REFUND_NOT_FOUND', 'Refund request not found');
+    if (!refund.providerRefundId) throw new AppError(409, 'REFUND_REQUIRES_MANUAL_REVIEW', 'Provider refund ID is unavailable; review the provider dashboard before taking further action');
+    const provider = getRefundProvider('PAYSTACK');
+    if (!provider) throw new AppError(503, 'REFUND_PROVIDER_UNAVAILABLE', 'Refund provider is unavailable');
+    return this.recordProviderStatus(String(refund._id), await provider.getRefund(refund.providerRefundId));
+  }
+
+  static async recordWebhookStatus(transactionReference: string, result: Omit<RefundResult, 'providerRefundId'> & { providerRefundId?: number }) {
+    const payment = await Payment.findOne({ provider: 'PAYSTACK', providerTransactionId: transactionReference });
+    if (!payment) return null;
+    const refund = await PaymentRefund.findOne({ organizationId: payment.organizationId, paymentId: payment._id });
+    if (!refund) return null;
+    if (refund.amountMinorUnits !== result.amountMinorUnits || refund.currency !== result.currency.toUpperCase()) throw new AppError(409, 'REFUND_AMOUNT_MISMATCH', 'Provider refund does not match the payment');
+    if (!refund.providerRefundId) return refund;
+    if (result.providerRefundId && result.providerRefundId !== refund.providerRefundId) throw new AppError(409, 'REFUND_ID_MISMATCH', 'Webhook refund ID does not match this request');
+    if (!result.providerRefundId) {
+      const provider = getRefundProvider('PAYSTACK');
+      if (!provider) throw new AppError(503, 'REFUND_PROVIDER_UNAVAILABLE', 'Refund provider is unavailable');
+      return this.recordProviderStatus(String(refund._id), await provider.getRefund(refund.providerRefundId));
+    }
+    return this.recordProviderStatus(String(refund._id), result);
+  }
+
+  private static async recordProviderStatus(refundId: string, result: Omit<RefundResult, 'providerRefundId'> & { providerRefundId?: number }) {
+    const session = await mongoose.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        const refund = await PaymentRefund.findById(refundId).session(session);
+        if (!refund) throw new AppError(404, 'REFUND_NOT_FOUND', 'Refund request not found');
+        if (refund.amountMinorUnits !== result.amountMinorUnits || refund.currency !== result.currency.toUpperCase()) throw new AppError(409, 'REFUND_AMOUNT_MISMATCH', 'Provider refund does not match the payment');
+        if (result.providerRefundId && refund.providerRefundId && refund.providerRefundId !== result.providerRefundId) throw new AppError(409, 'REFUND_ID_MISMATCH', 'Provider refund ID changed');
+        if (refund.status === 'PROCESSED') return refund;
+        const nextStatus: RefundStatus = result.status;
+        const order: Record<string, number> = { SUBMITTING: 0, SUBMISSION_UNKNOWN: 0, PENDING: 1, PROCESSING: 2, NEEDS_ATTENTION: 2, FAILED: 3, PROCESSED: 4 };
+        if ((order[nextStatus] ?? 0) < (order[refund.status] ?? 0)) return refund;
+        if (refund.status === nextStatus && (!result.providerRefundId || refund.providerRefundId === result.providerRefundId)) return refund;
+        refund.status = nextStatus;
+        if (result.providerRefundId) refund.providerRefundId = result.providerRefundId;
+        refund.providerUpdatedAt = new Date();
+        await refund.save({ session });
+        await AuditService.record({ organizationId: refund.organizationId, action: 'payment.refund.provider-status', resourceType: 'PaymentRefund', resourceId: refund._id, metadata: { paymentId: String(refund.paymentId), status: nextStatus, providerRefundId: refund.providerRefundId } }, session);
+        return refund;
+      });
+    } finally {
+      await session.endSession();
+    }
+  }
+}

@@ -111,6 +111,7 @@ Critical user journeys through frontend/API.
 -   Manual and provider allocation commit or roll back with balances, payment status, and audit on a replica set.
 -   Duplicate provider confirmation creates no additional allocation or audit record.
 -   Reversal restores balances exactly once, retains allocations, rejects incomplete history, and rolls back when audit fails.
+-   Refund request submits once, verifies original provider ownership and amount, rejects unauthorized or unsupported payments, quarantines ambiguous submissions, and accepts only signed matching refund events. Provider status changes must leave rent balances unchanged.
 -   New non-KES operational finance writes rejected until ledger migration.
 -   Cross-currency manual/provider allocation rejected before balance updates.
 -   Reconciliation.

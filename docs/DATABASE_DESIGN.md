@@ -269,6 +269,15 @@ money helper protects provider conversion but does not change stored units.
 -   amount minor units
 -   timestamps
 
+### payment_refunds
+
+The implemented `payment_refunds` collection keeps one full Paystack refund
+request per payment (`paymentId` unique), organization ownership, original
+transaction reference, integer minor-unit amount and currency, provider refund
+ID, current provider status, requested-by actor, reason, and timestamps. It
+does not mutate or replace historical payment allocations. `SUBMISSION_UNKNOWN`
+is a manual-review state, not permission to retry a provider POST.
+
 ### expenses
 
 -   organization/property/building

@@ -1,5 +1,12 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Slice 39 - Paystack Refund Tracking (2026-09-28)
+
+- Added one full Paystack refund record per confirmed payment, a scoped `financial.manage` request/get/reconcile API, fresh verification of the original Paystack transaction and PMCC ownership metadata, and an adapter for provider create/fetch. Refund submission is not retried after an ambiguous failure.
+- Signed Paystack refund events update the separate provider status only after amount/currency and provider refund ID checks; events without an ID fetch the already recorded refund. Refund request and status audits use MongoDB transactions. The rent ledger is not changed by a provider refund status.
+- Remaining: a landlord-facing refund review UI; automatic or supervised ledger correction after confirmed provider processing; manual resolution for `SUBMISSION_UNKNOWN` and `NEEDS_ATTENTION`; partial refunds; Daraja reversal with initiator security credential and callbacks; settlement reconciliation. Production needs a Paystack secret/webhook setup and replica-set MongoDB. Do not enable M-Pesa refund claims on this basis.
+- Verification: root typecheck, lint (existing warnings only), tests (backend 162 passed/18 opt-in skipped; frontend 59 passed), and build passed. The opt-in replica-set E2E command passed 19 tests, including refund request rollback, idempotence, signed webhook handling, and foreign-reference rejection.
+
 ## Slice 38 - Transactional Payment Reversal (2026-09-28)
 
 - Reversal now re-reads and authorizes the confirmed payment in a MongoDB transaction, validates the entire allocation set and linked charge scope/currency/balances, and commits restored charge balances, `REVERSED` state, and an audit entry together. Historical allocations remain intact; a second reversal is rejected.

@@ -71,6 +71,7 @@ Protect against IDOR/BOLA.
 -   Safe monetary representation.
 -   Audit adjustments/refunds.
 -   Ledger reversal requires scoped `payment.reverse` authorization and a complete allocation history; it commits balance, state, and audit changes in one MongoDB transaction. It does not itself request a provider refund.
+-   Full Paystack refund submission requires scoped `financial.manage` and fresh server-side verification of the original transaction, including exact amount, currency, payment ID, and organization ID. One refund record per payment prevents repeat provider submissions; ambiguous results require manual review. Signed webhook status updates cannot change rent balances.
 -   Separate initiation, provider confirmation, and reconciliation
     state.
 -   Avoid silent destructive edits to financial history.

@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express'; import { apiResponse } from '../../core/response/apiResponse.js'; import { requiredParam } from '../../core/http/params.js'; import { AuthorizationService } from '../../core/authorization/authorization.service.js'; import * as s from './finance.schemas.js'; import { FinanceService } from './finance.service.js';
+import { RefundService } from './refund.service.js';
 const auth=(req:Request)=>req.auth!;
 export async function listRent(req:Request,res:Response){const org=requiredParam(req.params.organizationId,'organizationId');res.json(apiResponse(await FinanceService.listRent(auth(req),org)));}
 export async function createRent(req:Request,res:Response){const org=requiredParam(req.params.organizationId,'organizationId');res.status(201).json(apiResponse(await FinanceService.createRent(auth(req),org,s.rentChargeSchema.parse(req.body))));}
@@ -11,6 +12,9 @@ export async function createPaymentDestination(req:Request,res:Response){res.sta
 export async function disablePaymentDestination(req:Request,res:Response){res.json(apiResponse(await FinanceService.disablePaymentDestination(auth(req),requiredParam(req.params.id,'id'))));}
 export async function confirmPayment(req:Request,res:Response){res.json(apiResponse(await FinanceService.confirmPayment(auth(req),requiredParam(req.params.id,'id'),s.allocationSchema.parse(req.body))));}
 export async function reversePayment(req:Request,res:Response){res.json(apiResponse(await FinanceService.reversePayment(auth(req),requiredParam(req.params.id,'id'))));}
+export async function requestRefund(req:Request,res:Response){res.status(202).json(apiResponse(await RefundService.request(auth(req),requiredParam(req.params.id,'id'),s.refundRequestSchema.parse(req.body).reason)));}
+export async function getRefund(req:Request,res:Response){res.json(apiResponse(await RefundService.get(auth(req),requiredParam(req.params.id,'id'))));}
+export async function reconcileRefund(req:Request,res:Response){res.json(apiResponse(await RefundService.reconcile(auth(req),requiredParam(req.params.id,'id'))));}
 export async function listExpenses(req:Request,res:Response){res.json(apiResponse(await FinanceService.listExpenses(auth(req),requiredParam(req.params.organizationId,'organizationId'))));}
 export async function createExpense(req:Request,res:Response){res.status(201).json(apiResponse(await FinanceService.createExpense(auth(req),requiredParam(req.params.organizationId,'organizationId'),s.expenseSchema.parse(req.body))));}
 export async function approveExpense(req:Request,res:Response){res.json(apiResponse(await FinanceService.approveExpense(auth(req),requiredParam(req.params.id,'id'),s.expenseActionSchema.parse(req.body).notes)));}

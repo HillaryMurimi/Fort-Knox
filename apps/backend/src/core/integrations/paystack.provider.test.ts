@@ -122,4 +122,20 @@ describe('PaystackProvider', () => {
     ).rejects.toThrow('PAYSTACK_EMAIL_REQUIRED');
     expect(() => toPaystackMinorUnits(Number.NaN)).toThrow('PAYSTACK_INVALID_AMOUNT');
   });
+
+  it('submits a full refund without treating pending as processed', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: true, message: 'Queued', data: { id: 321, amount: 3000000, currency: 'KES', status: 'pending' } }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(new PaystackProvider().createRefund('rent-ref-1', 'Duplicate rent payment')).resolves.toEqual({ providerRefundId: 321, amountMinorUnits: 3000000, currency: 'KES', status: 'PENDING' });
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.paystack.test/refund');
+    expect(JSON.parse(String(request.body))).toEqual({ transaction: 'rent-ref-1', merchant_note: 'Duplicate rent payment' });
+  });
+
+  it('fetches a refund by provider ID and normalizes its final status', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: true, message: 'Retrieved', data: { id: 321, amount: 3000000, currency: 'KES', status: 'processed' } }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(new PaystackProvider().getRefund(321)).resolves.toMatchObject({ providerRefundId: 321, status: 'PROCESSED' });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.paystack.test/refund/321');
+  });
 });

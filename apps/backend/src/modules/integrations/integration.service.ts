@@ -1,5 +1,6 @@
 import mongoose, { Types } from 'mongoose';
 import { Payment, type PaymentDocument } from '../../database/models/Payment.js';
+import { RefundService } from '../finance/refund.service.js';
 import { PaymentDestination } from '../../database/models/PaymentDestination.js';
 import { WebhookEvent } from '../../database/models/WebhookEvent.js';
 import { IntegrationAttempt } from '../../database/models/IntegrationAttempt.js';
@@ -362,6 +363,17 @@ export class IntegrationService {
   static async processPaystack(body: Record<string, unknown>) {
     const eventType = String(body.event ?? '');
     const eventData = body.data as Record<string, unknown> | undefined;
+    if (['refund.pending', 'refund.processing', 'refund.needs-attention', 'refund.failed', 'refund.processed'].includes(eventType)) {
+      if (!eventData) throw new AppError(400, 'INVALID_REFUND_EVENT', 'Refund event is missing data');
+      const reference = String(eventData.transaction_reference ?? '');
+      const amountMinorUnits = Number(eventData.amount);
+      const currency = String(eventData.currency ?? '').toUpperCase();
+      if (!reference || !Number.isSafeInteger(amountMinorUnits) || amountMinorUnits <= 0 || !/^[A-Z]{3}$/.test(currency)) throw new AppError(400, 'INVALID_REFUND_EVENT', 'Refund event is missing payment details');
+      const status = eventType.slice('refund.'.length).replace('-', '_').toUpperCase() as 'PENDING' | 'PROCESSING' | 'NEEDS_ATTENTION' | 'FAILED' | 'PROCESSED';
+      const providerRefundId = Number(eventData.id);
+      await RefundService.recordWebhookStatus(reference, { amountMinorUnits, currency, status, ...(Number.isSafeInteger(providerRefundId) && providerRefundId > 0 ? { providerRefundId } : {}) });
+      return;
+    }
     if (eventType === 'subscription.create' && eventData) {
       const customer = eventData.customer as Record<string, unknown> | undefined;
       const plan = eventData.plan as Record<string, unknown> | undefined;
@@ -531,6 +543,8 @@ export class IntegrationService {
               paid_at: data.paid_at,
               channel: data.channel,
               receipt_number: data.receipt_number,
+              transaction_reference: data.transaction_reference,
+              refund_reference: data.refund_reference,
             }
           : undefined,
       };

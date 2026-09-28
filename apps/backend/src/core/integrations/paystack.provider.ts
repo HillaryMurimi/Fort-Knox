@@ -6,6 +6,9 @@ import type {
   PaymentInitiationResult,
   PaymentProvider,
   PaymentProviderKey,
+  RefundProvider,
+  RefundResult,
+  RefundStatus,
 } from './provider.types.js';
 
 interface PaystackEnvelope<T> {
@@ -41,6 +44,24 @@ interface PaystackSubaccount {
   is_verified?: boolean;
 }
 
+interface PaystackRefund {
+  id: number;
+  amount: number;
+  currency: string;
+  status: string;
+}
+
+function refundStatus(status: string): RefundStatus {
+  const normalized = status.toLowerCase().replace('-', '_');
+  if (normalized === 'pending' || normalized === 'processing' || normalized === 'needs_attention' || normalized === 'failed' || normalized === 'processed') return normalized.toUpperCase() as RefundStatus;
+  throw new Error('PAYSTACK_REFUND_STATUS_UNKNOWN');
+}
+
+function refundResult(data: PaystackRefund): RefundResult {
+  if (!Number.isSafeInteger(data.id) || data.id <= 0 || !Number.isSafeInteger(data.amount) || data.amount <= 0) throw new Error('PAYSTACK_REFUND_INVALID_RESPONSE');
+  return { providerRefundId: data.id, amountMinorUnits: data.amount, currency: data.currency.toUpperCase(), status: refundStatus(data.status) };
+}
+
 export interface CreatePaystackSubaccountInput {
   businessName: string;
   bankCode: string;
@@ -67,7 +88,7 @@ function normalizeStatus(status: string): PaymentInitiationResult['status'] {
   return 'PENDING';
 }
 
-export class PaystackProvider implements PaymentProvider {
+export class PaystackProvider implements PaymentProvider, RefundProvider {
   readonly key: PaymentProviderKey = 'PAYSTACK';
 
   private headers() {
@@ -162,5 +183,20 @@ export class PaystackProvider implements PaymentProvider {
       customerMessage: response.data.gateway_response ?? response.message,
       raw: response.data,
     };
+  }
+
+  async createRefund(transactionReference: string, reason: string): Promise<RefundResult> {
+    const response = await requestJson<PaystackEnvelope<PaystackRefund>>(`${integrationConfig.paystack.baseUrl}/refund`, {
+      method: 'POST', headers: this.headers(),
+      body: JSON.stringify({ transaction: transactionReference, merchant_note: reason }),
+    });
+    if (!response.status || !response.data) throw new Error('PAYSTACK_REFUND_SUBMISSION_FAILED');
+    return refundResult(response.data);
+  }
+
+  async getRefund(providerRefundId: number): Promise<RefundResult> {
+    const response = await requestJson<PaystackEnvelope<PaystackRefund>>(`${integrationConfig.paystack.baseUrl}/refund/${providerRefundId}`, { headers: this.headers() });
+    if (!response.status || !response.data) throw new Error('PAYSTACK_REFUND_LOOKUP_FAILED');
+    return refundResult(response.data);
   }
 }

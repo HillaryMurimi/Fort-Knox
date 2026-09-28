@@ -1,17 +1,23 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose, { Types } from 'mongoose';
+import crypto from 'node:crypto';
 import { Payment } from '../../src/database/models/Payment.js';
+import { PaymentRefund } from '../../src/database/models/PaymentRefund.js';
 import { RentCharge } from '../../src/database/models/RentCharge.js';
 import { PaymentAllocation } from '../../src/database/models/PaymentAllocation.js';
 import { AuditLog } from '../../src/database/models/AuditLog.js';
 import { AuditService } from '../../src/modules/audit/audit.service.js';
 import { FinanceService } from '../../src/modules/finance/finance.service.js';
+import { RefundService } from '../../src/modules/finance/refund.service.js';
 import { IntegrationService } from '../../src/modules/integrations/integration.service.js';
+import { PaystackProvider } from '../../src/core/integrations/paystack.provider.js';
+import { integrationConfig } from '../../src/core/integrations/config.js';
 import type { AuthenticatedUser } from '../../src/core/types/auth.js';
 
 describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a replica set', () => {
   let replSet: MongoMemoryReplSet;
+  const originalPaystack = { ...integrationConfig.paystack };
 
   beforeAll(async () => {
     replSet = await MongoMemoryReplSet.create({
@@ -23,7 +29,11 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
 
   beforeEach(async () => {
     await mongoose.connection.dropDatabase();
+    integrationConfig.paystack.enabled = true;
+    integrationConfig.paystack.secretKey = 'sk_test_refund';
   });
+
+  afterEach(() => { vi.restoreAllMocks(); Object.assign(integrationConfig.paystack, originalPaystack); });
 
   afterAll(async () => {
     await mongoose.disconnect();
@@ -43,6 +53,14 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
     })));
     const payment = await Payment.create({ ...ids, amount: 100, currency: 'KES', method: 'CARD', status: 'PENDING', createdBy: ids.actorId, updatedBy: ids.actorId });
     return { ids, charges, payment };
+  }
+
+  function mockVerifiedRefundPayment(payment: { _id: Types.ObjectId; organizationId: Types.ObjectId; amount: number; currency: string }, reference: string) {
+    return vi.spyOn(PaystackProvider.prototype, 'query').mockResolvedValue({
+      provider: 'PAYSTACK', providerTransactionId: reference, status: 'CONFIRMED',
+      amountMinorUnits: payment.amount * 100, currency: payment.currency,
+      raw: { metadata: { paymentId: String(payment._id), organizationId: String(payment.organizationId) } },
+    });
   }
 
   it('commits manual allocation and its audit together', async () => {
@@ -117,6 +135,109 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
     expect((await Payment.findById(payment._id))?.status).toBe('CONFIRMED');
     expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, status: 'PAID', balanceAmount: 0 })).toBe(2);
     expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.reversed' })).toBe(0);
+  });
+
+  it('submits one Paystack refund and reconciles its status without changing the ledger', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map((charge) => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    await Payment.updateOne({ _id: payment._id }, { provider: 'PAYSTACK', providerTransactionId: 'rent-ref-1' });
+    mockVerifiedRefundPayment(payment, 'rent-ref-1');
+    const submit = vi.spyOn(PaystackProvider.prototype, 'createRefund').mockResolvedValue({ providerRefundId: 321, amountMinorUnits: 10000, currency: 'KES', status: 'PENDING' });
+    const fetch = vi.spyOn(PaystackProvider.prototype, 'getRefund').mockResolvedValue({ providerRefundId: 321, amountMinorUnits: 10000, currency: 'KES', status: 'PROCESSED' });
+
+    expect((await RefundService.request(auth, String(payment._id), 'Duplicate rent payment'))?.status).toBe('PENDING');
+    await RefundService.request(auth, String(payment._id), 'Duplicate rent payment');
+    expect(submit).toHaveBeenCalledOnce();
+    expect((await RefundService.reconcile(auth, String(payment._id)))?.status).toBe('PROCESSED');
+    expect(fetch).toHaveBeenCalledWith(321);
+    expect((await Payment.findById(payment._id))?.status).toBe('CONFIRMED');
+    expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, status: 'PAID', balanceAmount: 0 })).toBe(2);
+    expect(await AuditLog.countDocuments({ resourceType: 'PaymentRefund', action: 'payment.refund.requested' })).toBe(1);
+  });
+
+  it('quarantines an ambiguous submission and rejects mismatched provider evidence', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map((charge) => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    await Payment.updateOne({ _id: payment._id }, { provider: 'PAYSTACK', providerTransactionId: 'rent-ref-2' });
+    mockVerifiedRefundPayment(payment, 'rent-ref-2');
+    const submit = vi.spyOn(PaystackProvider.prototype, 'createRefund').mockRejectedValue(new Error('timeout'));
+
+    expect((await RefundService.request(auth, String(payment._id), 'Duplicate rent payment'))?.status).toBe('SUBMISSION_UNKNOWN');
+    await RefundService.request(auth, String(payment._id), 'Duplicate rent payment');
+    expect(submit).toHaveBeenCalledOnce();
+    await expect(RefundService.recordWebhookStatus('rent-ref-2', { amountMinorUnits: 9999, currency: 'KES', status: 'PROCESSED' })).rejects.toMatchObject({ code: 'REFUND_AMOUNT_MISMATCH' });
+    expect((await PaymentRefund.findOne({ paymentId: payment._id }))?.status).toBe('SUBMISSION_UNKNOWN');
+    expect((await Payment.findById(payment._id))?.status).toBe('CONFIRMED');
+  });
+
+  it('accepts only signed matching Paystack refund status events', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map((charge) => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    await Payment.updateOne({ _id: payment._id }, { provider: 'PAYSTACK', providerTransactionId: 'rent-ref-3' });
+    mockVerifiedRefundPayment(payment, 'rent-ref-3');
+    vi.spyOn(PaystackProvider.prototype, 'createRefund').mockResolvedValue({ providerRefundId: 322, amountMinorUnits: 10000, currency: 'KES', status: 'PENDING' });
+    await RefundService.request(auth, String(payment._id), 'Duplicate rent payment');
+    const previous = { ...integrationConfig.paystack };
+    integrationConfig.paystack.secretKey = 'sk_test_refund_webhook';
+    try {
+      const fetch = vi.spyOn(PaystackProvider.prototype, 'getRefund').mockResolvedValue({ providerRefundId: 322, amountMinorUnits: 10000, currency: 'KES', status: 'PROCESSING' });
+      const noIdPayload = Buffer.from(JSON.stringify({ event: 'refund.processing', data: { transaction_reference: 'rent-ref-3', amount: '10000', currency: 'KES' } }));
+      const noIdSignature = crypto.createHmac('sha512', 'sk_test_refund_webhook').update(noIdPayload).digest('hex');
+      await IntegrationService.handleWebhook('PAYSTACK', noIdPayload, noIdSignature);
+      expect(fetch).toHaveBeenCalledWith(322);
+      expect((await PaymentRefund.findOne({ paymentId: payment._id }))?.status).toBe('PROCESSING');
+      const payload = Buffer.from(JSON.stringify({ event: 'refund.processed', data: { transaction_reference: 'rent-ref-3', id: 322, amount: '10000', currency: 'KES' } }));
+      await expect(IntegrationService.handleWebhook('PAYSTACK', payload, 'invalid')).rejects.toMatchObject({ code: 'INVALID_WEBHOOK_SIGNATURE' });
+      const signature = crypto.createHmac('sha512', 'sk_test_refund_webhook').update(payload).digest('hex');
+      await IntegrationService.handleWebhook('PAYSTACK', payload, signature);
+      await IntegrationService.handleWebhook('PAYSTACK', payload, signature);
+      expect((await PaymentRefund.findOne({ paymentId: payment._id }))?.status).toBe('PROCESSED');
+      expect(await AuditLog.countDocuments({ resourceType: 'PaymentRefund', action: 'payment.refund.provider-status' })).toBe(3);
+      expect((await Payment.findById(payment._id))?.status).toBe('CONFIRMED');
+    } finally {
+      Object.assign(integrationConfig.paystack, previous);
+    }
+  });
+
+  it('rejects refund requests without financial management scope or a supported provider', async () => {
+    const { ids, charges, payment } = await fixture();
+    const admin: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(admin, String(payment._id), { allocations: charges.map((charge) => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    const outsider: AuthenticatedUser = { userId: new Types.ObjectId(), isPlatformAdmin: false, memberships: [] };
+    await expect(RefundService.request(outsider, String(payment._id), 'Duplicate rent payment')).rejects.toMatchObject({ statusCode: 403 });
+    await expect(RefundService.request(admin, String(payment._id), 'Duplicate rent payment')).rejects.toMatchObject({ code: 'REFUND_PROVIDER_UNAVAILABLE' });
+    expect(await PaymentRefund.countDocuments({ paymentId: payment._id })).toBe(0);
+  });
+
+  it('refuses a Paystack reference that was not originated for this payment', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map((charge) => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    await Payment.updateOne({ _id: payment._id }, { provider: 'PAYSTACK', providerTransactionId: 'someone-elses-transaction' });
+    const query = mockVerifiedRefundPayment(payment, 'someone-elses-transaction');
+    query.mockResolvedValueOnce({ provider: 'PAYSTACK', providerTransactionId: 'someone-elses-transaction', status: 'CONFIRMED', amountMinorUnits: 10000, currency: 'KES', raw: { metadata: { paymentId: 'other-payment', organizationId: String(ids.organizationId) } } });
+    const submit = vi.spyOn(PaystackProvider.prototype, 'createRefund');
+
+    await expect(RefundService.request(auth, String(payment._id), 'Duplicate rent payment')).rejects.toMatchObject({ code: 'REFUND_PAYMENT_VERIFICATION_FAILED' });
+    expect(submit).not.toHaveBeenCalled();
+    expect(await PaymentRefund.countDocuments({ paymentId: payment._id })).toBe(0);
+  });
+
+  it('does not contact Paystack if refund reservation audit fails', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map((charge) => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    await Payment.updateOne({ _id: payment._id }, { provider: 'PAYSTACK', providerTransactionId: 'rent-ref-4' });
+    mockVerifiedRefundPayment(payment, 'rent-ref-4');
+    const submit = vi.spyOn(PaystackProvider.prototype, 'createRefund');
+    vi.spyOn(AuditService, 'record').mockRejectedValueOnce(new Error('audit unavailable'));
+
+    await expect(RefundService.request(auth, String(payment._id), 'Duplicate rent payment')).rejects.toThrow('audit unavailable');
+    expect(await PaymentRefund.countDocuments({ paymentId: payment._id })).toBe(0);
+    expect(submit).not.toHaveBeenCalled();
   });
 
   it('rolls back provider balances if audit fails, then confirms exactly once', async () => {

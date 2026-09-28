@@ -1,4 +1,4 @@
-import type { PaymentProvider, PaymentInitiationInput, PaymentInitiationResult, PaymentProviderKey } from './provider.types.js';
+import type { PaymentProvider, PaymentInitiationInput, PaymentInitiationResult, PaymentProviderKey, RefundProvider } from './provider.types.js';
 import { MpesaProvider } from './mpesa.provider.js';
 import { PaystackProvider } from './paystack.provider.js';
 
@@ -12,4 +12,8 @@ export function getPaymentProvider(key: PaymentProviderKey): PaymentProvider {
   if (key === 'MPESA') return new MpesaProvider();
   if (key === 'PAYSTACK') return new PaystackProvider();
   return new UnconfiguredPaymentProvider(key);
+}
+
+export function getRefundProvider(key: PaymentProviderKey): RefundProvider | null {
+  return key === 'PAYSTACK' ? new PaystackProvider() : null;
 }
