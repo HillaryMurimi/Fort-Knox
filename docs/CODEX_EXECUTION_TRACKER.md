@@ -1,5 +1,12 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Slice 37 - Transactional Payment Confirmation (2026-09-28)
+
+- Manual and verified provider payment confirmation now re-read payment and charge state inside a MongoDB transaction. Allocation rows, charge balances, payment status, and the confirmation audit commit together; duplicate provider confirmation creates no second allocation. Provider receipt, method, and paid time survive the transactional re-read.
+- Added focused session/idempotence tests and opt-in replica-set E2E coverage for successful confirmation and rollback after audit failure. Updated the existing backend contract E2E suite to use a replica set and an explicit M-Pesa query fixture; repaired the cross-platform `npm run test:e2e` command.
+- Production requires replica-set or sharded MongoDB for payment confirmation. Payment reversal and other financial workflows still need transaction review. Legacy major-unit finance migration, country/provider matrices, durable event delivery, and the broader Phase A work remain open.
+- Verification: root typecheck, lint (existing warnings only), tests (backend 160 passed/9 skipped; frontend 59 passed), and build passed. The opt-in replica-set E2E command passed 9 tests, including manual and provider rollback cases.
+
 ## Slice 36 - Legacy Finance Currency Guard (2026-09-28)
 
 - Kept operational finance creation on the current KES ledger: rent charges, generated rent, payments, expenses, and service-charge assessments reject non-KES input. Paystack settlement onboarding rejects non-KES/non-KE account details before contacting the provider; crypto wallets remain pending and are not tenant checkout rails.

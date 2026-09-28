@@ -1,4 +1,4 @@
-import { Types, type HydratedDocument } from 'mongoose';
+import mongoose, { Types, type HydratedDocument } from 'mongoose';
 import { RentCharge, type RentChargeDocument } from '../../database/models/RentCharge.js';
 import { Payment } from '../../database/models/Payment.js';
 import { PaymentDestination } from '../../database/models/PaymentDestination.js';
@@ -84,39 +84,48 @@ export class FinanceService {
   static async disablePaymentDestination(auth:AuthenticatedUser,id:string){const destination=await PaymentDestination.findById(id);if(!destination)throw new AppError(404,'PAYMENT_DESTINATION_NOT_FOUND','Payment destination not found');AuthorizationService.assertPermission(auth,'organization.settings.manage',destination.organizationId);destination.status='DISABLED';destination.isDefault=false;destination.updatedBy=auth.userId;await destination.save();await AuditService.record({organizationId:destination.organizationId,actorUserId:auth.userId,action:'payment.destination.disabled',resourceType:'PaymentDestination',resourceId:destination._id,metadata:{provider:destination.provider}});return destination;}
 
   static async confirmPayment(auth:AuthenticatedUser,id:string,data:AllocationInput){
-    const payment=await Payment.findById(id);
-    if(!payment)throw new AppError(404,'NOT_FOUND','Payment not found');
-    ResourceScopeService.assertUnit(auth,payment,'payment.confirm',(await Tenant.findById(payment.tenantId).lean())?.userId);
-    if(payment.status!=='PENDING')throw new AppError(409,'INVALID_PAYMENT_STATE','Only pending payments can be confirmed');
-    const sum=data.allocations.reduce((total,item)=>total+item.amount,0);
-    if(Math.abs(sum-payment.amount)>0.000001)throw new AppError(400,'ALLOCATION_MISMATCH','Allocation total must equal payment amount');
+    const session=await mongoose.startSession();
+    try{
+      const confirmed=await session.withTransaction(async()=>{
+        const payment=await Payment.findById(id).session(session);
+        if(!payment)throw new AppError(404,'NOT_FOUND','Payment not found');
+        ResourceScopeService.assertUnit(auth,payment,'payment.confirm',(await Tenant.findById(payment.tenantId).session(session).lean())?.userId);
+        if(payment.status!=='PENDING')throw new AppError(409,'INVALID_PAYMENT_STATE','Only pending payments can be confirmed');
+        const sum=data.allocations.reduce((total,item)=>total+item.amount,0);
+        if(Math.abs(sum-payment.amount)>0.000001)throw new AppError(400,'ALLOCATION_MISMATCH','Allocation total must equal payment amount');
 
-    const checked: Array<{charge:HydratedDocument<RentChargeDocument>;amount:number}> = [];
-    const seen=new Set<string>();
-    for(const item of data.allocations){
-      if(seen.has(item.rentChargeId))throw new AppError(409,'DUPLICATE_ALLOCATION','A rent charge appears more than once');
-      seen.add(item.rentChargeId);
-      const charge=await RentCharge.findById(item.rentChargeId);
-      if(!charge)throw new AppError(404,'RENT_CHARGE_NOT_FOUND','Rent charge not found');
-      if(String(charge.organizationId)!==String(payment.organizationId)||String(charge.tenancyId)!==String(payment.tenancyId))throw new AppError(403,'INVALID_ALLOCATION','Payment can only be allocated to rent charges for the same tenancy');
-      ResourceScopeService.assertUnit(auth,charge,'payment.confirm',(await Tenant.findById(charge.tenantId).lean())?.userId);
-      assertMatchingCurrency(payment.currency,charge.currency);
-      if(item.amount>charge.balanceAmount+0.000001)throw new AppError(409,'OVER_ALLOCATION','Allocation exceeds rent charge balance');
-      const duplicate=await PaymentAllocation.exists({paymentId:payment._id,rentChargeId:charge._id});
-      if(duplicate)throw new AppError(409,'DUPLICATE_ALLOCATION','Payment is already allocated to this rent charge');
-      checked.push({charge,amount:item.amount});
-    }
-    for(const {charge,amount} of checked){
-      await PaymentAllocation.create({organizationId:payment.organizationId,paymentId:payment._id,rentChargeId:charge._id,amount,allocatedBy:auth.userId});
-      charge.paidAmount+=amount;
-      charge.balanceAmount=Math.max(0,charge.totalAmount-charge.paidAmount);
-      charge.status=charge.balanceAmount===0?'PAID':'PARTIALLY_PAID';
-      charge.updatedBy=auth.userId;
-      await charge.save();
-    }
-    payment.status='CONFIRMED';payment.confirmedAt=new Date();payment.paidAt=payment.paidAt??new Date();payment.updatedBy=auth.userId;
-    await payment.save();
-    return payment;
+        const checked: Array<{charge:HydratedDocument<RentChargeDocument>;amount:number}> = [];
+        const seen=new Set<string>();
+        for(const item of data.allocations){
+          const chargeId=item.rentChargeId.toLowerCase();
+          if(seen.has(chargeId))throw new AppError(409,'DUPLICATE_ALLOCATION','A rent charge appears more than once');
+          seen.add(chargeId);
+          const charge=await RentCharge.findById(item.rentChargeId).session(session);
+          if(!charge)throw new AppError(404,'RENT_CHARGE_NOT_FOUND','Rent charge not found');
+          if(String(charge.organizationId)!==String(payment.organizationId)||String(charge.tenancyId)!==String(payment.tenancyId))throw new AppError(403,'INVALID_ALLOCATION','Payment can only be allocated to rent charges for the same tenancy');
+          ResourceScopeService.assertUnit(auth,charge,'payment.confirm',(await Tenant.findById(charge.tenantId).session(session).lean())?.userId);
+          assertMatchingCurrency(payment.currency,charge.currency);
+          if(item.amount>charge.balanceAmount+0.000001)throw new AppError(409,'OVER_ALLOCATION','Allocation exceeds rent charge balance');
+          const duplicate=await PaymentAllocation.exists({paymentId:payment._id,rentChargeId:charge._id}).session(session);
+          if(duplicate)throw new AppError(409,'DUPLICATE_ALLOCATION','Payment is already allocated to this rent charge');
+          checked.push({charge,amount:item.amount});
+        }
+        for(const {charge,amount} of checked){
+          await PaymentAllocation.create([{organizationId:payment.organizationId,paymentId:payment._id,rentChargeId:charge._id,amount,allocatedBy:auth.userId}],{session});
+          charge.paidAmount+=amount;
+          charge.balanceAmount=Math.max(0,charge.totalAmount-charge.paidAmount);
+          charge.status=charge.balanceAmount===0?'PAID':'PARTIALLY_PAID';
+          charge.updatedBy=auth.userId;
+          await charge.save({session});
+        }
+        payment.status='CONFIRMED';payment.confirmedAt=new Date();payment.paidAt=payment.paidAt??new Date();payment.updatedBy=auth.userId;
+        await payment.save({session});
+        await AuditService.record({organizationId:payment.organizationId,actorUserId:auth.userId,action:'payment.confirmed',resourceType:'Payment',resourceId:payment._id,propertyId:payment.propertyId,buildingId:payment.buildingId,unitId:payment.unitId,metadata:{amount:payment.amount,currency:payment.currency,allocationCount:checked.length}},session);
+        return payment;
+      });
+      if(!confirmed)throw new AppError(500,'PAYMENT_CONFIRMATION_FAILED','Payment confirmation did not complete');
+      return confirmed;
+    }finally{await session.endSession();}
   }
 
   static async reversePayment(auth:AuthenticatedUser,id:string){const payment=await Payment.findById(id);if(!payment)throw new AppError(404,'NOT_FOUND','Payment not found');ResourceScopeService.assertUnit(auth,payment,'payment.reverse',(await Tenant.findById(payment.tenantId).lean())?.userId);if(payment.status!=='CONFIRMED')throw new AppError(409,'INVALID_PAYMENT_STATE','Only confirmed payments can be reversed');const allocations=await PaymentAllocation.find({paymentId:payment._id});for(const allocation of allocations){const charge=await RentCharge.findById(allocation.rentChargeId);if(!charge)continue;charge.paidAmount=Math.max(0,charge.paidAmount-allocation.amount);charge.balanceAmount=Math.max(0,charge.totalAmount-charge.paidAmount);charge.status=charge.balanceAmount===0?'PAID':(charge.paidAmount>0?'PARTIALLY_PAID':(charge.dueDate<new Date()?'OVERDUE':'OPEN'));charge.updatedBy=auth.userId;await charge.save();}payment.status='REVERSED';payment.reversedAt=new Date();payment.updatedBy=auth.userId;await payment.save();return payment;}

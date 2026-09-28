@@ -108,6 +108,8 @@ Critical user journeys through frontend/API.
 -   Payment webhook verified.
 -   Duplicate webhook idempotent.
 -   Payment allocation.
+-   Manual and provider allocation commit or roll back with balances, payment status, and audit on a replica set.
+-   Duplicate provider confirmation creates no additional allocation or audit record.
 -   New non-KES operational finance writes rejected until ledger migration.
 -   Cross-currency manual/provider allocation rejected before balance updates.
 -   Reconciliation.
@@ -115,6 +117,11 @@ Critical user journeys through frontend/API.
 -   Refund/reversal state.
 -   Monetary calculations exact.
 -   Unauthorized financial export blocked.
+
+The backend `npm run test:e2e` command runs the contract and finance transaction
+suites against an isolated one-node MongoDB replica set. Set
+`MONGOMS_SYSTEM_BINARY` to a local `mongod` executable when binary download is
+unavailable. The default unit-test run skips these opt-in database suites.
 
 ### CCTV
 

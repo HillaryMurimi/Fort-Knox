@@ -237,6 +237,11 @@ or countries fail request validation before provider onboarding. Manual rent
 allocation rejects a charge whose currency differs from the payment; provider
 allocation only considers same-currency charges. Existing historical records
 are not converted by this restriction.
+Manual and verified provider payment confirmation atomically commit the
+allocation rows, charge balances, payment status, and audit record in MongoDB.
+Confirmation therefore requires a replica set or sharded MongoDB deployment;
+a standalone MongoDB server cannot process this write. Repeating an already
+confirmed provider event does not create another allocation.
 
 Paystack initiation accepts an optional payer email override and optional
 `paystackChannels`; otherwise

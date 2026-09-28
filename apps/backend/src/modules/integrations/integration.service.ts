@@ -1,5 +1,5 @@
-import { Types } from 'mongoose';
-import { Payment } from '../../database/models/Payment.js';
+import mongoose, { Types } from 'mongoose';
+import { Payment, type PaymentDocument } from '../../database/models/Payment.js';
 import { PaymentDestination } from '../../database/models/PaymentDestination.js';
 import { WebhookEvent } from '../../database/models/WebhookEvent.js';
 import { IntegrationAttempt } from '../../database/models/IntegrationAttempt.js';
@@ -562,79 +562,62 @@ export class IntegrationService {
       tenancyId: Types.ObjectId;
       amount: number;
       currency: string;
+      method: PaymentDocument['method'];
       status: string;
       paidAt?: Date | null;
       confirmedAt?: Date | null;
+      receiptNumber?: string | null;
       createdBy: Types.ObjectId;
       updatedBy: Types.ObjectId;
-      save(): Promise<unknown>;
     },
   ) {
-    if (payment.status === 'CONFIRMED') return payment;
-    if (payment.status !== 'PENDING') {
-      throw new AppError(
-        409,
-        'INVALID_PAYMENT_STATE',
-        'Provider payment must be pending before confirmation',
-      );
-    }
+    const session=await mongoose.startSession();
+    try {
+      const confirmed=await session.withTransaction(async()=>{
+        const current=await Payment.findOne({_id:payment._id,organizationId:payment.organizationId}).session(session);
+        if(!current)throw new AppError(404,'PAYMENT_NOT_FOUND','Payment not found');
+        if(current.status==='CONFIRMED')return current;
+        if(current.status!=='PENDING')throw new AppError(409,'INVALID_PAYMENT_STATE','Provider payment must be pending before confirmation');
+        if(current.amount!==payment.amount||current.currency!==payment.currency)throw new AppError(409,'PAYMENT_CHANGED','Payment amount or currency changed during provider confirmation');
 
-    let remaining = payment.amount;
-    const charges = await RentCharge.find({
-      organizationId: payment.organizationId,
-      tenancyId: payment.tenancyId,
-      currency: payment.currency,
-      status: { $in: ['OPEN', 'PARTIALLY_PAID', 'OVERDUE'] },
-      balanceAmount: { $gt: 0 },
-    }).sort({ dueDate: 1, periodStart: 1 });
+        let remaining=current.amount;
+        const charges=await RentCharge.find({
+          organizationId:current.organizationId,
+          tenancyId:current.tenancyId,
+          currency:current.currency,
+          status:{$in:['OPEN','PARTIALLY_PAID','OVERDUE']},
+          balanceAmount:{$gt:0},
+        }).sort({dueDate:1,periodStart:1}).session(session);
+        const outstanding=charges.reduce((sum,charge)=>sum+charge.balanceAmount,0);
+        if(current.amount>outstanding+0.000001)throw new AppError(409,'UNALLOCATED_PROVIDER_PAYMENT','Provider payment exceeds outstanding rent charges');
 
-    const outstanding = charges.reduce((sum, charge) => sum + charge.balanceAmount, 0);
-    if (payment.amount > outstanding + 0.000001) {
-      throw new AppError(
-        409,
-        'UNALLOCATED_PROVIDER_PAYMENT',
-        'Provider payment exceeds outstanding rent charges',
-      );
-    }
+        for(const charge of charges){
+          if(remaining<=0.000001)break;
+          const allocationAmount=Math.min(remaining,charge.balanceAmount);
+          await PaymentAllocation.create([{organizationId:current.organizationId,paymentId:current._id,rentChargeId:charge._id,amount:allocationAmount,allocatedBy:current.createdBy}],{session});
+          charge.paidAmount+=allocationAmount;
+          charge.balanceAmount=Math.max(0,charge.totalAmount-charge.paidAmount);
+          charge.status=charge.balanceAmount===0?'PAID':'PARTIALLY_PAID';
+          charge.updatedBy=current.updatedBy;
+          await charge.save({session});
+          remaining-=allocationAmount;
+        }
+        if(remaining>0.000001)throw new AppError(409,'ALLOCATION_INCOMPLETE','Provider payment could not be fully allocated');
 
-    for (const charge of charges) {
-      if (remaining <= 0.000001) break;
-      const allocationAmount = Math.min(remaining, charge.balanceAmount);
-      await PaymentAllocation.create({
-        organizationId: payment.organizationId,
-        paymentId: payment._id,
-        rentChargeId: charge._id,
-        amount: allocationAmount,
-        allocatedBy: payment.createdBy,
+        current.status='CONFIRMED';
+        current.confirmedAt=new Date();
+        current.paidAt=payment.paidAt??current.paidAt??new Date();
+        if(payment.receiptNumber)current.receiptNumber=payment.receiptNumber;
+        current.method=payment.method;
+        await current.save({session});
+        await AuditService.record({organizationId:current.organizationId,actorUserId:current.createdBy,action:'payment.provider.confirmed',resourceType:'Payment',resourceId:current._id,propertyId:current.propertyId,buildingId:current.buildingId,unitId:current.unitId,metadata:{amount:current.amount,currency:current.currency}},session);
+        return current;
       });
-      charge.paidAmount += allocationAmount;
-      charge.balanceAmount = Math.max(0, charge.totalAmount - charge.paidAmount);
-      charge.status = charge.balanceAmount === 0 ? 'PAID' : 'PARTIALLY_PAID';
-      charge.updatedBy = payment.updatedBy;
-      await charge.save();
-      remaining -= allocationAmount;
+      if(!confirmed)throw new AppError(500,'PAYMENT_CONFIRMATION_FAILED','Provider payment confirmation did not complete');
+      return confirmed;
+    } finally {
+      await session.endSession();
     }
-
-    if (remaining > 0.000001) {
-      throw new AppError(409, 'ALLOCATION_INCOMPLETE', 'Provider payment could not be fully allocated');
-    }
-
-    payment.status = 'CONFIRMED';
-    payment.confirmedAt = new Date();
-    payment.paidAt = payment.paidAt ?? new Date();
-    await payment.save();
-    await AuditService.record({
-      organizationId: payment.organizationId,
-      actorUserId: payment.createdBy,
-      action: 'payment.provider.confirmed',
-      resourceType: 'Payment',
-      resourceId: payment._id,
-      propertyId: payment.propertyId,
-      buildingId: payment.buildingId,
-      unitId: payment.unitId,
-      metadata: { amount: payment.amount },
-    });
-    return payment;
   }
 
   static async health() {

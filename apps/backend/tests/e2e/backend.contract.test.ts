@@ -1,5 +1,5 @@
 import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose, { Types } from 'mongoose';
 import crypto from 'node:crypto';
 import { IntegrationService } from '../../src/modules/integrations/integration.service.js';
@@ -22,15 +22,19 @@ import { EntitlementService } from '../../src/core/billing/entitlement.service.j
 import { BillingService } from '../../src/modules/billing/billing.service.js';
 import { PaystackBillingProvider } from '../../src/core/billing/billing-provider.js';
 import { PaystackProvider } from '../../src/core/integrations/paystack.provider.js';
+import { MpesaProvider } from '../../src/core/integrations/mpesa.provider.js';
 
 describe.skipIf(!process.env.RUN_E2E)('backend release E2E certification', () => {
-  let mongo: MongoMemoryServer;
+  let mongo: MongoMemoryReplSet;
   let userId: Types.ObjectId;
   let organizationId: Types.ObjectId;
   let tenancyId: Types.ObjectId;
 
   beforeAll(async () => {
-    mongo = await MongoMemoryServer.create();
+    mongo = await MongoMemoryReplSet.create({
+      replSet: { count: 1 },
+      binary: process.env.MONGOMS_SYSTEM_BINARY ? { systemBinary: process.env.MONGOMS_SYSTEM_BINARY } : {},
+    });
     await mongoose.connect(mongo.getUri());
   }, 180_000);
 
@@ -57,7 +61,9 @@ describe.skipIf(!process.env.RUN_E2E)('backend release E2E certification', () =>
     const rent = await RentCharge.create({ organizationId, propertyId: tenancy.propertyId, buildingId: tenancy.buildingId, floorId: tenancy.floorId, unitId: tenancy.unitId, tenantId: tenancy.tenantId, tenancyId, periodStart: new Date('2026-09-01'), periodEnd: new Date('2026-09-30'), dueDate: new Date('2026-09-05'), rentAmount: 30000, serviceChargeAmount: 0, adjustments: 0, totalAmount: 30000, balanceAmount: 30000, createdBy: userId, updatedBy: userId });
     const payment = await Payment.create({ organizationId, propertyId: tenancy.propertyId, buildingId: tenancy.buildingId, floorId: tenancy.floorId, unitId: tenancy.unitId, tenantId: tenancy.tenantId, tenancyId, amount: 30000, currency: 'KES', method: 'MPESA', status: 'PENDING', provider: 'MPESA', providerTransactionId: 'ws_CO_e2e_1', createdBy: userId, updatedBy: userId });
     const payload = Buffer.from(JSON.stringify({ Body: { stkCallback: { CheckoutRequestID: 'ws_CO_e2e_1', ResultCode: 0, CallbackMetadata: { Item: [{ Name: 'Amount', Value: 30000 }, { Name: 'MpesaReceiptNumber', Value: 'RCP123' }] } } } }));
-    await IntegrationService.handleWebhook('MPESA', payload);
+    const query = vi.spyOn(MpesaProvider.prototype, 'query').mockResolvedValue({ provider: 'MPESA', providerTransactionId: 'ws_CO_e2e_1', status: 'CONFIRMED' });
+    try { await IntegrationService.handleWebhook('MPESA', payload); }
+    finally { query.mockRestore(); }
     const confirmed = await Payment.findById(payment._id).orFail();
     const updatedRent = await RentCharge.findById(rent._id).orFail();
     const allocation = await PaymentAllocation.findOne({ paymentId: payment._id }).orFail();

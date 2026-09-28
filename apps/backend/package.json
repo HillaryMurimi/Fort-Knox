@@ -22,7 +22,7 @@
         "billing:reconcile": "tsx scripts/reconcile-billing.ts",
         "certify:release": "tsx scripts/certify-release.ts",
         "verify:production": "npm run typecheck && npm run lint && npm test && npm run build && npm run certify:release",
-        "test:e2e": "RUN_E2E=true vitest run tests/e2e/backend.contract.e2e.test.ts",
+        "test:e2e": "node scripts/run-e2e.mjs",
         "seed:super-admin": "tsx src/database/seeds/super-admin.seed.ts"
     },
     "keywords": [],

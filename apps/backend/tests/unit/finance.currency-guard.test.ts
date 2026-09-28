@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { Payment } from '../../src/database/models/Payment.js';
 import { RentCharge } from '../../src/database/models/RentCharge.js';
 import { PaymentAllocation } from '../../src/database/models/PaymentAllocation.js';
@@ -19,11 +19,12 @@ describe('finance currency guards', () => {
     const firstId = new Types.ObjectId();
     const secondId = new Types.ObjectId();
     const payment = { _id: new Types.ObjectId(), organizationId, tenancyId, tenantId, currency: 'KES', amount: 100, status: 'PENDING' };
-    vi.spyOn(Payment, 'findById').mockResolvedValue(payment as never);
-    vi.spyOn(Tenant, 'findById').mockReturnValue({ lean: async () => ({ userId: new Types.ObjectId() }) } as never);
+    vi.spyOn(mongoose, 'startSession').mockResolvedValue({ withTransaction: async (callback: () => Promise<unknown>) => callback(), endSession: vi.fn() } as never);
+    vi.spyOn(Payment, 'findById').mockReturnValue({ session: async () => payment } as never);
+    vi.spyOn(Tenant, 'findById').mockReturnValue({ session: () => ({ lean: async () => ({ userId: new Types.ObjectId() }) }) } as never);
     vi.spyOn(ResourceScopeService, 'assertUnit').mockImplementation(() => undefined);
-    vi.spyOn(RentCharge, 'findById').mockImplementation((id) => Promise.resolve({ _id: id, organizationId, tenancyId, tenantId, currency: String(id) === String(firstId) ? 'KES' : 'USD', balanceAmount: 50 }) as never);
-    vi.spyOn(PaymentAllocation, 'exists').mockResolvedValue(null);
+    vi.spyOn(RentCharge, 'findById').mockImplementation((id) => ({ session: async () => ({ _id: id, organizationId, tenancyId, tenantId, currency: String(id) === String(firstId) ? 'KES' : 'USD', balanceAmount: 50 }) }) as never);
+    vi.spyOn(PaymentAllocation, 'exists').mockReturnValue({ session: async () => null } as never);
     const createAllocation = vi.spyOn(PaymentAllocation, 'create');
 
     await expect(FinanceService.confirmPayment({ userId: new Types.ObjectId() } as AuthenticatedUser, String(payment._id), { allocations: [{ rentChargeId: String(firstId), amount: 50 }, { rentChargeId: String(secondId), amount: 50 }] })).rejects.toMatchObject({ code: 'ALLOCATION_CURRENCY_MISMATCH' });
@@ -31,8 +32,10 @@ describe('finance currency guards', () => {
   });
 
   it('queries only same-currency charges for provider confirmation', async () => {
-    const findCharges = vi.spyOn(RentCharge, 'find').mockReturnValue({ sort: async () => [] } as never);
-    const payment = { _id: new Types.ObjectId(), organizationId: new Types.ObjectId(), propertyId: new Types.ObjectId(), buildingId: new Types.ObjectId(), unitId: new Types.ObjectId(), tenancyId: new Types.ObjectId(), createdBy: new Types.ObjectId(), updatedBy: new Types.ObjectId(), currency: 'KES', amount: 50, status: 'PENDING', save: vi.fn() };
+    vi.spyOn(mongoose, 'startSession').mockResolvedValue({ withTransaction: async (callback: () => Promise<unknown>) => callback(), endSession: vi.fn() } as never);
+    const findCharges = vi.spyOn(RentCharge, 'find').mockReturnValue({ sort: () => ({ session: async () => [] }) } as never);
+    const payment = { _id: new Types.ObjectId(), organizationId: new Types.ObjectId(), propertyId: new Types.ObjectId(), buildingId: new Types.ObjectId(), unitId: new Types.ObjectId(), tenancyId: new Types.ObjectId(), createdBy: new Types.ObjectId(), updatedBy: new Types.ObjectId(), currency: 'KES', amount: 50, method: 'CARD' as const, status: 'PENDING' };
+    vi.spyOn(Payment, 'findOne').mockReturnValue({ session: async () => payment } as never);
 
     await expect(IntegrationService.confirmProviderPayment(payment)).rejects.toMatchObject({ code: 'UNALLOCATED_PROVIDER_PAYMENT' });
     expect(findCharges).toHaveBeenCalledWith(expect.objectContaining({ currency: 'KES', organizationId: payment.organizationId, tenancyId: payment.tenancyId }));
