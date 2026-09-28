@@ -33,6 +33,10 @@ try {
     const range = Math.max(...brightness) - Math.min(...brightness);
     const horizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     const overviewBackground = await page.locator('.dt-overview').evaluate((element) => getComputedStyle(element).backgroundColor);
+    await page.evaluate(() => window.scrollTo(0, 400));
+    await page.waitForTimeout(400);
+    const scrolledNavigation = await page.locator('.dt-nav').evaluate((element) => element.classList.contains('dt-nav-scrolled') && getComputedStyle(element).position === 'fixed');
+    await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: `${output}/${theme}-${name}.png`, fullPage: true });
     await page.getByRole('tab', { name: /Move-ins/i }).click();
     const selected = await page.getByRole('tab', { name: /Move-ins/i }).getAttribute('aria-selected');
@@ -46,9 +50,9 @@ try {
     await page.getByRole('button', { name: `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme` }).click();
     await page.waitForFunction((nextTheme) => document.documentElement.classList.contains(nextTheme), theme === 'dark' ? 'light' : 'dark');
     const toggled = await page.evaluate((nextTheme) => document.documentElement.classList.contains(nextTheme) && localStorage.getItem('pmcc.theme') === nextTheme, theme === 'dark' ? 'light' : 'dark');
-    results.push({ theme, name, overviewBackground, canvasWidth: canvasBox?.width, canvasHeight: canvasBox?.height, contextLost, brightnessRange: Math.round(range), cameraChange: Math.round(cameraChange), demoOpens, horizontalOverflow, selected, toggled, pageErrors: errors });
+    results.push({ theme, name, overviewBackground, scrolledNavigation, canvasWidth: canvasBox?.width, canvasHeight: canvasBox?.height, contextLost, brightnessRange: Math.round(range), cameraChange: Math.round(cameraChange), demoOpens, horizontalOverflow, selected, toggled, pageErrors: errors });
     await page.close();
   }
   console.log(JSON.stringify(results, null, 2));
-  if (results.some((result) => result.pageErrors.length || result.contextLost || !result.demoOpens || result.horizontalOverflow || result.selected !== 'true' || !result.toggled || result.brightnessRange < 40 || result.cameraChange < 4 || !result.canvasWidth || !result.canvasHeight || (result.theme === 'light' && result.overviewBackground !== 'rgb(245, 247, 245)') || (result.theme === 'dark' && result.overviewBackground !== 'rgb(17, 29, 31)'))) process.exitCode = 1;
+  if (results.some((result) => result.pageErrors.length || result.contextLost || !result.demoOpens || result.horizontalOverflow || result.selected !== 'true' || !result.toggled || !result.scrolledNavigation || result.brightnessRange < 40 || result.cameraChange < 4 || !result.canvasWidth || !result.canvasHeight || (result.theme === 'light' && result.overviewBackground !== 'rgb(244, 241, 235)') || (result.theme === 'dark' && result.overviewBackground !== 'rgb(17, 20, 22)'))) process.exitCode = 1;
 } finally { await browser.close(); }

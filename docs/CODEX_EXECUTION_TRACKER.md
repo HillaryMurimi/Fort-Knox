@@ -506,3 +506,10 @@ Remaining external integration: connect `DemoRequestService` to a protected lead
 - Retained the full-bleed property scene as a dark visual anchor while giving the public overview, operational panels, role map, demo teaser, conversion band and footer coordinated light and dark treatments. Updated chart colors to follow the active theme.
 - Browser verification covers both themes at mobile, tablet and desktop widths, including canvas rendering, scene controls, demo dialog, theme persistence and horizontal overflow. All six combinations passed.
 - No API, database, RBAC or production integration behavior changed. Remaining public-site work: provision the lead API/CRM and approved analytics adapter, then validate the final brand/contact metadata.
+
+## Slice 31 - Architectural Landing Refinement (2026-09-28)
+
+- Reworked the public landing palette around warm mineral surfaces, graphite control-room panels, restrained bronze, mineral green and slate data accents. Both themes now use the same semantic landing tokens without affecting authenticated workspaces.
+- Refined the full-bleed 3D hero, editorial display typography, product-panel hierarchy, cinematic demo band, mobile spacing, and translucent navigation that remains available while scrolling. Motion and theme transitions respect reduced-motion preferences.
+- Extended landing browser checks for the new light/dark section colors and fixed scrolled navigation. No API, database, RBAC, payment, or production integration behavior changed.
+- Remaining: provision the marketing lead API/CRM and approved analytics adapter; confirm production brand/contact metadata and review the final copy and visuals with portfolio owners.

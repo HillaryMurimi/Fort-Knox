@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useTheme } from "next-themes";
@@ -149,10 +149,17 @@ const workflows = [
 
 function MarketingNav({ onDemo }: { onDemo: () => void }) {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const mounted = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const { resolvedTheme, setTheme } = useTheme();
+  useEffect(() => {
+    const updateScroll = () => setScrolled(window.scrollY > 24);
+    updateScroll();
+    window.addEventListener("scroll", updateScroll, { passive: true });
+    return () => window.removeEventListener("scroll", updateScroll);
+  }, []);
   return (
-    <header className="dt-nav">
+    <header className={`dt-nav${scrolled ? " dt-nav-scrolled" : ""}`}>
       <div className="dt-nav-inner">
         <Link
           href="/"
