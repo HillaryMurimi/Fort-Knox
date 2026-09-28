@@ -70,7 +70,7 @@ export class PaystackBillingProvider {
   }
 
   async createSubscription(input: CreateSubscriptionInput): Promise<BillingProviderSubscription> {
-    const amount = toPaystackMinorUnits(input.amount);
+    const amount = toPaystackMinorUnits(input.amount, input.currency);
     const plan = await this.request<{ plan_code: string }>('plan', {
       name: `PMCC ${input.planKey}`,
       amount,
@@ -91,7 +91,7 @@ export class PaystackBillingProvider {
   private async initializeCheckout(planCode: string, input: CreateSubscriptionInput) {
     const transaction = await this.request<{ authorization_url: string; reference: string }>('transaction/initialize', {
       email: input.email,
-      amount: String(toPaystackMinorUnits(input.amount)),
+      amount: String(toPaystackMinorUnits(input.amount, input.currency)),
       currency: input.currency.toUpperCase(),
       plan: planCode,
       channels: ['card'],
@@ -112,7 +112,7 @@ export class PaystackBillingProvider {
   async updatePlan(planCode: string, input: { planKey: string; amount: number; currency: string; interval: CreateSubscriptionInput['interval'] }) {
     await this.request(`plan/${encodeURIComponent(planCode)}`, {
       name: `PMCC ${input.planKey}`,
-      amount: toPaystackMinorUnits(input.amount),
+      amount: toPaystackMinorUnits(input.amount, input.currency),
       currency: input.currency.toUpperCase(),
       interval: { MONTH: 'monthly', QUARTER: 'quarterly', YEAR: 'annually' }[input.interval],
       update_existing_subscriptions: true,

@@ -266,6 +266,11 @@ provider-appropriate acknowledgement.
 Never mark payment successful based solely on a frontend callback.
 
 Paystack amounts cross the provider boundary in currency minor units.
+The shared `core/money/money.ts` conversion validates currency precision and
+safe integer limits at the Paystack boundary. This does not migrate the legacy
+major-unit financial fields. Do not enable a new operating currency until
+those fields, reports, provider rails, and historical records are converted
+and verified together.
 PMCC verifies the signed `charge.success` payload, transaction reference,
 amount, and currency before applying a payment. M-Pesa success callbacks
 must match the server-initiated amount and KES currency before allocation.
@@ -274,6 +279,13 @@ This adapter handles operational property payments. Platform subscription
 billing remains a separate boundary because Paystack recurring billing
 requires an initial customer authorization and provider plan code before a
 subscription can become active.
+
+Domain events are appended through `EventStore`, which allocates an aggregate
+sequence using the existing unique aggregate/version index and retries
+concurrent version collisions. Events carry schema version, source, actor and
+correlation fields. The current writer is not a transactional outbox: callers
+must not assume a business write and its event are atomic. Durable publishing,
+consumer checkpoints, replay, and backfill belong to a subsequent phase.
 
 ## 10. Frontend Architecture
 

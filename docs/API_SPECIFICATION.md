@@ -398,9 +398,15 @@ GET /intelligence/insights
 ``` text
 GET /audit-logs
 GET /audit-logs/:auditId
+GET /domain-events
 ```
 
 Audit is read-only through normal product APIs.
+`GET /domain-events` is organization-scoped and requires `audit.view`. It
+returns append-only event records with `eventId`, aggregate identity,
+aggregate `version`, `schemaVersion`, `source`, optional actor/request and
+correlation/causation IDs, payload, and timestamps. Older records may omit
+the newly added trace fields. No event mutation endpoint is exposed.
 
 ## 18. Admin
 

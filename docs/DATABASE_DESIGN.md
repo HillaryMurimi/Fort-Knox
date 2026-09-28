@@ -246,6 +246,19 @@ Only one default destination per organization/provider is allowed. API
 credentials, passkeys, private keys, and complete bank account numbers are
 never stored in this collection.
 
+### domain_events
+
+The existing `DomainEvent` collection is append-only through the application
+API. `eventId` is unique; `{ aggregateType, aggregateId, version }` remains a
+unique aggregate sequence. New events have `schemaVersion` (default 1),
+`source`, `actorRole`, and `requestId` alongside existing correlation and
+causation IDs. Existing records without these new fields remain readable;
+the audit UI presents schema version 1 and application source for them.
+There is no transactional outbox, delivery checkpoint, or replay projection yet.
+
+Financial collections still contain legacy major-unit Number fields. The new
+money helper protects provider conversion but does not change stored units.
+
 ### payment_allocations
 
 -   paymentId

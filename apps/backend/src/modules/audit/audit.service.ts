@@ -4,7 +4,7 @@ import { DomainEvent } from '../../database/models/DomainEvent.js';
 import { AuthorizationService } from '../../core/authorization/authorization.service.js';
 import type { AuthenticatedUser } from '../../core/types/auth.js';
 import { AppError } from '../../core/errors/AppError.js';
-import { randomUUID } from 'node:crypto';
+import { EventStore, type EventInput } from './event-store.js';
 
 export interface AuditInput { 
   organizationId?: Types.ObjectId | undefined; 
@@ -23,8 +23,6 @@ export interface AuditInput {
   after?:unknown; 
   metadata?:Record<string,unknown> | undefined; 
 }
-export interface EventInput { organizationId:Types.ObjectId; name:string; aggregateType:string; aggregateId:Types.ObjectId; actorUserId?:Types.ObjectId; correlationId?:string; causationId?:string; version?:number; payload:unknown; }
-
 export class AuditService {
   static async record(input:AuditInput){ return AuditLog.create({...input,occurredAt:new Date()}); }
   static async list(auth:AuthenticatedUser, query:{organizationId:string;resourceType?:string;resourceId?:string;actorUserId?:string;action?:string;from?:Date;to?:Date;limit:number}){
@@ -33,8 +31,7 @@ export class AuditService {
     return AuditLog.find(filter).sort({occurredAt:-1}).limit(query.limit).lean();
   }
   static async publish(input:EventInput){
-    const eventId=randomUUID(); const event=await DomainEvent.create({eventId,organizationId:input.organizationId,name:input.name,aggregateType:input.aggregateType,aggregateId:input.aggregateId,actorUserId:input.actorUserId,correlationId:input.correlationId,causationId:input.causationId,version:input.version??1,payload:input.payload,occurredAt:new Date()});
-    return event;
+    return EventStore.append(input);
   }
   static async listEvents(auth:AuthenticatedUser, query:{organizationId:string;name?:string;aggregateType?:string;aggregateId?:string;from?:Date;to?:Date;limit:number}){
     const orgId=new Types.ObjectId(query.organizationId); AuthorizationService.assertPermission(auth,'audit.view',orgId);

@@ -446,7 +446,7 @@ export class IntegrationService {
       if (subscription.status === 'CANCELLED') throw new AppError(409, 'CHARGE_AFTER_CANCELLATION', 'Paystack reported a charge after cancellation; refund review is required');
       const invoice = await SubscriptionInvoice.findOne({ subscriptionId: subscription._id, provider: 'PAYSTACK' }).sort({ createdAt: -1 });
       if (!invoice) throw new AppError(409, 'BILLING_INVOICE_MISSING', 'Subscription invoice is missing');
-      if (Number(data.amount) !== toPaystackMinorUnits(invoice.total) || String(data.currency ?? '').toUpperCase() !== invoice.currency.toUpperCase()) {
+      if (Number(data.amount) !== toPaystackMinorUnits(invoice.total, invoice.currency) || String(data.currency ?? '').toUpperCase() !== invoice.currency.toUpperCase()) {
         throw new AppError(409, 'PROVIDER_AMOUNT_MISMATCH', 'Subscription charge does not match its invoice');
       }
       if (invoice.status === 'PAID' && invoice.providerInvoiceId && invoice.providerInvoiceId !== reference) throw new AppError(409, 'DUPLICATE_SUBSCRIPTION_CHARGE', 'A second subscription charge requires refund review');
@@ -493,7 +493,7 @@ export class IntegrationService {
     if (!Number.isSafeInteger(result.amountMinorUnits)) {
       throw new AppError(409, 'PROVIDER_AMOUNT_MISSING', 'Provider did not return a valid amount');
     }
-    if (result.amountMinorUnits !== toPaystackMinorUnits(payment.amount)) {
+    if (result.amountMinorUnits !== toPaystackMinorUnits(payment.amount, payment.currency)) {
       throw new AppError(409, 'PROVIDER_AMOUNT_MISMATCH', 'Provider amount does not match payment');
     }
     if (result.currency?.toUpperCase() !== payment.currency.toUpperCase()) {

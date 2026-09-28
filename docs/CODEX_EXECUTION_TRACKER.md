@@ -1,5 +1,12 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Slice 34 - Phase A Foundation (2026-09-28)
+
+- Added a currency-aware integer-minor-unit `Money` value helper and applied it to Paystack initiation, billing plans, renewal matching, and webhook amount checks. Existing KES behavior remains; unsupported or over-precise amounts now fail before provider submission.
+- Centralized domain-event append in `EventStore`. Aggregate versions advance using the existing unique index with duplicate-key retries. Events now accept schema version, source, actor role, and request ID, and reject sensitive payload keys. Audit UI exposes event sequence and trace metadata; `audit.view` remains required server-side.
+- Added focused tests for currency scales, precision, event sequencing, collisions, and payload guards.
+- Phase A remains **partial**: organization country/locale/time zone configuration, authoritative minor-unit financial migration, supported-currency/provider matrices, transactional outbox, durable broker/consumer replay, and broad provider abstraction review still need design and implementation. The requested Phases B-H are not implemented by this slice. Do not treat the current event collection as a reliable delivery queue or switch live organizations to non-KES money on this basis.
+
 ## Slice 33 - Guided Property Setup (2026-09-28)
 
 - Added transactional property setup with server-side hierarchy validation, permission and entitlement checks, generated building/floor/unit audits, expanded unit categories, and custom unit-type labels.

@@ -743,9 +743,13 @@ export interface DomainEventRecord {
   aggregateType: string;
   aggregateId: string;
   actorUserId?: string;
+  actorRole?: string;
+  requestId?: string;
+  source?: 'APPLICATION' | 'PROVIDER' | 'SYSTEM';
   correlationId?: string;
   causationId?: string;
   version: number;
+  schemaVersion?: number;
   payload: unknown;
   occurredAt: string;
   publishedAt?: string;

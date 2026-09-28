@@ -1,4 +1,5 @@
 import { integrationConfig } from './config.js';
+import { moneyFromMajorUnits } from '../money/money.js';
 import { requestJson } from './http.js';
 import type {
   PaymentInitiationInput,
@@ -51,9 +52,13 @@ export interface CreatePaystackSubaccountInput {
   metadata?: Record<string, unknown>;
 }
 
-export function toPaystackMinorUnits(amount: number): number {
+export function toPaystackMinorUnits(amount: number, currency = 'KES'): number {
   if (!Number.isFinite(amount) || amount <= 0) throw new Error('PAYSTACK_INVALID_AMOUNT');
-  return Math.round(amount * 100);
+  try {
+    return moneyFromMajorUnits(amount, currency).minorUnits;
+  } catch {
+    throw new Error('PAYSTACK_INVALID_AMOUNT');
+  }
 }
 
 function normalizeStatus(status: string): PaymentInitiationResult['status'] {
@@ -83,7 +88,7 @@ export class PaystackProvider implements PaymentProvider {
         headers: this.headers(),
         body: JSON.stringify({
           email: input.email,
-          amount: String(toPaystackMinorUnits(input.amount)),
+          amount: String(toPaystackMinorUnits(input.amount, input.currency)),
           currency: input.currency.toUpperCase(),
           reference: input.reference,
           ...(input.paystackChannels?.length ? { channels: input.paystackChannels } : {}),
