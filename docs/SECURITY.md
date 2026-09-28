@@ -90,6 +90,9 @@ Protect against IDOR/BOLA.
     require the same organization-scoped permission and audit. Country and
     currency cannot be switched through the settings API while finance remains
     on the legacy KES model.
+-   New operational rent, payment, expense, and service-charge writes reject
+    non-KES currency. Manual and provider payment allocations cannot apply
+    one currency to another. Existing financial records are not rewritten.
 -   Paystack bank account details are sent directly from the authenticated
     setup request to Paystack subaccount provisioning; PMCC retains only the
     provider subaccount code, account name, bank code, and final four digits.

@@ -275,6 +275,10 @@ Organizations now have a typed regional profile with KE/KES defaults. Locale
 and IANA time zone can be changed independently of financial identity;
 currency and country cannot yet be edited through the product API. Saved
 display preferences do not convert stored amounts or change provider routing.
+The operational finance API now rejects non-KES writes at validation while the
+legacy ledger remains in place. Allocation must match payment and charge
+currencies, including the provider-confirmation path. This is a migration
+guard, not a multi-currency implementation.
 PMCC verifies the signed `charge.success` payload, transaction reference,
 amount, and currency before applying a payment. M-Pesa success callbacks
 must match the server-initiated amount and KES currency before allocation.

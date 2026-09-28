@@ -229,6 +229,14 @@ masked account details. M-Pesa destinations become active only when they
 match the securely configured Daraja shortcode. Crypto destinations remain
 `PENDING_PROVIDER_SETUP` until a supported processor and reconciliation
 adapter are connected.
+While the operational finance ledger still stores major-unit KES amounts,
+new rent charges, generated rent, payments, expenses, and service-charge
+assessments accept only `KES`. Paystack/M-Pesa settlement destinations must
+use country `KE`, and Paystack destinations must use `KES`. Invalid currencies
+or countries fail request validation before provider onboarding. Manual rent
+allocation rejects a charge whose currency differs from the payment; provider
+allocation only considers same-currency charges. Existing historical records
+are not converted by this restriction.
 
 Paystack initiation accepts an optional payer email override and optional
 `paystackChannels`; otherwise

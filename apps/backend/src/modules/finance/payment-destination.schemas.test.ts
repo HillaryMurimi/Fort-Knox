@@ -12,5 +12,7 @@ describe('payment destination validation',()=>{
     expect(()=>paymentDestinationSchema.parse({provider:'PAYSTACK',label:'Bank',businessName:'Dapini',bankCode:'001',accountNumber:'not-a-bank-account'})).toThrow();
     expect(()=>paymentDestinationSchema.parse({provider:'MPESA',label:'Till',shortCode:'12'})).toThrow();
     expect(()=>paymentDestinationSchema.parse({provider:'CRYPTO',label:'Wallet',asset:'DOGE',network:'BASE',walletAddress:'short'})).toThrow();
+    expect(()=>paymentDestinationSchema.parse({provider:'PAYSTACK',label:'Rent bank',businessName:'Dapini Homes',bankCode:'001',accountNumber:'1234567890',currency:'USD'})).toThrow();
+    expect(()=>paymentDestinationSchema.parse({provider:'PAYSTACK',label:'Rent bank',businessName:'Dapini Homes',bankCode:'001',accountNumber:'1234567890',country:'US'})).toThrow();
   });
 });

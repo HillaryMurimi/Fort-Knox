@@ -561,6 +561,7 @@ export class IntegrationService {
       unitId: Types.ObjectId;
       tenancyId: Types.ObjectId;
       amount: number;
+      currency: string;
       status: string;
       paidAt?: Date | null;
       confirmedAt?: Date | null;
@@ -582,6 +583,7 @@ export class IntegrationService {
     const charges = await RentCharge.find({
       organizationId: payment.organizationId,
       tenancyId: payment.tenancyId,
+      currency: payment.currency,
       status: { $in: ['OPEN', 'PARTIALLY_PAID', 'OVERDUE'] },
       balanceAmount: { $gt: 0 },
     }).sort({ dueDate: 1, periodStart: 1 });

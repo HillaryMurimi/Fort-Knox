@@ -1,5 +1,12 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Slice 36 - Legacy Finance Currency Guard (2026-09-28)
+
+- Kept operational finance creation on the current KES ledger: rent charges, generated rent, payments, expenses, and service-charge assessments reject non-KES input. Paystack settlement onboarding rejects non-KES/non-KE account details before contacting the provider; crypto wallets remain pending and are not tenant checkout rails.
+- Manual payment confirmation now checks all proposed allocations, including organization/tenancy scope, duplicate charge IDs, balance and currency, before the first allocation write. Provider confirmation queries only charges in the payment currency. Historical non-KES records are not rewritten and can still be reconciled only with matching currency.
+- Remaining: migrate major-unit financial collections and reports to integer minor units; make manual and provider multi-record allocation transactions atomic under concurrent requests; then enable country/provider/currency matrices. Event delivery and broader Phase A work remain open.
+- Verification: root typecheck, lint (existing warnings only), tests (backend 157 passed/6 skipped; frontend 59 passed), and build passed. Focused tests cover legacy currency rejection, duplicate allocation rejection, manual cross-currency preflight, and provider charge selection.
+
 ## Slice 35 - Regional Organization Profile (2026-09-28)
 
 - Added a typed regional profile on organizations with explicit KE, KES, en-KE and Africa/Nairobi defaults for existing and newly created records. The profile carries country, base/allowed currencies, locale and IANA time zone.

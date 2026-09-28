@@ -108,6 +108,8 @@ Critical user journeys through frontend/API.
 -   Payment webhook verified.
 -   Duplicate webhook idempotent.
 -   Payment allocation.
+-   New non-KES operational finance writes rejected until ledger migration.
+-   Cross-currency manual/provider allocation rejected before balance updates.
 -   Reconciliation.
 -   Arrears calculation.
 -   Refund/reversal state.
