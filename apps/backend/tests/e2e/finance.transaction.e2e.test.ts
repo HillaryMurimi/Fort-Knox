@@ -68,6 +68,57 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
     expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, balanceAmount: 50 })).toBe(2);
   });
 
+  it('reverses confirmed payment balances and records the audit once', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    const allocations = { allocations: charges.map((charge) => ({ rentChargeId: String(charge._id), amount: 50 })) };
+    await FinanceService.confirmPayment(auth, String(payment._id), allocations);
+
+    await FinanceService.reversePayment(auth, String(payment._id));
+    expect((await Payment.findById(payment._id))?.status).toBe('REVERSED');
+    expect(await PaymentAllocation.countDocuments({ paymentId: payment._id })).toBe(2);
+    expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, paidAmount: 0, balanceAmount: 50, status: { $in: ['OPEN', 'OVERDUE'] } })).toBe(2);
+    expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.reversed' })).toBe(1);
+    await expect(FinanceService.reversePayment(auth, String(payment._id))).rejects.toMatchObject({ code: 'INVALID_PAYMENT_STATE' });
+    expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.reversed' })).toBe(1);
+  });
+
+  it('rolls back reversal when audit fails', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map((charge) => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    const audit = vi.spyOn(AuditService, 'record').mockRejectedValueOnce(new Error('audit unavailable'));
+    await expect(FinanceService.reversePayment(auth, String(payment._id))).rejects.toThrow('audit unavailable');
+    audit.mockRestore();
+
+    expect((await Payment.findById(payment._id))?.status).toBe('CONFIRMED');
+    expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, status: 'PAID', paidAmount: 50, balanceAmount: 0 })).toBe(2);
+    expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.reversed' })).toBe(0);
+  });
+
+  it('refuses reversal when the historical allocation set is incomplete', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map((charge) => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    await PaymentAllocation.deleteOne({ paymentId: payment._id, rentChargeId: charges[0]?._id });
+
+    await expect(FinanceService.reversePayment(auth, String(payment._id))).rejects.toMatchObject({ code: 'INVALID_PAYMENT_ALLOCATIONS' });
+    expect((await Payment.findById(payment._id))?.status).toBe('CONFIRMED');
+    expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, status: 'PAID', balanceAmount: 0 })).toBe(2);
+  });
+
+  it('rejects reversal without scoped authorization', async () => {
+    const { ids, charges, payment } = await fixture();
+    const admin: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(admin, String(payment._id), { allocations: charges.map((charge) => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    const outsider: AuthenticatedUser = { userId: new Types.ObjectId(), isPlatformAdmin: false, memberships: [] };
+
+    await expect(FinanceService.reversePayment(outsider, String(payment._id))).rejects.toMatchObject({ statusCode: 403 });
+    expect((await Payment.findById(payment._id))?.status).toBe('CONFIRMED');
+    expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, status: 'PAID', balanceAmount: 0 })).toBe(2);
+    expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.reversed' })).toBe(0);
+  });
+
   it('rolls back provider balances if audit fails, then confirms exactly once', async () => {
     const { charges, payment } = await fixture();
     const audit = vi.spyOn(AuditService, 'record').mockRejectedValueOnce(new Error('audit unavailable'));

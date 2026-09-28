@@ -70,6 +70,7 @@ Protect against IDOR/BOLA.
 -   Reconciliation.
 -   Safe monetary representation.
 -   Audit adjustments/refunds.
+-   Ledger reversal requires scoped `payment.reverse` authorization and a complete allocation history; it commits balance, state, and audit changes in one MongoDB transaction. It does not itself request a provider refund.
 -   Separate initiation, provider confirmation, and reconciliation
     state.
 -   Avoid silent destructive edits to financial history.

@@ -1,5 +1,12 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Slice 38 - Transactional Payment Reversal (2026-09-28)
+
+- Reversal now re-reads and authorizes the confirmed payment in a MongoDB transaction, validates the entire allocation set and linked charge scope/currency/balances, and commits restored charge balances, `REVERSED` state, and an audit entry together. Historical allocations remain intact; a second reversal is rejected.
+- Replica-set E2E coverage verifies success, audit-failure rollback, and refusal to reverse incomplete historical allocation data.
+- This is a ledger correction only, not a Paystack or M-Pesa refund. Provider refund and settlement workflows, other multi-record finance operations, integer minor-unit migration, and durable event delivery remain open.
+- Verification: root typecheck, lint (existing warnings only), tests (backend 160 passed/13 opt-in skipped; frontend 59 passed), and build passed. The isolated replica-set E2E command passed 13 tests, including reversal rollback and unauthorized access.
+
 ## Slice 37 - Transactional Payment Confirmation (2026-09-28)
 
 - Manual and verified provider payment confirmation now re-read payment and charge state inside a MongoDB transaction. Allocation rows, charge balances, payment status, and the confirmation audit commit together; duplicate provider confirmation creates no second allocation. Provider receipt, method, and paid time survive the transactional re-read.

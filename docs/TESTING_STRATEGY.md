@@ -110,6 +110,7 @@ Critical user journeys through frontend/API.
 -   Payment allocation.
 -   Manual and provider allocation commit or roll back with balances, payment status, and audit on a replica set.
 -   Duplicate provider confirmation creates no additional allocation or audit record.
+-   Reversal restores balances exactly once, retains allocations, rejects incomplete history, and rolls back when audit fails.
 -   New non-KES operational finance writes rejected until ledger migration.
 -   Cross-currency manual/provider allocation rejected before balance updates.
 -   Reconciliation.

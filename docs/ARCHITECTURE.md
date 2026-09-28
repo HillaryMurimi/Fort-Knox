@@ -286,8 +286,10 @@ Manual and provider payment confirmation now re-read payment and charges in a
 MongoDB transaction. Allocations, charge balances, payment status, and the
 confirmation audit entry commit together. Duplicate provider confirmation is
 idempotent. These paths require a replica-set or sharded MongoDB deployment;
-standalone MongoDB cannot confirm payments. Reversals and other financial
-workflows are not yet covered by this transaction boundary.
+standalone MongoDB cannot confirm payments. Ledger reversal uses a separate
+transaction for charge balances, payment status, and audit, preserving the
+original allocations as history. It does not issue a provider refund. Other
+financial workflows are not yet covered by these transaction boundaries.
 
 This adapter handles operational property payments. Platform subscription
 billing remains a separate boundary because Paystack recurring billing

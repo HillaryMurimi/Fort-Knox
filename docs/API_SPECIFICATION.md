@@ -242,6 +242,12 @@ allocation rows, charge balances, payment status, and audit record in MongoDB.
 Confirmation therefore requires a replica set or sharded MongoDB deployment;
 a standalone MongoDB server cannot process this write. Repeating an already
 confirmed provider event does not create another allocation.
+`POST /api/v1/payments/:id/reverse` requires scoped `payment.reverse` access
+and a confirmed payment with a complete allocation set. It restores the rent
+charge balances and marks the payment `REVERSED` in the same transaction as
+its audit record. Allocation records remain as history. A second reversal is
+rejected. This is an internal ledger reversal, not a Paystack or M-Pesa refund;
+provider refunds and bank settlement corrections require a separate workflow.
 
 Paystack initiation accepts an optional payer email override and optional
 `paystackChannels`; otherwise

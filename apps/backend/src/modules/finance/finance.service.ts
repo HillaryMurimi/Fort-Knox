@@ -128,7 +128,51 @@ export class FinanceService {
     }finally{await session.endSession();}
   }
 
-  static async reversePayment(auth:AuthenticatedUser,id:string){const payment=await Payment.findById(id);if(!payment)throw new AppError(404,'NOT_FOUND','Payment not found');ResourceScopeService.assertUnit(auth,payment,'payment.reverse',(await Tenant.findById(payment.tenantId).lean())?.userId);if(payment.status!=='CONFIRMED')throw new AppError(409,'INVALID_PAYMENT_STATE','Only confirmed payments can be reversed');const allocations=await PaymentAllocation.find({paymentId:payment._id});for(const allocation of allocations){const charge=await RentCharge.findById(allocation.rentChargeId);if(!charge)continue;charge.paidAmount=Math.max(0,charge.paidAmount-allocation.amount);charge.balanceAmount=Math.max(0,charge.totalAmount-charge.paidAmount);charge.status=charge.balanceAmount===0?'PAID':(charge.paidAmount>0?'PARTIALLY_PAID':(charge.dueDate<new Date()?'OVERDUE':'OPEN'));charge.updatedBy=auth.userId;await charge.save();}payment.status='REVERSED';payment.reversedAt=new Date();payment.updatedBy=auth.userId;await payment.save();return payment;}
+  static async reversePayment(auth:AuthenticatedUser,id:string){
+    const session=await mongoose.startSession();
+    try{
+      const reversed=await session.withTransaction(async()=>{
+        const payment=await Payment.findById(id).session(session);
+        if(!payment)throw new AppError(404,'NOT_FOUND','Payment not found');
+        ResourceScopeService.assertUnit(auth,payment,'payment.reverse',(await Tenant.findById(payment.tenantId).session(session).lean())?.userId);
+        if(payment.status!=='CONFIRMED')throw new AppError(409,'INVALID_PAYMENT_STATE','Only confirmed payments can be reversed');
+
+        const allocations=await PaymentAllocation.find({organizationId:payment.organizationId,paymentId:payment._id}).session(session);
+        if(!allocations.length||Math.abs(allocations.reduce((sum,allocation)=>sum+allocation.amount,0)-payment.amount)>0.000001){
+          throw new AppError(409,'INVALID_PAYMENT_ALLOCATIONS','Payment allocations are incomplete');
+        }
+        const checked: Array<{charge:HydratedDocument<RentChargeDocument>;amount:number}> = [];
+        for(const allocation of allocations){
+          const charge=await RentCharge.findById(allocation.rentChargeId).session(session);
+          if(!charge)throw new AppError(409,'RENT_CHARGE_NOT_FOUND','Allocated rent charge no longer exists');
+          if(String(charge.organizationId)!==String(payment.organizationId)||String(charge.tenancyId)!==String(payment.tenancyId)){
+            throw new AppError(403,'INVALID_ALLOCATION','Payment allocation no longer belongs to this tenancy');
+          }
+          ResourceScopeService.assertUnit(auth,charge,'payment.reverse',(await Tenant.findById(charge.tenantId).session(session).lean())?.userId);
+          assertMatchingCurrency(payment.currency,charge.currency);
+          if(charge.paidAmount+0.000001<allocation.amount){
+            throw new AppError(409,'INVALID_CHARGE_BALANCE','Rent charge paid balance is less than its allocation');
+          }
+          checked.push({charge,amount:allocation.amount});
+        }
+
+        const now=new Date();
+        for(const {charge,amount} of checked){
+          charge.paidAmount=Math.max(0,charge.paidAmount-amount);
+          charge.balanceAmount=Math.max(0,charge.totalAmount-charge.paidAmount);
+          charge.status=charge.balanceAmount===0?'PAID':(charge.paidAmount>0?'PARTIALLY_PAID':(charge.dueDate<now?'OVERDUE':'OPEN'));
+          charge.updatedBy=auth.userId;
+          await charge.save({session});
+        }
+        payment.status='REVERSED';payment.reversedAt=now;payment.updatedBy=auth.userId;
+        await payment.save({session});
+        await AuditService.record({organizationId:payment.organizationId,actorUserId:auth.userId,action:'payment.reversed',resourceType:'Payment',resourceId:payment._id,propertyId:payment.propertyId,buildingId:payment.buildingId,unitId:payment.unitId,metadata:{amount:payment.amount,currency:payment.currency,allocationCount:checked.length}},session);
+        return payment;
+      });
+      if(!reversed)throw new AppError(500,'PAYMENT_REVERSAL_FAILED','Payment reversal did not complete');
+      return reversed;
+    }finally{await session.endSession();}
+  }
 
   static async listExpenses(auth:AuthenticatedUser,organizationId:string){const orgId=toId(organizationId);AuthorizationService.assertPermission(auth,'expense.view',orgId);const ids=await ResourceScopeService.scopedUnitIds(auth,orgId);const filter:Record<string,unknown>={organizationId:orgId};if(ids)filter.unitId={$in:ids};return Expense.find(filter).sort({incurredAt:-1}).lean();}
 
