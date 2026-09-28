@@ -60,7 +60,7 @@ export class OrganizationService {
       AuthorizationService.assertCan(auth, "organization.update", {
         organizationId,
       });
-    if (data.settings !== undefined)
+    if (data.settings !== undefined || data.regionalProfile !== undefined)
       AuthorizationService.assertCan(auth, "organization.settings.manage", {
         organizationId,
       });
@@ -75,6 +75,12 @@ export class OrganizationService {
         ...(organization.settings as Record<string, unknown>),
         ...data.settings,
       };
+    if (data.regionalProfile !== undefined) {
+      organization.regionalProfile = {
+        ...organization.regionalProfile,
+        ...data.regionalProfile,
+      };
+    }
     await organization.save();
     await AuditService.record({
       organizationId: organization._id,
@@ -84,7 +90,7 @@ export class OrganizationService {
       resourceId: organization._id,
       before,
       after: organization.toObject(),
-      metadata: { settingsChanged: data.settings !== undefined },
+      metadata: { settingsChanged: data.settings !== undefined, regionalProfileChanged: data.regionalProfile !== undefined },
     });
     return organization;
   }

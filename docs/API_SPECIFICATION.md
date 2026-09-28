@@ -115,6 +115,11 @@ fields and a partial `settings` object containing `managementPhone`,
 `organization.settings.manage`. The server merges settings, rejects unknown
 fields, scopes the organization through authorization, and audits the before and
 after state.
+The same PATCH accepts `regionalProfile: { locale?, timeZone? }` under
+`organization.settings.manage`. Both values are validated; country, base
+currency, and allowed currencies are read-only and rejected on update. Existing
+organizations default to KE/KES/en-KE/Africa/Nairobi. This changes presentation
+preferences only, not transaction currency or historical finance records.
 
 ## 5. Properties
 

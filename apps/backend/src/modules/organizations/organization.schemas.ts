@@ -15,9 +15,19 @@ export const organizationSettingsSchema = z
     officeHours: z.string().trim().min(2).max(160).optional(),
   })
   .strict();
+const regionalProfileUpdateSchema = z.object({
+  locale: z.string().trim().min(2).max(35).refine((value) => {
+    try { return Intl.NumberFormat.supportedLocalesOf([value]).length === 1; }
+    catch { return false; }
+  }, 'Unsupported locale').optional(),
+  timeZone: z.string().trim().min(3).max(80).refine((value) => {
+    try { new Intl.DateTimeFormat('en', { timeZone: value }); return true; }
+    catch { return false; }
+  }, 'Invalid IANA time zone').optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, 'At least one regional field is required');
 export const updateOrganizationSchema = createOrganizationSchema
   .partial()
-  .extend({ settings: organizationSettingsSchema.optional() })
+  .extend({ settings: organizationSettingsSchema.optional(), regionalProfile: regionalProfileUpdateSchema.optional() })
   .strict()
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one organization field is required",

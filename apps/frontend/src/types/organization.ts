@@ -5,6 +5,13 @@ export interface Organization {
   createdAt?: string;
   updatedAt?: string;
   status?: 'ACTIVE' | 'SUSPENDED';
+  regionalProfile?: {
+    countryCode: string;
+    baseCurrency: string;
+    allowedCurrencies: string[];
+    locale: string;
+    timeZone: string;
+  };
   settings?: {
     managementPhone?: string;
     managementEmail?: string;

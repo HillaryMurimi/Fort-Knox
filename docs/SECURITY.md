@@ -83,9 +83,13 @@ Protect against IDOR/BOLA.
 -   Landlord settlement destination management requires
     `organization.settings.manage` and is organization-scoped and audited.
 -   Resident-facing management phone, email, emergency line, and office hours
-    are the only organization settings editable from the landlord command center.
+    are the only resident contact settings editable from the landlord command center.
     Unknown fields are rejected, private credentials are forbidden, and every
     update requires `organization.settings.manage` and an audit record.
+-   Regional display locale and IANA time zone are separately validated and
+    require the same organization-scoped permission and audit. Country and
+    currency cannot be switched through the settings API while finance remains
+    on the legacy KES model.
 -   Paystack bank account details are sent directly from the authenticated
     setup request to Paystack subaccount provisioning; PMCC retains only the
     provider subaccount code, account name, bank code, and final four digits.

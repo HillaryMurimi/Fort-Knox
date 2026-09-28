@@ -1,5 +1,13 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Slice 35 - Regional Organization Profile (2026-09-28)
+
+- Added a typed regional profile on organizations with explicit KE, KES, en-KE and Africa/Nairobi defaults for existing and newly created records. The profile carries country, base/allowed currencies, locale and IANA time zone.
+- Authorized organization managers can update validated locale and time zone in Settings. Country and currency fields are rejected at the API; KES finance/provider flows and historical values are unchanged. Regional edits use the existing organization-scope authorization and before/after audit record. Development preview does not issue this write.
+- Replaced inert Settings controls with navigation links and a responsive regional editor with a fixed-currency format preview. Shared currency formatting now accepts a locale and respects the currency's own fraction scale.
+- Added organization defaults/schema tests and formatting tests. Remaining: apply locale/time-zone formatting across all operational screens, migrate authoritative finance data to integer minor units, add supported country/payment-provider matrices, and only then enable non-KES organization finance. Transactional outbox and event delivery from Slice 34 also remain open.
+- Verification: root typecheck, lint (existing warnings only), tests (backend 153 passed/6 skipped; frontend 59 passed), and build passed. Browser viewport review could not run because the in-app browser was unavailable in this session.
+
 ## Slice 34 - Phase A Foundation (2026-09-28)
 
 - Added a currency-aware integer-minor-unit `Money` value helper and applied it to Paystack initiation, billing plans, renewal matching, and webhook amount checks. Existing KES behavior remains; unsupported or over-precise amounts now fail before provider submission.

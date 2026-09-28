@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { updateOrganizationSchema } from "../../src/modules/organizations/organization.schemas.js";
+import { Organization } from "../../src/database/models/Organization.js";
 
 describe("organization contact settings validation", () => {
   it("accepts bounded resident contact settings", () => {
@@ -25,5 +26,20 @@ describe("organization contact settings validation", () => {
       updateOrganizationSchema.parse({ settings: { privateKey: "secret" } }),
     ).toThrow();
     expect(() => updateOrganizationSchema.parse({})).toThrow();
+  });
+
+  it('defaults existing and new organization documents to the legacy KES region', () => {
+    const organization = new Organization({ name: 'Acacia', slug: 'acacia' });
+    expect(organization.regionalProfile.toObject()).toMatchObject({
+      countryCode: 'KE', baseCurrency: 'KES', allowedCurrencies: ['KES'], locale: 'en-KE', timeZone: 'Africa/Nairobi',
+    });
+  });
+
+  it('accepts locale and time zone edits but rejects country and currency switches', () => {
+    expect(updateOrganizationSchema.parse({ regionalProfile: { locale: 'en-GB', timeZone: 'Europe/London' } }).regionalProfile).toEqual({ locale: 'en-GB', timeZone: 'Europe/London' });
+    expect(() => updateOrganizationSchema.parse({ regionalProfile: { locale: 'invalid_locale' } })).toThrow();
+    expect(() => updateOrganizationSchema.parse({ regionalProfile: { timeZone: 'Mars/Olympus' } })).toThrow();
+    expect(() => updateOrganizationSchema.parse({ regionalProfile: { baseCurrency: 'USD' } })).toThrow();
+    expect(() => updateOrganizationSchema.parse({ regionalProfile: { countryCode: 'US' } })).toThrow();
   });
 });

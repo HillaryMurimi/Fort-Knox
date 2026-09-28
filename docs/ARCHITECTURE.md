@@ -271,6 +271,10 @@ safe integer limits at the Paystack boundary. This does not migrate the legacy
 major-unit financial fields. Do not enable a new operating currency until
 those fields, reports, provider rails, and historical records are converted
 and verified together.
+Organizations now have a typed regional profile with KE/KES defaults. Locale
+and IANA time zone can be changed independently of financial identity;
+currency and country cannot yet be edited through the product API. Saved
+display preferences do not convert stored amounts or change provider routing.
 PMCC verifies the signed `charge.success` payload, transaction reference,
 amount, and currency before applying a payment. M-Pesa success callbacks
 must match the server-initiated amount and KES currency before allocation.

@@ -45,6 +45,9 @@ product policy requires
 -   `settings`
 -   `defaultCurrency`
 -   `timezone`
+-   `regionalProfile` with country code, base currency, allowed currencies,
+    locale, and IANA time zone. Existing records hydrate to KE/KES/en-KE/
+    Africa/Nairobi; the financial identity is fixed until the ledger migration.
 -   timestamps
 
 ### memberships
