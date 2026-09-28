@@ -499,3 +499,10 @@ Remaining external integration: connect `DemoRequestService` to a protected lead
 - Added presenter shortcuts, 16-minute live timeline, self-guided scenario selection, four aspect ratios, duration and speed controls, captions, safe-area overlay, clean capture, visual styles, device silhouette, loop, and deterministic capture URLs.
 - Added arithmetic, manifest, role-scope, playback, ratio, and query tests plus Playwright screenshots across desktop, phone, vertical Studio, and clean landscape capture. See `docs/CINEMATIC_DEMO.md` for remaining editorial and export work.
 - Verification: root typecheck, lint, tests and build passed (backend 134 tests passed/6 skipped; frontend 55 passed). The final frontend `verify:production` passed with 24 existing lint warnings and no errors. `verify:cinematic-demo` passed across six viewport/format combinations with exact aspect ratios and no runtime errors, horizontal overflow, or `/api/v1` mutation requests.
+
+## Slice 30 - Corporate Landing Themes (2026-09-28)
+
+- Added a persistent light/dark toggle to the public navigation using the existing application theme provider.
+- Retained the full-bleed property scene as a dark visual anchor while giving the public overview, operational panels, role map, demo teaser, conversion band and footer coordinated light and dark treatments. Updated chart colors to follow the active theme.
+- Browser verification covers both themes at mobile, tablet and desktop widths, including canvas rendering, scene controls, demo dialog, theme persistence and horizontal overflow. All six combinations passed.
+- No API, database, RBAC or production integration behavior changed. Remaining public-site work: provision the lead API/CRM and approved analytics adapter, then validate the final brand/contact metadata.

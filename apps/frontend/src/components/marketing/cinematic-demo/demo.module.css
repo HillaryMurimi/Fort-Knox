@@ -1529,6 +1529,23 @@
   width:15px;
   height:15px
 }
+:global(.light) .landingTeaser {
+  background:#f0f4f1;
+  color:#172d2c;
+  border-top:1px solid #d5dfdc;
+  border-bottom:1px solid #d5dfdc
+}
+:global(.light) .landingTeaser p {
+  color:#4d6764
+}
+:global(.light) .landingTeaserLinks a {
+  border-color:#176d64;
+  color:#176d64
+}
+:global(.light) .landingTeaserLinks a:first-child {
+  background:#176d64;
+  color:#fff
+}
 @media(max-width:980px) {
   .workspace {
   grid-template-columns:1fr

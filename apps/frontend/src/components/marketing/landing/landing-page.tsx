@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useTheme } from "next-themes";
 import { motion, useReducedMotion } from "motion/react";
 import {
   Area,
@@ -23,7 +24,9 @@ import {
   ChevronRight,
   ClipboardCheck,
   Menu,
+  Moon,
   ShieldCheck,
+  Sun,
   TrendingUp,
   Wrench,
   X,
@@ -38,6 +41,7 @@ const PropertyScene = dynamic(
   () => import("./property-scene").then((module) => module.PropertyScene),
   { ssr: false },
 );
+const subscribeToHydration = () => () => {};
 const focuses: {
   key: SceneFocus;
   label: string;
@@ -145,6 +149,8 @@ const workflows = [
 
 function MarketingNav({ onDemo }: { onDemo: () => void }) {
   const [open, setOpen] = useState(false);
+  const mounted = useSyncExternalStore(subscribeToHydration, () => true, () => false);
+  const { resolvedTheme, setTheme } = useTheme();
   return (
     <header className="dt-nav">
       <div className="dt-nav-inner">
@@ -167,6 +173,16 @@ function MarketingNav({ onDemo }: { onDemo: () => void }) {
           <a href="#roles">Access</a>
         </nav>
         <div className="dt-nav-actions">
+          <button
+            type="button"
+            className="dt-theme-toggle"
+            aria-label={mounted && resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            title={mounted && resolvedTheme === "dark" ? "Light theme" : "Dark theme"}
+            disabled={!mounted}
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          >
+            {mounted && resolvedTheme === "light" ? <Moon size={17} /> : <Sun size={17} />}
+          </button>
           <Link href="/login" className="dt-login">
             Sign in
           </Link>
@@ -350,36 +366,36 @@ function Overview() {
                     >
                       <stop
                         offset="0%"
-                        stopColor="#51d6df"
+                        stopColor="var(--dt-chart-accent)"
                         stopOpacity={0.32}
                       />
-                      <stop offset="100%" stopColor="#51d6df" stopOpacity={0} />
+                      <stop offset="100%" stopColor="var(--dt-chart-accent)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid
                     vertical={false}
-                    stroke="#24404a"
+                    stroke="var(--dt-chart-grid)"
                     strokeDasharray="3 5"
                   />
                   <XAxis
                     dataKey="month"
-                    tick={{ fill: "#8fabb5", fontSize: 11 }}
+                    tick={{ fill: "var(--dt-chart-tick)", fontSize: 11 }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <YAxis
                     domain={[40, 100]}
-                    tick={{ fill: "#8fabb5", fontSize: 11 }}
+                    tick={{ fill: "var(--dt-chart-tick)", fontSize: 11 }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(value: number) => `${value}%`}
                   />
                   <Tooltip
                     contentStyle={{
-                      background: "#112832",
-                      border: "1px solid #4b7480",
+                      background: "var(--dt-chart-tooltip)",
+                      border: "1px solid var(--dt-line)",
                       borderRadius: 3,
-                      color: "#ecf9fa",
+                      color: "var(--dt-white)",
                     }}
                     formatter={(value, name) => [
                       `${value}%`,
@@ -389,7 +405,7 @@ function Overview() {
                   <Area
                     type="monotone"
                     dataKey="target"
-                    stroke="#758e98"
+                    stroke="var(--dt-chart-target)"
                     strokeDasharray="5 5"
                     strokeWidth={1.5}
                     fill="transparent"
@@ -398,7 +414,7 @@ function Overview() {
                   <Area
                     type="monotone"
                     dataKey="actual"
-                    stroke="#5bdee5"
+                    stroke="var(--dt-chart-accent)"
                     strokeWidth={3}
                     fill="url(#collection-fill)"
                     isAnimationActive={!reducedMotion}
