@@ -118,6 +118,8 @@ after state.
 
 ## 5. Properties
 
+The implemented guided setup endpoint is `POST /api/v1/organizations/:organizationId/property-setups`. It accepts `{ property: CreatePropertyInput, structureMode: "BUILDINGS" | "STANDALONE", buildings: [{ name, code, floors: [{ name, code, level, units: [{ name, code, unitType, unitTypeLabel?, monthlyRent, serviceCharge?, bedrooms?, bathrooms?, areaSqm? }] }] }] }`. Standalone mode requires one site building and one floor. The server validates uniqueness per building and two-decimal KES amounts, limits the request to 20 buildings and 500 units, checks `property.create`, `building.create`, `floor.create`, and `unit.create` plus subscription capacity, then writes the hierarchy and audit entries in one MongoDB transaction. Response: `{ propertyId, buildingCount, floorCount, unitCount, estimatedMonthlyRent }`. A replica-set or sharded MongoDB deployment is required for transactional setup. `monthlyRent` on units is asking rent; active and historical tenancy rent remains on the tenancy. Unit read responses omit `monthlyRent` and `serviceCharge` when the caller lacks scoped `rent.view`; updating either amount also requires scoped `rent.manage`.
+
 ``` text
 GET    /properties
 POST   /properties

@@ -92,6 +92,8 @@ td:last-child, th:last-child { padding-right: 0; }
 .tooltip-wrap { position: relative; display: inline-flex; }
 .tooltip-wrap::after { position: absolute; z-index: 100; bottom: calc(100% + 8px); left: 50%; max-width: 220px; transform: translate(-50%, 4px); border-radius: 4px; background: #17191c; color: white; content: attr(data-tooltip); opacity: 0; padding: 5px 8px; pointer-events: none; white-space: nowrap; font-size: 11px; transition: opacity 120ms ease, transform 120ms ease; }
 .tooltip-wrap:hover::after, .tooltip-wrap:focus-within::after { opacity: 1; transform: translate(-50%, 0); }
+.topbar-actions > .tooltip-wrap:last-of-type::after { left: auto; right: 0; transform: translateY(4px); }
+.topbar-actions > .tooltip-wrap:last-of-type:hover::after, .topbar-actions > .tooltip-wrap:last-of-type:focus-within::after { transform: translateY(0); }
 
 .command-glass { background: rgba(23, 25, 28, .96); backdrop-filter: blur(20px) saturate(130%); border: 1px solid rgba(255, 255, 255, .08); }
 .command-glass-soft { background: rgba(255, 255, 255, .06); backdrop-filter: blur(16px); }

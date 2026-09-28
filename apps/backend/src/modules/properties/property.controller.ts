@@ -6,6 +6,8 @@ import { createPropertySchema, propertyIdSchema, updatePropertySchema } from './
 import { PropertyService } from './property.service.js';
 import { requiredParam } from '../../core/http/params.js';
 import { AuthorizationService } from '../../core/authorization/authorization.service.js';
+import { propertySetupSchema } from './property-setup.schemas.js';
+import { PropertySetupService } from './property-setup.service.js';
 
 const objectId = (value: string, name: string): Types.ObjectId => {
   if (!Types.ObjectId.isValid(value)) throw new AppError(400, 'INVALID_PARAMETER', `${name} must be a valid ObjectId`);
@@ -29,6 +31,13 @@ export async function create(req: Request, res: Response): Promise<void> {
   const data = createPropertySchema.parse(req.body);
   AuthorizationService.assertCan(req.auth!, 'property.create', { organizationId: orgId });
   res.status(201).json(apiResponse(await PropertyService.create(req.auth!, organizationId, data)));
+}
+
+export async function createSetup(req: Request, res: Response): Promise<void> {
+  const organizationId = requiredParam(req.params.organizationId, 'organizationId');
+  objectId(organizationId, 'organizationId');
+  const input = propertySetupSchema.parse(req.body);
+  res.status(201).json(apiResponse(await PropertySetupService.create(req.auth!, organizationId, input)));
 }
 
 export async function update(req: Request, res: Response): Promise<void> {

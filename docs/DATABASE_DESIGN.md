@@ -136,6 +136,7 @@ retention policy.
 -   `floorId`
 -   unit number/code
 -   type
+-   optional `unitTypeLabel` for organization-specific labels when type is `OTHER`
 -   occupancy status
 -   rent configuration
 -   service charge configuration
@@ -143,6 +144,8 @@ retention policy.
 -   timestamps
 
 Recommended uniqueness: - organization/property/building + unit code.
+
+Current implementation requires building and floor references on every unit. Guided standalone setup creates a Site building and Ground Floor compatibility hierarchy. The current `Unit.monthlyRent` is a KES asking/default rent (major-unit number), while `Tenancy.monthlyRent` preserves the agreed lease amount; historical charges derive from the tenancy, never retroactively from the unit. A future money migration to integer minor units must be coordinated across finance and existing records, not applied only to setup. Property setup writes property, buildings, floors, units and audit records in a single MongoDB transaction. `Property.metadata.structureMode` records whether the setup was presented as buildings or standalone.
 
 ## 4. Tenant and Tenancy Collections
 

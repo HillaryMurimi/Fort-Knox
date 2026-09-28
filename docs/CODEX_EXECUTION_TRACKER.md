@@ -1,5 +1,13 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Slice 33 - Guided Property Setup (2026-09-28)
+
+- Added transactional property setup with server-side hierarchy validation, permission and entitlement checks, generated building/floor/unit audits, expanded unit categories, and custom unit-type labels.
+- Added a responsive four-stage landlord setup at `/properties/setup`: property/location, structure, repeated unit layout with per-type asking rents, and editable review. Added a real property hierarchy/passport screen at `/properties/:propertyId` and preserved individual forms for later edits.
+- Standalone mode creates an internal Site/Ground Floor hierarchy for existing operational references. Asking rent is stored on Unit; agreed/historical rent stays on Tenancy. Unit API reads redact rent and service charge without scoped `rent.view`. Unit edits/deactivation now audit before/after state in a transaction.
+- Remaining gaps: true optional building/floor foreign keys across all downstream domains; existing list endpoints are not paginated; bulk post-onboarding move/rename/type/rent operations and map geocoding are not yet implemented. Production setup requires MongoDB transactions. The opt-in backend E2E suite could not start because mongodb-memory-server timed out downloading its 774 MB MongoDB binary; run it again after caching/provisioning MongoDB.
+- Verification: backend and frontend typecheck/build passed; lint passed with pre-existing warnings (zero errors); backend 145 tests passed/6 skipped, frontend 57 passed. Browser walkthrough reached review at desktop/mobile with no horizontal overflow after a shared top-bar tooltip fix. No live database commit was performed in the development UI bypass.
+
 ## Current Objective
 
 Maintain a production-safe frontend role workspace system with development-only role and screen preview tooling. Preview state may control navigation and route presentation only; backend RBAC, ABAC, organization scope, resource ownership, and feature entitlements remain authoritative.

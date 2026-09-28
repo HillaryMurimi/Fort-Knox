@@ -38,7 +38,7 @@ export function Topbar({ onMobileMenuToggle, mobileMenuOpen }: TopbarProps) {
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-card/95 backdrop-blur-xl">
-      <div className="flex min-h-16 items-center gap-2 px-3 sm:gap-3 sm:px-6">
+      <div className="topbar-actions flex min-h-16 items-center gap-2 px-3 sm:gap-3 sm:px-6">
         <Tooltip label={mobileMenuOpen ? 'Close navigation' : 'Open navigation'}>
           <Button type="button" variant="outline" size="icon" onClick={onMobileMenuToggle} aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={mobileMenuOpen} className="lg:hidden">
             {mobileMenuOpen ? <I.X size={18} /> : <I.Menu size={18} />}
@@ -59,12 +59,12 @@ export function Topbar({ onMobileMenuToggle, mobileMenuOpen }: TopbarProps) {
 
         <SearchField className="hidden w-64 md:block" placeholder="Search portfolio..." aria-label="Global search" />
 
-        <Tooltip label="Notifications">
+        <span className="tooltip-wrap" data-tooltip="Notifications" style={{ flexShrink: 0 }}>
           <Button type="button" variant="outline" size="icon" aria-label="Notifications" className="relative">
             <I.Bell size={17} />
             <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
           </Button>
-        </Tooltip>
+        </span>
 
         <div ref={accountRef} className="relative hidden sm:block">
           <Button type="button" variant="ghost" className="h-10 gap-2 px-1.5" onClick={() => setAccountOpen((value) => !value)} aria-label="Account menu" aria-expanded={accountOpen}>
@@ -94,4 +94,3 @@ export function Topbar({ onMobileMenuToggle, mobileMenuOpen }: TopbarProps) {
     </header>
   );
 }
-

@@ -1,7 +1,7 @@
 import { api } from '../api';
 import type { Unit } from './resource-types';
 
-export type CreateUnitInput = Pick<Unit, 'floorId' | 'name' | 'code' | 'unitType' | 'monthlyRent'> & Pick<Unit, 'serviceCharge' | 'areaSqm' | 'bedrooms' | 'bathrooms' | 'amenities'>;
+export type CreateUnitInput = Pick<Unit, 'floorId' | 'name' | 'code' | 'unitType' | 'monthlyRent'> & Pick<Unit, 'unitTypeLabel' | 'serviceCharge' | 'areaSqm' | 'bedrooms' | 'bathrooms' | 'amenities'>;
 export type UpdateUnitInput = Partial<Omit<CreateUnitInput, 'floorId'>> & { status?: Unit['status'] };
 
 export const unitClient = {

@@ -1,7 +1,224 @@
-'use client';
-import { useMemo,useState } from 'react'; import { Plus, Search, Building2, RefreshCw } from 'lucide-react'; import { useOrganization } from '@/hooks/use-organization'; import { usePropertiesQuery } from '@/hooks/queries/use-property-queries'; import { PageTitle } from '@/components/ui'; import { PropertyCard } from '@/components/properties/property-card'; import { PropertyForm } from '@/components/properties/property-form'; import type {Property} from '@/lib/data/resource-types';
-export default function PropertiesPage(){const{activeOrganizationId}=useOrganization();const q=usePropertiesQuery(activeOrganizationId);const[search,setSearch]=useState('');const[status,setStatus]=useState<'ALL'|Property['status']>('ALL');const[open,setOpen]=useState(false);const[editing,setEditing]=useState<Property>();const rows=useMemo(()=>{const source=q.data??[];const needle=search.trim().toLowerCase();return source.filter(p=>(status==='ALL'||p.status===status)&&(!needle||`${p.name} ${p.code} ${p.address.city}`.toLowerCase().includes(needle)))},[q.data,search,status]);if(!activeOrganizationId)return <Empty title="Select an organization" description="Choose an organization from the top bar to load its property portfolio."/>;return <div><PageTitle eyebrow="Portfolio" title="Properties" description="Your buildings, units and property passports in one place." action={<button className="btn-primary" onClick={()=>{setEditing(undefined);setOpen(true)}}><Plus size={15}/> Add property</button>}/><div className="card p-3 mb-5 flex flex-col sm:flex-row gap-3"><div className="relative flex-1"><Search size={15} className="absolute left-3 top-3 text-muted-foreground"/><input className="pl-9!" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search properties, codes or cities…"/></div><select className="sm:w-44" value={status} onChange={e=>setStatus(e.target.value as typeof status)}><option value="ALL">All statuses</option><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option><option value="ARCHIVED">Archived</option></select></div>{q.isLoading?<GridSkeleton/>:q.isError?<ErrorState message={q.error instanceof Error?q.error.message:'Unable to load properties'} onRetry={()=>void q.refetch()}/>:rows.length===0?<Empty title={search||status!=='ALL'?'No matching properties':'Your property portfolio is empty'} description={search||status!=='ALL'?'Try a different search or filter.':'Add your first property to start building your command center.'} {...(!search&&status==='ALL'?{action:()=>{setEditing(undefined);setOpen(true)}}:{})}/>:<div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">{rows.map(p=><div key={p._id} className="relative"><PropertyCard property={p}/><button aria-label={`Edit ${p.name}`} onClick={()=>{setEditing(p);setOpen(true)}} className="absolute top-4 right-14 text-[11px] font-semibold text-muted-foreground hover:text-foreground">Edit</button></div>)}</div>}{open&&<Modal title={editing?'Edit property':'Add property'} onClose={()=>setOpen(false)}><PropertyForm organizationId={activeOrganizationId} {...(editing?{property:editing}:{})} onDone={()=>setOpen(false)} onCancel={()=>setOpen(false)}/></Modal>}</div>}
-function Empty({title,description,action}:{title:string;description:string;action?:()=>void}){return <div className="card p-12 text-center"><div className="mx-auto w-12 h-12 rounded-2xl bg-muted flex items-center justify-center"><Building2 size={22} className="text-muted-foreground"/></div><h2 className="font-semibold mt-4">{title}</h2><p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">{description}</p>{action&&<button onClick={action} className="btn-primary mt-5"><Plus size={15}/> Add property</button>}</div>}
-function ErrorState({message,onRetry}:{message:string;onRetry:()=>void}){return <div className="card p-10 text-center"><div className="font-semibold">Unable to load properties</div><p className="text-sm text-muted-foreground mt-1">{message}</p><button onClick={onRetry} className="btn-secondary mt-4"><RefreshCw size={14}/> Try again</button></div>}
-function GridSkeleton(){return <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">{[1,2,3].map(i=><div key={i} className="card p-5 h-52 animate-pulse bg-card"><div className="h-5 w-2/3 bg-muted rounded"/><div className="h-3 w-1/3 bg-muted rounded mt-3"/><div className="h-3 w-full bg-muted rounded mt-8"/></div>)}</div>}
-function Modal({title,onClose,children}:{title:string;onClose:()=>void;children:React.ReactNode}){return <div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)onClose()}}><div className="modal-panel"><div className="flex justify-between items-center mb-5"><h2 className="text-lg font-semibold">{title}</h2><button onClick={onClose} className="text-muted-foreground">×</button></div>{children}</div></div>}
+"use client";
+
+import { use, useState } from "react";
+import Link from "next/link";
+import { Building2, MapPin, Plus } from "lucide-react";
+import { useOrganization } from "@/hooks/use-organization";
+import { usePropertyQuery } from "@/hooks/queries/use-property-queries";
+import {
+  useBuildingsQuery,
+  useFloorsQuery,
+  useUnitsQuery,
+} from "@/hooks/queries/use-hierarchy-queries";
+import { useSetupPermission } from "@/hooks/use-setup-permission";
+import { BuildingForm } from "@/components/properties/building-form";
+import { Dialog } from "@/components/ui";
+
+const money = (value: number) =>
+  new Intl.NumberFormat("en-KE", {
+    style: "currency",
+    currency: "KES",
+    maximumFractionDigits: 0,
+  }).format(value);
+
+export default function PropertyDetailPage({
+  params,
+}: {
+  params: Promise<{ propertyId: string }>;
+}) {
+  const { propertyId } = use(params);
+  const { activeOrganizationId } = useOrganization();
+  const property = usePropertyQuery(activeOrganizationId, propertyId);
+  const buildings = useBuildingsQuery(activeOrganizationId, propertyId);
+  const floors = useFloorsQuery(activeOrganizationId);
+  const units = useUnitsQuery(activeOrganizationId);
+  const canAddBuilding = useSetupPermission(
+    activeOrganizationId,
+    "building.create",
+  );
+  const canViewRent = useSetupPermission(activeOrganizationId, "rent.view");
+  const [adding, setAdding] = useState(false);
+  if (!activeOrganizationId)
+    return <p role="status">Select an organization to view this property.</p>;
+  if (
+    property.isLoading ||
+    buildings.isLoading ||
+    floors.isLoading ||
+    units.isLoading
+  )
+    return <p role="status">Loading property hierarchy...</p>;
+  if (property.isError || buildings.isError || floors.isError || units.isError)
+    return (
+      <div role="alert">
+        <p>Property hierarchy could not be loaded.</p>
+        <button
+          className="btn-secondary mt-3"
+          onClick={() =>
+            void Promise.all([
+              property.refetch(),
+              buildings.refetch(),
+              floors.refetch(),
+              units.refetch(),
+            ])
+          }
+        >
+          Retry
+        </button>
+      </div>
+    );
+  if (!property.data) return <p role="status">Property not found.</p>;
+  const buildingRows = buildings.data || [];
+  const unitRows = (units.data || []).filter(
+    (unit) => unit.propertyId === propertyId,
+  );
+  const activeUnits = unitRows.filter((unit) => unit.status !== "INACTIVE");
+  const vacantUnits = activeUnits.filter((unit) => unit.status === "VACANT");
+  const potentialRent = activeUnits.reduce(
+    (sum, unit) => sum + (unit.monthlyRent || 0),
+    0,
+  );
+  return (
+    <main className="space-y-8">
+      <Link
+        href="/properties"
+        className="text-sm text-muted-foreground hover:text-foreground"
+      >
+        Back to properties
+      </Link>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800 dark:text-emerald-400">
+            Property passport / {property.data.code}
+          </p>
+          <h1 className="mt-2 text-3xl font-medium sm:text-4xl">
+            {property.data.name}
+          </h1>
+          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+            <MapPin size={15} />
+            {property.data.address.addressLine1}, {property.data.address.city}
+            {property.data.address.county
+              ? `, ${property.data.address.county}`
+              : ""}
+          </p>
+        </div>
+        {canAddBuilding && (
+          <button className="btn-primary" onClick={() => setAdding(true)}>
+            <Plus size={16} /> Add building
+          </button>
+        )}
+      </header>
+      <div className="grid gap-4 border-y border-border py-6 sm:grid-cols-4">
+        <Metric label="Buildings" value={buildingRows.length} />
+        <Metric label="Units" value={activeUnits.length} />
+        <Metric label="Vacant" value={vacantUnits.length} />
+        {canViewRent && (
+          <Metric
+            label="Full occupancy asking rent"
+            value={money(potentialRent)}
+          />
+        )}
+      </div>
+      <div>
+        <h2 className="text-lg font-semibold">Site structure</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Expand a building to see its floors and units. Active tenancy rent
+          remains separate.
+        </p>
+        <div className="mt-5 space-y-4">
+          {buildingRows.length ? (
+            buildingRows.map((building) => {
+              const buildingFloors = (floors.data || []).filter(
+                (floor) => floor.buildingId === building._id,
+              );
+              return (
+                <details
+                  key={building._id}
+                  className="border-t border-border pt-4"
+                  open={buildingRows.length === 1}
+                >
+                  <summary className="flex cursor-pointer items-center gap-3 text-sm font-semibold">
+                    <Building2 size={17} />
+                    {building.name}
+                    <span className="font-normal text-muted-foreground">
+                      {buildingFloors.length} floors ·{" "}
+                      {
+                        unitRows.filter(
+                          (unit) => unit.buildingId === building._id,
+                        ).length
+                      }{" "}
+                      units
+                    </span>
+                  </summary>
+                  <div className="ml-2 mt-4 space-y-4 border-l border-border pl-5">
+                    {buildingFloors.map((floor) => {
+                      const floorUnits = unitRows.filter(
+                        (unit) => unit.floorId === floor._id,
+                      );
+                      return (
+                        <div key={floor._id}>
+                          <Link
+                            href={`/floors/${floor._id}`}
+                            className="text-sm font-semibold hover:underline"
+                          >
+                            {floor.name}
+                          </Link>
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {floorUnits.length} units
+                          </span>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {floorUnits.map((unit) => (
+                              <Link
+                                key={unit._id}
+                                href={`/units/${unit._id}`}
+                                className="min-w-32 border border-border px-3 py-2 text-xs hover:border-foreground/50"
+                              >
+                                <span className="block font-semibold">
+                                  {unit.name}
+                                </span>
+                                <span className="mt-1 block text-muted-foreground">
+                                  {unit.unitTypeLabel ||
+                                    unit.unitType.replaceAll("_", " ")}{" "}
+                                  · {unit.status}
+                                </span>
+                                {canViewRent &&
+                                  typeof unit.monthlyRent === "number" && (
+                                    <span className="mt-1 block tabular-nums">
+                                      {money(unit.monthlyRent)}
+                                    </span>
+                                  )}
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              );
+            })
+          ) : (
+            <p className="text-sm text-muted-foreground">No buildings yet.</p>
+          )}
+        </div>
+      </div>
+      <Dialog open={adding} onOpenChange={setAdding} title="Add building">
+        {adding && (
+          <BuildingForm
+            organizationId={activeOrganizationId}
+            propertyId={propertyId}
+            onDone={() => setAdding(false)}
+            onCancel={() => setAdding(false)}
+          />
+        )}
+      </Dialog>
+    </main>
+  );
+}
+function Metric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div>
+      <div className="text-2xl font-medium tabular-nums">{value}</div>
+      <p className="mt-1 text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
+}

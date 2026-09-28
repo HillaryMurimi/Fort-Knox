@@ -70,12 +70,19 @@ export interface Unit {
   unitType:
     | "SINGLE_ROOM"
     | "BEDSITTER"
+    | "STUDIO"
     | "ONE_BEDROOM"
     | "TWO_BEDROOM"
     | "THREE_PLUS_BEDROOM"
+    | "FOUR_BEDROOM"
+    | "FIVE_PLUS_BEDROOM"
+    | "MAISONETTE"
+    | "SHOP"
     | "OFFICE"
     | "RETAIL"
+    | "COMMERCIAL_UNIT"
     | "OTHER";
+  unitTypeLabel?: string;
   status: "VACANT" | "OCCUPIED" | "RESERVED" | "MAINTENANCE" | "INACTIVE";
   monthlyRent: number;
   serviceCharge?: number;

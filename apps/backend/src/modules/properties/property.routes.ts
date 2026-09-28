@@ -7,6 +7,7 @@ export const propertyRouter = Router();
 propertyRouter.use(requireAuth);
 propertyRouter.get('/organizations/:organizationId/properties', asyncHandler(controller.list));
 propertyRouter.post('/organizations/:organizationId/properties', asyncHandler(controller.create));
+propertyRouter.post('/organizations/:organizationId/property-setups', asyncHandler(controller.createSetup));
 propertyRouter.get('/properties/:propertyId', asyncHandler(controller.get));
 propertyRouter.patch('/properties/:propertyId', asyncHandler(controller.update));
 propertyRouter.delete('/properties/:propertyId', asyncHandler(controller.remove));

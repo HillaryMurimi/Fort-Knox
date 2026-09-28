@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { Building2, Plus } from 'lucide-react';
 import { Dialog, EmptyState, PageTitle } from '@/components/ui';
 import { PropertyCard } from '@/components/properties/property-card';
@@ -17,7 +18,7 @@ export default function PropertiesPage() {
   const [saved, setSaved] = useState(false);
   const rows = (properties.data ?? []).filter(property => [property.name, property.code, property.address.city].join(' ').toLowerCase().includes(search.trim().toLowerCase()));
   return <div className="space-y-5">
-    <PageTitle eyebrow="Portfolio" title="Properties" description="Manage your properties, buildings and units." action={canCreate && <button className="btn-primary" onClick={() => { setSaved(false); setOpen(true); }}><Plus size={16}/> Add Property</button>}/>
+    <PageTitle eyebrow="Portfolio" title="Properties" description="Manage your properties, buildings and units." action={canCreate && <Link className="btn-primary" href="/properties/setup"><Plus size={16}/> Set up property</Link>}/>
     {!activeOrganizationId ? <EmptyState icon={Building2} title="Select an organization" description="Choose an organization to manage its portfolio."/> : <>
       {saved && <p role="status" className="text-sm text-[var(--success-text)]">Property created successfully.</p>}
       <input aria-label="Search properties" placeholder="Search properties, codes or cities?" value={search} onChange={event => setSearch(event.target.value)}/>
