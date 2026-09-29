@@ -19,6 +19,7 @@
         "seed:billing": "tsx scripts/seed-billing.ts",
         "jobs:run": "tsx scripts/run-jobs.ts",
         "jobs:worker": "tsx scripts/run-jobs-workers.ts",
+        "phase-a:inventory": "tsx scripts/check-phase-a-inventory.ts",
         "billing:reconcile": "tsx scripts/reconcile-billing.ts",
         "certify:release": "tsx scripts/certify-release.ts",
         "verify:production": "npm run typecheck && npm run lint && npm test && npm run build && npm run certify:release",

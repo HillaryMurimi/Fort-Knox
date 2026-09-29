@@ -237,6 +237,10 @@ or countries fail request validation before provider onboarding. Manual rent
 allocation rejects a charge whose currency differs from the payment; provider
 allocation only considers same-currency charges. Existing historical records
 are not converted by this restriction.
+KES monetary inputs now require cent precision and safe integer conversion.
+Allocation and reversal calculations use integer cents internally, but API
+responses and stored operational finance values remain major-unit numbers.
+This is not a multi-currency or canonical minor-unit API.
 Manual and verified provider payment confirmation atomically commit the
 allocation rows, charge balances, payment status, and audit record in MongoDB.
 Confirmation therefore requires a replica set or sharded MongoDB deployment;

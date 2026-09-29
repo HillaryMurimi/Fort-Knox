@@ -8,6 +8,7 @@ import { AuthorizationService } from '../../core/authorization/authorization.ser
 import { EntitlementService } from '../../core/billing/entitlement.service.js';
 import type { AuthenticatedUser } from '../../core/types/auth.js';
 import type { PropertySetupInput } from './property-setup.schemas.js';
+import { addMinorUnits, legacyMinorUnits } from '../../core/money/legacy-finance.js';
 
 export class PropertySetupService {
   static async create(auth: AuthenticatedUser, organizationId: string, input: PropertySetupInput) {
@@ -38,7 +39,7 @@ export class PropertySetupService {
         floorRows.push({ _id: floorId, organizationId: orgId, propertyId, buildingId, name: floor.name, code: floor.code, level: floor.level, totalUnits: floor.units.length, createdBy: actorId, updatedBy: actorId });
         auditRows.push({ ...auditBase, action: 'floor.generated', resourceType: 'Floor', resourceId: floorId, buildingId, after: { name: floor.name, code: floor.code, level: floor.level } });
         for (const unit of floor.units) {
-          estimatedMonthlyRentMinor += Math.round(unit.monthlyRent * 100);
+          estimatedMonthlyRentMinor = addMinorUnits(estimatedMonthlyRentMinor, legacyMinorUnits(unit.monthlyRent, 'KES'));
           unitRows.push({ ...unit, organizationId: orgId, propertyId, buildingId, floorId, createdBy: actorId, updatedBy: actorId });
         }
       }

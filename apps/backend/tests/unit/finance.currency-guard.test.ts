@@ -23,7 +23,7 @@ describe('finance currency guards', () => {
     vi.spyOn(Payment, 'findById').mockReturnValue({ session: async () => payment } as never);
     vi.spyOn(Tenant, 'findById').mockReturnValue({ session: () => ({ lean: async () => ({ userId: new Types.ObjectId() }) }) } as never);
     vi.spyOn(ResourceScopeService, 'assertUnit').mockImplementation(() => undefined);
-    vi.spyOn(RentCharge, 'findById').mockImplementation((id) => ({ session: async () => ({ _id: id, organizationId, tenancyId, tenantId, currency: String(id) === String(firstId) ? 'KES' : 'USD', balanceAmount: 50 }) }) as never);
+    vi.spyOn(RentCharge, 'findById').mockImplementation((id) => ({ session: async () => ({ _id: id, organizationId, tenancyId, tenantId, currency: String(id) === String(firstId) ? 'KES' : 'USD', totalAmount: 50, paidAmount: 0, balanceAmount: 50 }) }) as never);
     vi.spyOn(PaymentAllocation, 'exists').mockReturnValue({ session: async () => null } as never);
     const createAllocation = vi.spyOn(PaymentAllocation, 'create');
 

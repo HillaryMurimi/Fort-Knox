@@ -81,6 +81,49 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
     expect(await Job.countDocuments({ organizationId: ids.organizationId, type: 'domain-event.payment-activity', status: 'QUEUED' })).toBe(1);
   });
 
+  it('allocates KES cents exactly and reverses them without balance drift', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await RentCharge.updateOne({ _id: charges[0]._id }, { $set: { rentAmount: 0.1, totalAmount: 0.1, balanceAmount: 0.1 } });
+    await RentCharge.updateOne({ _id: charges[1]._id }, { $set: { rentAmount: 0.2, totalAmount: 0.2, balanceAmount: 0.2 } });
+    await Payment.updateOne({ _id: payment._id }, { $set: { amount: 0.3 } });
+    await FinanceService.confirmPayment(auth, String(payment._id), { allocations: [
+      { rentChargeId: String(charges[0]._id), amount: 0.1 },
+      { rentChargeId: String(charges[1]._id), amount: 0.2 },
+    ] });
+    expect(await RentCharge.countDocuments({ _id: { $in: charges.map(charge => charge._id) }, balanceAmount: 0, status: 'PAID' })).toBe(2);
+    await FinanceService.reversePayment(auth, String(payment._id));
+    expect((await RentCharge.findById(charges[0]._id))?.balanceAmount).toBe(0.1);
+    expect((await RentCharge.findById(charges[1]._id))?.balanceAmount).toBe(0.2);
+    expect(await PaymentAllocation.countDocuments({ paymentId: payment._id })).toBe(2);
+  });
+
+  it('rejects an over-precise historical payment before any allocation write', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await Payment.updateOne({ _id: payment._id }, { $set: { amount: 0.301 } });
+    await expect(FinanceService.confirmPayment(auth, String(payment._id), { allocations: [
+      { rentChargeId: String(charges[0]._id), amount: 0.1 },
+      { rentChargeId: String(charges[1]._id), amount: 0.201 },
+    ] })).rejects.toMatchObject({ code: 'INVALID_FINANCIAL_AMOUNT' });
+    expect((await Payment.findById(payment._id))?.status).toBe('PENDING');
+    expect(await PaymentAllocation.countDocuments({ paymentId: payment._id })).toBe(0);
+  });
+
+  it('allocates provider-confirmed KES cents across charges exactly once', async () => {
+    const { charges, payment } = await fixture();
+    await RentCharge.updateOne({ _id: charges[0]._id }, { $set: { rentAmount: 0.1, totalAmount: 0.1, balanceAmount: 0.1 } });
+    await RentCharge.updateOne({ _id: charges[1]._id }, { $set: { rentAmount: 0.2, totalAmount: 0.2, balanceAmount: 0.2 } });
+    await Payment.updateOne({ _id: payment._id }, { $set: { amount: 0.3 } });
+    const current = await Payment.findById(payment._id);
+    if (!current) throw new Error('Expected payment');
+    await IntegrationService.confirmProviderPayment(current);
+    expect((await PaymentAllocation.find({ paymentId: payment._id }).sort({ amount: 1 }).lean()).map(allocation => allocation.amount)).toEqual([0.1, 0.2]);
+    expect(await RentCharge.countDocuments({ _id: { $in: charges.map(charge => charge._id) }, balanceAmount: 0, status: 'PAID' })).toBe(2);
+    await IntegrationService.confirmProviderPayment(current);
+    expect(await PaymentAllocation.countDocuments({ paymentId: payment._id })).toBe(2);
+  });
+
   it('delivers a payment event once across worker retries and admin replay', async () => {
     const { ids, charges, payment } = await fixture();
     const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };

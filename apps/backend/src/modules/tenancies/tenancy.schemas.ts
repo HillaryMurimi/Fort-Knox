@@ -1,7 +1,8 @@
 import { z } from 'zod';
+import { isLegacyKesAmount } from '../../core/money/legacy-finance.js';
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Must be a valid MongoDB ObjectId');
-const money = z.number().finite().nonnegative();
+const money = z.number().finite().nonnegative().refine(isLegacyKesAmount, 'Use an amount representable in KES cents');
 const date = z.coerce.date();
 
 /**

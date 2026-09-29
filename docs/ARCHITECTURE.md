@@ -279,6 +279,11 @@ The operational finance API now rejects non-KES writes at validation while the
 legacy ledger remains in place. Allocation must match payment and charge
 currencies, including the provider-confirmation path. This is a migration
 guard, not a multi-currency implementation.
+Within the legacy KES boundary, new monetary inputs must be representable in
+cents. Rent totals and manual/provider allocation and reversal arithmetic
+use safe integer minor units, converting back only for the existing major-unit
+schema. This is not authoritative minor-unit storage. A read-only Phase A
+inventory command identifies collections that require a verified cutover.
 PMCC verifies the signed `charge.success` payload, transaction reference,
 amount, and currency before applying a payment. M-Pesa success callbacks
 must match the server-initiated amount and KES currency before allocation.

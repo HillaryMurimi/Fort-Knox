@@ -98,6 +98,9 @@ Protect against IDOR/BOLA.
 -   New operational rent, payment, expense, and service-charge writes reject
     non-KES currency. Manual and provider payment allocations cannot apply
     one currency to another. Existing financial records are not rewritten.
+-   New KES monetary inputs reject excess precision/unsafe values. Payment
+    allocation and reversal arithmetic uses integer cents, but stored balances
+    remain legacy major-unit numbers until the full migration is complete.
 -   Paystack bank account details are sent directly from the authenticated
     setup request to Paystack subaccount provisioning; PMCC retains only the
     provider subaccount code, account name, bank code, and final four digits.

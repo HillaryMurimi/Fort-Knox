@@ -6,6 +6,8 @@ Last updated: 2026-09-24
 
 PMCC now has production startup validation, deterministic quality commands, container builds, CI, liveness/readiness probes, and production-only safeguards around preview mode and local storage. A deployment is **not approved for live customer money or security operations** until every required owner action below is complete and the release gate passes in the target environment.
 
+Phase A's authoritative minor-unit ledger and multi-country provider matrix are still incomplete. Follow [Phase A owner actions](PHASE_A_OWNER_ACTIONS.md) for the exact credentials, inventory check, and deployment prerequisites. The legacy KES calculation hardening is not a storage migration.
+
 Run from the repository root:
 
 ```bash

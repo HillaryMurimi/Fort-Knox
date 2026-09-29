@@ -13,7 +13,14 @@ This is the dependency order for the attached platform expansion brief. Existing
 | E - Automation | Decision automation exists; the requested structured low-code engine is not complete. | Versioned safe rules, event/schedule triggers, dry-run, scoped execution, audit and tests. |
 | F - Owner intelligence | Command-center and intelligence modules exist; requested owner workflows are not complete. | Event timeline, morning brief, experience score, guarded churn support, scenario simulation and tests. |
 
-Next dependency gate: migrate authoritative finance values to integer minor units, then establish the country/currency/provider matrix. Expand event delivery beyond payment activity before treating Phase B-F features as production-ready. Payment settlement reconciliation remains a separate financial workstream; the recent Paystack refund slices did not close Phase A.
+Next dependency gate: migrate authoritative finance values to integer minor units, then establish the country/currency/provider matrix. Expand event delivery beyond payment activity before treating Phase B-F features as production-ready. Payment settlement reconciliation remains a separate financial workstream; the recent Paystack refund slices did not close Phase A. See `PHASE_A_OWNER_ACTIONS.md` for owner-side inputs and release gates.
+
+## Slice 44 - Exact Legacy Finance Arithmetic and Phase A Inventory (2026-09-29)
+
+- Manual/provider rent allocations, reversals, and rent-charge totals now calculate in integer KES minor units before writing through the existing major-unit schema. New rent, payment, expense, tenancy/unit, property setup, and maintenance monetary inputs reject values that cannot be represented exactly in KES cents. This reduces rounding drift but is **not** the authoritative storage migration.
+- Added read-only `phase-a:inventory` for a target MongoDB database and `PHASE_A_OWNER_ACTIONS.md`. The owner reports no live finance data; this must still be verified per environment before any future storage cutover. The command never changes data.
+- Remaining Phase A gates: canonical minor-unit storage and API/report conversion, multi-country/provider capability policy with merchant acceptance, broader transactional event producers/consumers, bounded legacy replay/backfill, observability, and provider-boundary review. Do not mark Phase A complete or enable non-KES finance based on this slice.
+- Verification: root typecheck, lint (283 backend and 24 frontend warnings, no errors), tests and build passed; the opt-in replica-set E2E suite passed all 35 tests. No real provider or target-database inventory check was run in this slice.
 
 ## Slice 43 - Payment Event Outbox and Replay (2026-09-29)
 

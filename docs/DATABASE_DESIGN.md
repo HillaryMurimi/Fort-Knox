@@ -276,13 +276,15 @@ hold an older non-unique index on that key and need a controlled index migration
 after checking for duplicate values.
 
 Financial collections still contain legacy major-unit Number fields. The new
-money helper protects provider conversion but does not change stored units.
+money helper protects provider conversion and exact KES allocation arithmetic
+but does not change stored units. The read-only `phase-a:inventory` command
+reports which target collections contain records before a planned cutover.
 
 ### payment_allocations
 
 -   paymentId
 -   chargeId
--   amount minor units
+-   amount (currently legacy major units; target is integer minor units)
 -   timestamps
 
 ### payment_refunds

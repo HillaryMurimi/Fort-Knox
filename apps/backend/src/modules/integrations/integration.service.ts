@@ -24,6 +24,7 @@ import { integrationConfig } from '../../core/integrations/config.js';
 import { verifyHmacSignature, hashPayload } from '../../core/integrations/webhook.security.js';
 import { withRetry } from '../../core/integrations/retry.js';
 import { toPaystackMinorUnits } from '../../core/integrations/paystack.provider.js';
+import { addMinorUnits, legacyMajorUnits, legacyMinorUnits } from '../../core/money/legacy-finance.js';
 import { choosePaidRenewalPlan } from '../../core/billing/renewal-plan.js';
 import { PaystackBillingProvider } from '../../core/billing/billing-provider.js';
 import type { PaymentInitiationResult, PaymentProviderKey, PaystackChannel } from '../../core/integrations/provider.types.js';
@@ -594,7 +595,7 @@ export class IntegrationService {
         if(current.status!=='PENDING')throw new AppError(409,'INVALID_PAYMENT_STATE','Provider payment must be pending before confirmation');
         if(current.amount!==payment.amount||current.currency!==payment.currency)throw new AppError(409,'PAYMENT_CHANGED','Payment amount or currency changed during provider confirmation');
 
-        let remaining=current.amount;
+        let remaining=legacyMinorUnits(current.amount,current.currency);
         let allocationCount=0;
         const charges=await RentCharge.find({
           organizationId:current.organizationId,
@@ -603,22 +604,25 @@ export class IntegrationService {
           status:{$in:['OPEN','PARTIALLY_PAID','OVERDUE']},
           balanceAmount:{$gt:0},
         }).sort({dueDate:1,periodStart:1}).session(session);
-        const outstanding=charges.reduce((sum,charge)=>sum+charge.balanceAmount,0);
-        if(current.amount>outstanding+0.000001)throw new AppError(409,'UNALLOCATED_PROVIDER_PAYMENT','Provider payment exceeds outstanding rent charges');
+        const outstanding=charges.reduce((sum,charge)=>addMinorUnits(sum,legacyMinorUnits(charge.balanceAmount,current.currency)),0);
+        if(remaining>outstanding)throw new AppError(409,'UNALLOCATED_PROVIDER_PAYMENT','Provider payment exceeds outstanding rent charges');
 
         for(const charge of charges){
-          if(remaining<=0.000001)break;
-          const allocationAmount=Math.min(remaining,charge.balanceAmount);
-          await PaymentAllocation.create([{organizationId:current.organizationId,paymentId:current._id,rentChargeId:charge._id,amount:allocationAmount,allocatedBy:current.createdBy}],{session});
+          if(remaining===0)break;
+          const allocationMinor=Math.min(remaining,legacyMinorUnits(charge.balanceAmount,current.currency));
+          await PaymentAllocation.create([{organizationId:current.organizationId,paymentId:current._id,rentChargeId:charge._id,amount:legacyMajorUnits(allocationMinor,current.currency),allocatedBy:current.createdBy}],{session});
           allocationCount+=1;
-          charge.paidAmount+=allocationAmount;
-          charge.balanceAmount=Math.max(0,charge.totalAmount-charge.paidAmount);
+          const paidMinor=addMinorUnits(legacyMinorUnits(charge.paidAmount,current.currency),allocationMinor);
+          const totalMinor=legacyMinorUnits(charge.totalAmount,current.currency);
+          if(paidMinor>totalMinor)throw new AppError(409,'OVER_ALLOCATION','Provider allocation exceeds rent charge total');
+          charge.paidAmount=legacyMajorUnits(paidMinor,current.currency);
+          charge.balanceAmount=legacyMajorUnits(totalMinor-paidMinor,current.currency);
           charge.status=charge.balanceAmount===0?'PAID':'PARTIALLY_PAID';
           charge.updatedBy=current.updatedBy;
           await charge.save({session});
-          remaining-=allocationAmount;
+          remaining-=allocationMinor;
         }
-        if(remaining>0.000001)throw new AppError(409,'ALLOCATION_INCOMPLETE','Provider payment could not be fully allocated');
+        if(remaining!==0)throw new AppError(409,'ALLOCATION_INCOMPLETE','Provider payment could not be fully allocated');
 
         current.status='CONFIRMED';
         current.confirmedAt=new Date();

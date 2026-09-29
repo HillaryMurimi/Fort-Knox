@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { createPropertySchema } from './property.schemas.js';
 import { unitType } from '../units/unit.schemas.js';
+import { isLegacyKesAmount } from '../../core/money/legacy-finance.js';
 
 const code = z.string().trim().min(1).max(50).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, 'Use letters, numbers, hyphens or underscores');
-const money = z.number().finite().nonnegative().max(1_000_000_000).refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, 'Use at most two decimal places');
+const money = z.number().finite().nonnegative().max(1_000_000_000).refine(isLegacyKesAmount, 'Use an amount representable in KES cents');
 const unit = z.object({
   name: z.string().trim().min(1).max(100), code, unitType,
   unitTypeLabel: z.string().trim().min(1).max(100).optional(),

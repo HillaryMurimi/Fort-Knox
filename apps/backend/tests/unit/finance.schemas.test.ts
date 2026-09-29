@@ -27,4 +27,11 @@ describe('finance schemas', () => {
   it('rejects an inverted report range', () => {
     expect(() => reportSchema.parse({ from: '2026-10-01', to: '2026-09-01' })).toThrow();
   });
+  it('rejects amounts that cannot be represented in KES cents at input', () => {
+    const tenancyId = '507f1f77bcf86cd799439011';
+    expect(() => paymentSchema.parse({ tenancyId, amount: 0.001, method: 'CARD' })).toThrow();
+    expect(() => allocationSchema.parse({ allocations: [{ rentChargeId: tenancyId, amount: 0.001 }] })).toThrow();
+    expect(() => rentChargeSchema.parse({ tenancyId, periodStart: '2026-09-01', periodEnd: '2026-09-30', dueDate: '2026-09-05', rentAmount: 1, adjustments: 0.001 })).toThrow();
+    expect(paymentSchema.parse({ tenancyId, amount: 0.01, method: 'CARD' }).amount).toBe(0.01);
+  });
 });
