@@ -299,6 +299,10 @@ The Finance review UI separates provider status from the ledger marker. A
 supervised action re-fetches `PROCESSED` status and reverses the full allocation
 with the refund marker and audit in one transaction; the generic Paystack
 reversal path is blocked. Refund lists use organization and assigned-unit scope.
+Ambiguous submissions can be linked only by fetching a dashboard refund ID and
+matching its Paystack transaction ID to a freshly verified PMCC payment. A
+review note and provider status change commit with audit in one transaction;
+no recovery path issues a second refund POST or changes the rent ledger.
 M-Pesa operator-credential reversal and settlement correction are not yet
 automated.
 

@@ -6,7 +6,7 @@ export interface PaymentInitiationInput { organizationId:string; paymentId?:stri
 export interface PaymentInitiationResult { provider:string; providerTransactionId:string; status:'PENDING'|'CONFIRMED'|'FAILED'; checkoutRequestId?:string; checkoutUrl?:string; accessCode?:string; customerMessage?:string; amountMinorUnits?:number; currency?:string; paidAt?:Date; raw?:unknown; }
 export interface PaymentProvider { readonly key:PaymentProviderKey; initiate(input:PaymentInitiationInput):Promise<PaymentInitiationResult>; query(providerTransactionId:string):Promise<PaymentInitiationResult>; }
 export type RefundStatus = 'PENDING' | 'PROCESSING' | 'NEEDS_ATTENTION' | 'FAILED' | 'PROCESSED';
-export interface RefundResult { providerRefundId: number; amountMinorUnits: number; currency: string; status: RefundStatus; }
+export interface RefundResult { providerRefundId: number; transactionId?: number; amountMinorUnits: number; currency: string; status: RefundStatus; }
 export interface RefundProvider { createRefund(transactionReference: string, reason: string): Promise<RefundResult>; getRefund(providerRefundId: number): Promise<RefundResult>; }
 
 export interface MessageInput { to:string; subject?:string; body:string; from?:string; metadata?:Record<string,unknown>; }

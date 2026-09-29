@@ -16,6 +16,7 @@ export const paymentDestinationSchema=z.discriminatedUnion('provider',[
 ]);
 export const allocationSchema=z.object({allocations:z.array(z.object({rentChargeId:oid,amount:z.number().finite().positive()}).strict()).min(1).max(100)}).strict().refine((value) => new Set(value.allocations.map((item) => item.rentChargeId.toLowerCase())).size === value.allocations.length, 'Duplicate rent charge allocation');
 export const refundRequestSchema=z.object({reason:z.string().trim().min(10).max(500)}).strict();
+export const refundReviewSchema=z.object({note:z.string().trim().min(10).max(1000),providerRefundId:z.number().int().positive().safe().optional()}).strict();
 export const expenseSchema=z.object({propertyId:oid,buildingId:oid.optional(),floorId:oid.optional(),unitId:oid.optional(),category:z.enum(['MAINTENANCE','UTILITIES','SECURITY','CLEANING','INSURANCE','TAX','STAFF','MANAGEMENT','SUPPLIES','LEGAL','MARKETING','OTHER']),description:z.string().trim().min(3).max(5000),amount:z.number().finite().positive(),currency:operationalCurrency,incurredAt:date,vendorName:z.string().trim().max(180).optional(),contractorId:oid.optional(),evidenceIds:z.array(oid).max(100).default([]),notes:z.string().trim().max(5000).optional()}).strict();
 export const expenseActionSchema=z.object({notes:z.string().trim().max(5000).optional()}).strict();
 export const serviceChargeSchema=z.object({tenancyId:oid,periodStart:date,periodEnd:date,amount:money,currency:operationalCurrency,description:z.string().trim().max(5000).optional()}).strict();

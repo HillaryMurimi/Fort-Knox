@@ -16,6 +16,7 @@ export async function requestRefund(req:Request,res:Response){res.status(202).js
 export async function listRefunds(req:Request,res:Response){res.json(apiResponse(await RefundService.list(auth(req),requiredParam(req.params.organizationId,'organizationId'))));}
 export async function getRefund(req:Request,res:Response){res.json(apiResponse(await RefundService.get(auth(req),requiredParam(req.params.id,'id'))));}
 export async function reconcileRefund(req:Request,res:Response){res.json(apiResponse(await RefundService.reconcile(auth(req),requiredParam(req.params.id,'id'))));}
+export async function reviewRefund(req:Request,res:Response){res.json(apiResponse(await RefundService.review(auth(req),requiredParam(req.params.id,'id'),s.refundReviewSchema.parse(req.body))));}
 export async function applyRefundLedger(req:Request,res:Response){res.json(apiResponse(await RefundService.applyLedger(auth(req),requiredParam(req.params.id,'id'))));}
 export async function listExpenses(req:Request,res:Response){res.json(apiResponse(await FinanceService.listExpenses(auth(req),requiredParam(req.params.organizationId,'organizationId'))));}
 export async function createExpense(req:Request,res:Response){res.status(201).json(apiResponse(await FinanceService.createExpense(auth(req),requiredParam(req.params.organizationId,'organizationId'),s.expenseSchema.parse(req.body))));}

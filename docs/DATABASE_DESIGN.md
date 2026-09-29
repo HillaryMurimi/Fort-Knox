@@ -281,6 +281,9 @@ records created before this change; older records need a controlled backfill
 before unit-scoped reviewers can see them in the list. It
 does not mutate or replace historical payment allocations. `SUBMISSION_UNKNOWN`
 is a manual-review state, not permission to retry a provider POST.
+The latest manual investigation stores reviewer, time, and a bounded note;
+each review action also has an audit entry without copying the note into
+audit metadata.
 
 ### expenses
 

@@ -108,6 +108,30 @@ export class RefundService {
     return this.recordProviderStatus(String(refund._id), await provider.getRefund(refund.providerRefundId));
   }
 
+  static async review(auth: AuthenticatedUser, paymentId: string, input: { note: string; providerRefundId?: number }) {
+    const payment = await this.scopedPayment(auth, paymentId);
+    const refund = await PaymentRefund.findOne({ organizationId: payment.organizationId, paymentId: payment._id });
+    if (!refund) throw new AppError(404, 'REFUND_NOT_FOUND', 'Refund request not found');
+    if (refund.status !== 'SUBMISSION_UNKNOWN' && refund.status !== 'NEEDS_ATTENTION') throw new AppError(409, 'REFUND_REVIEW_NOT_REQUIRED', 'This refund is not awaiting manual review');
+    const providerRefundId = input.providerRefundId ?? refund.providerRefundId;
+    if (!providerRefundId) throw new AppError(400, 'REFUND_ID_REQUIRED', 'Enter the refund ID found in Paystack; do not submit another refund');
+    if (refund.providerRefundId && refund.providerRefundId !== providerRefundId) throw new AppError(409, 'REFUND_ID_MISMATCH', 'Refund ID does not match this request');
+    const provider = getRefundProvider('PAYSTACK');
+    if (!provider) throw new AppError(503, 'REFUND_PROVIDER_UNAVAILABLE', 'Refund provider is unavailable');
+    const result = await provider.getRefund(providerRefundId);
+    const verified = await getPaymentProvider('PAYSTACK').query(refund.transactionReference);
+    const transaction = verified.raw as { id?: unknown; metadata?: unknown } | undefined;
+    let metadata = transaction?.metadata;
+    if (typeof metadata === 'string') {
+      try { metadata = JSON.parse(metadata) as unknown; } catch { metadata = null; }
+    }
+    const origin = metadata && typeof metadata === 'object' ? metadata as Record<string, unknown> : null;
+    if (!Number.isSafeInteger(transaction?.id) || result.transactionId !== transaction?.id || verified.providerTransactionId !== refund.transactionReference || verified.amountMinorUnits !== refund.amountMinorUnits || verified.currency !== refund.currency || result.amountMinorUnits !== refund.amountMinorUnits || result.currency !== refund.currency || origin?.paymentId !== String(payment._id) || origin.organizationId !== String(payment.organizationId)) {
+      throw new AppError(409, 'REFUND_REVIEW_VERIFICATION_FAILED', 'Provider refund does not match the original PMCC payment');
+    }
+    return this.recordProviderStatus(String(refund._id), result, { actorUserId: auth.userId, note: input.note });
+  }
+
   static async applyLedger(auth: AuthenticatedUser, paymentId: string) {
     const refund = await this.reconcile(auth, paymentId);
     if (!refund || refund.status !== 'PROCESSED') throw new AppError(409, 'REFUND_NOT_PROCESSED', 'Paystack has not processed this refund');
@@ -130,7 +154,7 @@ export class RefundService {
     return this.recordProviderStatus(String(refund._id), result);
   }
 
-  private static async recordProviderStatus(refundId: string, result: Omit<RefundResult, 'providerRefundId'> & { providerRefundId?: number }) {
+  private static async recordProviderStatus(refundId: string, result: Omit<RefundResult, 'providerRefundId'> & { providerRefundId?: number }, review?: { actorUserId: Types.ObjectId; note: string }) {
     const session = await mongoose.startSession();
     try {
       return await session.withTransaction(async () => {
@@ -138,16 +162,25 @@ export class RefundService {
         if (!refund) throw new AppError(404, 'REFUND_NOT_FOUND', 'Refund request not found');
         if (refund.amountMinorUnits !== result.amountMinorUnits || refund.currency !== result.currency.toUpperCase()) throw new AppError(409, 'REFUND_AMOUNT_MISMATCH', 'Provider refund does not match the payment');
         if (result.providerRefundId && refund.providerRefundId && refund.providerRefundId !== result.providerRefundId) throw new AppError(409, 'REFUND_ID_MISMATCH', 'Provider refund ID changed');
+        if (review && refund.status !== 'SUBMISSION_UNKNOWN' && refund.status !== 'NEEDS_ATTENTION') throw new AppError(409, 'REFUND_REVIEW_NOT_REQUIRED', 'This refund is not awaiting manual review');
         if (refund.status === 'PROCESSED') return refund;
         const nextStatus: RefundStatus = result.status;
         const order: Record<string, number> = { SUBMITTING: 0, SUBMISSION_UNKNOWN: 0, PENDING: 1, PROCESSING: 2, NEEDS_ATTENTION: 2, FAILED: 3, PROCESSED: 4 };
-        if ((order[nextStatus] ?? 0) < (order[refund.status] ?? 0)) return refund;
-        if (refund.status === nextStatus && (!result.providerRefundId || refund.providerRefundId === result.providerRefundId)) return refund;
-        refund.status = nextStatus;
-        if (result.providerRefundId) refund.providerRefundId = result.providerRefundId;
-        refund.providerUpdatedAt = new Date();
+        const statusChanged = (order[nextStatus] ?? 0) >= (order[refund.status] ?? 0) && (refund.status !== nextStatus || (result.providerRefundId && refund.providerRefundId !== result.providerRefundId));
+        if (!statusChanged && !review) return refund;
+        if (statusChanged) {
+          refund.status = nextStatus;
+          if (result.providerRefundId) refund.providerRefundId = result.providerRefundId;
+          refund.providerUpdatedAt = new Date();
+        }
+        if (review) {
+          refund.lastReviewedAt = new Date();
+          refund.lastReviewedBy = review.actorUserId;
+          refund.lastReviewNote = review.note;
+        }
         await refund.save({ session });
-        await AuditService.record({ organizationId: refund.organizationId, action: 'payment.refund.provider-status', resourceType: 'PaymentRefund', resourceId: refund._id, metadata: { paymentId: String(refund.paymentId), status: nextStatus, providerRefundId: refund.providerRefundId } }, session);
+        if (statusChanged) await AuditService.record({ organizationId: refund.organizationId, action: 'payment.refund.provider-status', resourceType: 'PaymentRefund', resourceId: refund._id, metadata: { paymentId: String(refund.paymentId), status: nextStatus, providerRefundId: refund.providerRefundId } }, session);
+        if (review) await AuditService.record({ organizationId: refund.organizationId, actorUserId: review.actorUserId, action: 'payment.refund.reviewed', resourceType: 'PaymentRefund', resourceId: refund._id, metadata: { paymentId: String(refund.paymentId), providerRefundId: refund.providerRefundId, status: refund.status } }, session);
         return refund;
       });
     } finally {

@@ -15,6 +15,9 @@ const schema = new Schema({
   reason: { type: String, required: true, maxlength: 500 },
   requestedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   providerUpdatedAt: Date,
+  lastReviewedAt: Date,
+  lastReviewedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  lastReviewNote: { type: String, maxlength: 1000 },
   ledgerReversedAt: Date,
   ledgerReversedBy: { type: Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });

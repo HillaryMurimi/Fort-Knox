@@ -270,6 +270,18 @@ reversal endpoint cannot reverse a Paystack payment or a payment with a refund
 record without this supervised action. Partial refunds and
 automated M-Pesa reversals are not supported by these endpoints.
 
+`POST /api/v1/payments/:id/refund/review` accepts
+`{ "note": "...", "providerRefundId": 123 }` for a refund in
+`SUBMISSION_UNKNOWN` or `NEEDS_ATTENTION` and requires scoped
+`financial.manage`. Notes are 10-1000 characters. The numeric Paystack refund
+ID is required for `SUBMISSION_UNKNOWN`; for `NEEDS_ATTENTION` the already
+linked ID is used and any supplied ID must match. PMCC fetches the existing
+refund and verifies its Paystack transaction ID, amount, currency, reference,
+and original PMCC ownership metadata before recording the latest review and
+auditing it. This endpoint does not submit or retry a refund, collect customer
+bank details, or alter rent balances. If no provider refund can be identified,
+the request remains quarantined for investigation.
+
 Paystack initiation accepts an optional payer email override and optional
 `paystackChannels`; otherwise
 the server uses the pre-registered tenant email. Its response may include

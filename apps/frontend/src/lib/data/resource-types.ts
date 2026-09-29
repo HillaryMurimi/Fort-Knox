@@ -194,6 +194,8 @@ export interface PaymentRefund {
   currency: string;
   status: 'SUBMITTING' | 'SUBMISSION_UNKNOWN' | 'PENDING' | 'PROCESSING' | 'NEEDS_ATTENTION' | 'FAILED' | 'PROCESSED';
   reason: string;
+  lastReviewedAt?: string;
+  lastReviewNote?: string;
   ledgerReversedAt?: string;
   createdAt: string;
   providerUpdatedAt?: string;

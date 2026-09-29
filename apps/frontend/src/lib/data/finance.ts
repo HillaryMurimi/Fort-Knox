@@ -34,6 +34,7 @@ export const financeClient = {
     list: (organizationId: string) => api<PaymentRefund[]>(`/organizations/${organizationId}/payment-refunds`),
     request: (paymentId: string, reason: string) => api<PaymentRefund>(`/payments/${paymentId}/refund`, { method: 'POST', body: JSON.stringify({ reason }) }),
     reconcile: (paymentId: string) => api<PaymentRefund>(`/payments/${paymentId}/refund/reconcile`, { method: 'POST' }),
+    review: (paymentId: string, input: { note: string; providerRefundId?: number }) => api<PaymentRefund>(`/payments/${paymentId}/refund/review`, { method: 'POST', body: JSON.stringify(input) }),
     applyLedger: (paymentId: string) => api<Payment>(`/payments/${paymentId}/refund/apply-ledger`, { method: 'POST' }),
   },
   paymentDestinations: {

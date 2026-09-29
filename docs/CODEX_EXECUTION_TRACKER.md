@@ -1,5 +1,13 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Slice 41 - Paystack Refund Investigation (2026-09-29)
+
+- Added a Finance review dialog for `SUBMISSION_UNKNOWN` and `NEEDS_ATTENTION` with investigation notes. Unknown submissions require the existing Paystack refund ID; customer bank details stay in Paystack. No review action submits a second refund or adjusts rent.
+- The review API checks `financial.manage` and unit scope, fetches the provider refund, freshly verifies the original Paystack transaction and PMCC ownership metadata, and requires matching transaction ID, amount, currency, and reference. Latest reviewer/note and provider status are committed with audit in a MongoDB transaction; notes are not copied into audit metadata.
+- Replica-set E2E covers missing/foreign ID, authorization, no duplicate provider POST, unchanged rent ledger, and audit-failure rollback. Existing refund records without unit scope still require controlled backfill for scoped list visibility.
+- Remaining: Paystack test-merchant acceptance, secure handling of `NEEDS_ATTENTION` bank details through provider workflow, partial refunds, M-Pesa reversal, settlement reconciliation, and read-only development refund preview. This does not certify live refund processing.
+- Verification: root typecheck, lint (282 existing backend and 24 existing frontend warnings, no errors), tests (backend 162 passed/24 opt-in skipped; frontend 59 passed), and build passed. The opt-in replica-set E2E command passed all 24 tests.
+
 ## Slice 40 - Supervised Paystack Refund Ledger Review (2026-09-29)
 
 - Added a landlord Finance refund review with full-refund request, provider status refresh, distinct processed-refund ledger correction, confirmation, and responsive error/empty states. The correction control requires both `financial.manage` and `payment.reverse`; the backend remains authoritative.

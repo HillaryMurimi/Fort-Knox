@@ -46,6 +46,7 @@ interface PaystackSubaccount {
 
 interface PaystackRefund {
   id: number;
+  transaction?: number | { id?: number };
   amount: number;
   currency: string;
   status: string;
@@ -59,7 +60,8 @@ function refundStatus(status: string): RefundStatus {
 
 function refundResult(data: PaystackRefund): RefundResult {
   if (!Number.isSafeInteger(data.id) || data.id <= 0 || !Number.isSafeInteger(data.amount) || data.amount <= 0) throw new Error('PAYSTACK_REFUND_INVALID_RESPONSE');
-  return { providerRefundId: data.id, amountMinorUnits: data.amount, currency: data.currency.toUpperCase(), status: refundStatus(data.status) };
+  const transactionId = typeof data.transaction === 'number' ? data.transaction : data.transaction?.id;
+  return { providerRefundId: data.id, ...(transactionId ? { transactionId } : {}), amountMinorUnits: data.amount, currency: data.currency.toUpperCase(), status: refundStatus(data.status) };
 }
 
 export interface CreatePaystackSubaccountInput {
