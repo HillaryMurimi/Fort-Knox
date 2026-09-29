@@ -110,6 +110,7 @@ Critical user journeys through frontend/API.
 -   Payment allocation.
 -   Manual and provider allocation commit or roll back with balances, payment status, and audit on a replica set.
 -   Payment confirmation/reversal events share the finance transaction, advance aggregate sequence once, and roll back ledger and audit if event append fails; duplicate provider confirmation emits no second event.
+-   Payment event delivery jobs share the finance transaction; outbox insert failure rolls back payment state. The worker refuses cross-organization jobs, projects payment activity once, and replay leaves the projection and ledger unchanged while recording an audit.
 -   A unit-scoped `audit.view` member cannot read payment events or audit logs for another unit or unscoped legacy records.
 -   Duplicate provider confirmation creates no additional allocation or audit record.
 -   Reversal restores balances exactly once, retains allocations, rejects incomplete history, and rolls back when audit fails.

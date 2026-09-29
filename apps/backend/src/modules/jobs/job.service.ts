@@ -21,7 +21,13 @@ export class JobService {
       catch(error){const message=error instanceof Error?error.message:'Unknown job failure'; if(job.attempts<job.maxAttempts){job.status='QUEUED';job.availableAt=new Date(Date.now()+Math.min(3600000,2**job.attempts*1000));job.lastError=message;}else{job.status='DEAD_LETTER';job.failedAt=new Date();job.deadLetteredAt=new Date();job.lastError=message;}job.set('lockedAt', undefined);job.set('lockedBy', undefined);job.set('leaseExpiresAt', undefined);await job.save();results.push({jobId:String(job._id),status:job.status});}
     } return results;
   }
-  private static async execute(job: {type:string;payload:unknown}){
+  private static async execute(job: {type:string;payload:unknown;organizationId?:Types.ObjectId | null}){
+    if(job.type==='domain-event.payment-activity'){
+      const p=job.payload as {eventId?:unknown};
+      if(typeof p?.eventId!=='string'||!job.organizationId)throw new AppError(400,'INVALID_JOB_PAYLOAD','Event id and organization are required');
+      await (await import('../audit/event-delivery.service.js')).EventDeliveryService.consume(p.eventId,job.organizationId);
+      return;
+    }
     if(job.type==='notification.send'){const p=job.payload as {notificationId:string};if(!Types.ObjectId.isValid(p.notificationId))throw new AppError(400,'INVALID_JOB_PAYLOAD','Invalid notification id');const n=await import('../../database/models/Notification.js').then(m=>m.Notification.findById(p.notificationId));if(!n)throw new AppError(404,'NOTIFICATION_NOT_FOUND','Notification not found');await (await import('../../core/integrations/dispatcher.js')).IntegrationDispatcher.sendNotification(n);return;}
     if(job.type==='intelligence.evaluate'){const p=job.payload as {organizationId:string;from?:string;to?:string};if(!Types.ObjectId.isValid(p.organizationId))throw new AppError(400,'INVALID_JOB_PAYLOAD','Invalid organization id');const to=p.to?new Date(p.to):new Date();const from=p.from?new Date(p.from):new Date(to.getFullYear(),to.getMonth(),1);await (await import('../command-center/command-center.service.js')).CommandCenterService.evaluateOrganization(new Types.ObjectId(p.organizationId),from,to);return;}
     if(job.type==='predictive-learning.label-outcomes'){

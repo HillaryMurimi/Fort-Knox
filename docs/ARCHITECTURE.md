@@ -317,10 +317,13 @@ concurrent version collisions outside transactions. Events carry schema
 version, source, actor and correlation fields. With a MongoDB session, append
 uses the caller's transaction and treats a version collision as a conflict
 that aborts the write. Manual/provider payment confirmation and payment
-reversal now append their events atomically with balances and audit. Other
-publishers do not gain atomicity automatically. This is not yet a complete
-transactional outbox: durable delivery, consumer checkpoints, replay, and
-backfill remain open.
+reversal now append their events and a payment-activity delivery job atomically
+with balances and audit. The jobs worker leases, retries, and dead-letters this
+consumer's jobs. A unique event ID makes the payment-activity projection safe
+to retry or replay; the job state is its checkpoint. Only payment confirmation
+and reversal are registered. Other publishers do not gain atomicity or delivery
+automatically; bulk backfill, independent consumer checkpoints, and additional
+consumers remain open. The worker must be deployed alongside the API.
 Scoped event and audit-log reads require `audit.view` and restrict
 non-portfolio members to records carrying an allowed unit ID. Older records
 without unit scope remain visible only to portfolio-wide viewers until a

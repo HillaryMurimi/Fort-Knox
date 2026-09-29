@@ -19,9 +19,10 @@ consistency.
 
 The existing `domain_events` collection uses a unique aggregate type/ID/version
 index. Selected finance transactions now append events using the same MongoDB
-session as ledger and audit writes. Event rows remain immutable business
-history; `publishedAt` is delivery metadata, not evidence of a durable
-dispatcher or consumer checkpoint.
+session as ledger and audit writes. Registered payment events also insert a
+deduplicated `Job` in that session. Event rows remain immutable business
+history; `publishedAt` marks payment-activity projection completion, while
+the job state is this consumer's durable checkpoint.
 
 ## 2. Identity and Access Collections
 
@@ -263,7 +264,16 @@ unique aggregate sequence. New events have `schemaVersion` (default 1),
 `source`, `actorRole`, and `requestId` alongside existing correlation and
 causation IDs. Existing records without these new fields remain readable;
 the audit UI presents schema version 1 and application source for them.
-There is no transactional outbox, delivery checkpoint, or replay projection yet.
+Payment confirmation/reversal events require a transaction and atomically queue
+`domain-event.payment-activity` jobs keyed by event ID. The worker projects
+`payment_activities` with unique `eventId`, organization/payment/property/
+building/unit references, event name, legacy major-unit amount, currency, and
+event time. A platform-admin replay requeues one event without changing the
+projection or ledger twice. Other event types and historical unqueued events
+still require a broader delivery/backfill design.
+The `jobs.dedupeKey` index must be unique and sparse. Existing databases may
+hold an older non-unique index on that key and need a controlled index migration
+after checking for duplicate values.
 
 Financial collections still contain legacy major-unit Number fields. The new
 money helper protects provider conversion but does not change stored units.

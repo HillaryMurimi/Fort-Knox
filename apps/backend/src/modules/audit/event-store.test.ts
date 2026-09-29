@@ -1,8 +1,9 @@
 import { Types } from 'mongoose';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { findOne, create } = vi.hoisted(() => ({ findOne: vi.fn(), create: vi.fn() }));
+const { findOne, create, createJob } = vi.hoisted(() => ({ findOne: vi.fn(), create: vi.fn(), createJob: vi.fn() }));
 vi.mock('../../database/models/DomainEvent.js', () => ({ DomainEvent: { findOne, create } }));
+vi.mock('../../database/models/Job.js', () => ({ Job: { create: createJob } }));
 
 import { EventStore } from './event-store.js';
 
@@ -52,5 +53,24 @@ describe('EventStore', () => {
     expect(sessionQuery).toHaveBeenCalledWith(session);
     expect(create).toHaveBeenCalledWith([expect.objectContaining({ name: 'property.updated', version: 1 })], { session });
     expect(event).toMatchObject({ eventId: 'in-transaction', version: 1 });
+  });
+
+  it('requires a session for payment events and enqueues the delivery job in it', async () => {
+    await expect(EventStore.append({ ...input, name: 'payment.confirmed' })).rejects.toMatchObject({ code: 'EVENT_TRANSACTION_REQUIRED' });
+    const session = { id: 'transaction' } as unknown as Parameters<typeof EventStore.append>[1];
+    findOne.mockReturnValue({ sort: () => ({ select: () => ({ session: vi.fn(), lean: async () => null }) }) });
+    create.mockResolvedValueOnce([{ ...input, name: 'payment.confirmed', eventId: 'payment-event', version: 1 }]);
+    await EventStore.append({ ...input, name: 'payment.confirmed' }, session);
+    expect(createJob).toHaveBeenCalledWith([expect.objectContaining({
+      type: 'domain-event.payment-activity', payload: { eventId: 'payment-event' }, dedupeKey: 'domain-event:payment-activity:payment-event',
+    })], { session });
+  });
+
+  it('does not expose a payment event when its outbox insert fails', async () => {
+    const session = { id: 'transaction' } as unknown as Parameters<typeof EventStore.append>[1];
+    findOne.mockReturnValue({ sort: () => ({ select: () => ({ session: vi.fn(), lean: async () => null }) }) });
+    create.mockResolvedValueOnce([{ ...input, name: 'payment.confirmed', eventId: 'payment-event', version: 1 }]);
+    createJob.mockRejectedValueOnce(new Error('job insert failed'));
+    await expect(EventStore.append({ ...input, name: 'payment.confirmed' }, session)).rejects.toThrow('job insert failed');
   });
 });

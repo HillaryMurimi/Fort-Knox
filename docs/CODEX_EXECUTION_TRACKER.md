@@ -6,14 +6,22 @@ This is the dependency order for the attached platform expansion brief. Existing
 
 | Phase | Current position | Exit work still required |
 | --- | --- | --- |
-| A - Architecture | Partial: regional profile, boundary Money helper, event store, payment provider adapters, and transactional finance writes exist. | Authoritative integer-minor-unit finance migration; country/currency/provider matrix; transactionally persisted events across critical domains; durable dispatch, checkpoints and replay; provider-boundary review. |
+| A - Architecture | Partial: regional profile, boundary Money helper, event store, payment provider adapters, transactional finance writes, and payment-activity outbox/worker/replay exist. | Authoritative integer-minor-unit finance migration; country/currency/provider matrix; transactional events and consumers across other critical domains; bulk backfill and delivery observability; provider-boundary review. |
 | B - Recurring services | Job-based contractor module exists; recurring service lifecycle is not complete. | Scoped providers, contracts, schedules, visits, verification, invoices, SLA/performance, UI and E2E. |
 | C - Reliability | Jobs and integration attempts exist; reliability center is not complete. | Integration health signals, queue/webhook observability, safe retry policy, admin/operator views and tests. |
 | D - Evidence/documents | Documents and evidence modules exist; intelligence and integrity are not complete. | Content hashing/verification, extraction, permission-filtered grounded retrieval, invoice review and tests. |
 | E - Automation | Decision automation exists; the requested structured low-code engine is not complete. | Versioned safe rules, event/schedule triggers, dry-run, scoped execution, audit and tests. |
 | F - Owner intelligence | Command-center and intelligence modules exist; requested owner workflows are not complete. | Event timeline, morning brief, experience score, guarded churn support, scenario simulation and tests. |
 
-Next dependency gate: finish Phase A's durable event delivery and financial currency migration before treating Phase B-F features as production-ready. Payment settlement reconciliation remains a separate financial workstream; the recent Paystack refund slices did not close Phase A.
+Next dependency gate: migrate authoritative finance values to integer minor units, then establish the country/currency/provider matrix. Expand event delivery beyond payment activity before treating Phase B-F features as production-ready. Payment settlement reconciliation remains a separate financial workstream; the recent Paystack refund slices did not close Phase A.
+
+## Slice 43 - Payment Event Outbox and Replay (2026-09-29)
+
+- Payment confirmation/reversal now atomically insert a system-owned delivery job with the event, ledger, and audit. The existing worker leases/retries jobs and projects a unit-scoped `PaymentActivity` record once per event. Job success/dead-letter state is the per-consumer checkpoint; `publishedAt` indicates this consumer completed, not broker-wide delivery.
+- Platform admins can replay one payment event through `POST /api/v1/jobs/domain-events/replay` with `{ "eventId": "<uuid>" }`. Replay is audited, transactional, and idempotent at the projection; it never repeats a payment or ledger transition. Ordinary job enqueue cannot claim the reserved event job/key namespace.
+- Replica-set tests cover atomic outbox failure rollback, worker delivery, cross-organization refusal, and replay without duplicate activity or payment allocations. Other event types, non-transactional producers, bulk legacy backfill, delivery metrics/alerts, and independent multi-consumer checkpoints remain open. Worker deployment and replica-set MongoDB are required for delivery.
+- Existing MongoDB deployments should inspect `jobs` indexes before enabling the worker. The schema now declares one unique sparse `dedupeKey` index; a previously created non-unique index with the same key may need a controlled index migration after duplicate-key review.
+- Verification: root typecheck, lint (283 backend and 24 frontend warnings, no errors), tests (backend 166 passed/32 opt-in skipped; frontend 59 passed), and build passed. The opt-in replica-set E2E command passed all 32 tests.
 
 ## Slice 42 - Transactional Payment Domain Events (2026-09-29)
 

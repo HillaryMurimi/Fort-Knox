@@ -8,7 +8,11 @@ import { RentCharge } from '../../src/database/models/RentCharge.js';
 import { PaymentAllocation } from '../../src/database/models/PaymentAllocation.js';
 import { AuditLog } from '../../src/database/models/AuditLog.js';
 import { DomainEvent } from '../../src/database/models/DomainEvent.js';
+import { Job } from '../../src/database/models/Job.js';
+import { PaymentActivity } from '../../src/database/models/PaymentActivity.js';
 import { AuditService } from '../../src/modules/audit/audit.service.js';
+import { EventDeliveryService } from '../../src/modules/audit/event-delivery.service.js';
+import { JobService } from '../../src/modules/jobs/job.service.js';
 import { FinanceService } from '../../src/modules/finance/finance.service.js';
 import { RefundService } from '../../src/modules/finance/refund.service.js';
 import { IntegrationService } from '../../src/modules/integrations/integration.service.js';
@@ -74,6 +78,75 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
     expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, status: 'PAID', balanceAmount: 0 })).toBe(2);
     expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.confirmed' })).toBe(1);
     expect(await DomainEvent.countDocuments({ aggregateId: payment._id, name: 'payment.confirmed', version: 1 })).toBe(1);
+    expect(await Job.countDocuments({ organizationId: ids.organizationId, type: 'domain-event.payment-activity', status: 'QUEUED' })).toBe(1);
+  });
+
+  it('delivers a payment event once across worker retries and admin replay', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map(charge => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    const event = await DomainEvent.findOne({ aggregateId: payment._id, name: 'payment.confirmed' });
+    if (!event) throw new Error('Expected payment event');
+    const eventId = event.eventId;
+    expect(await JobService.runDueJobs(1)).toMatchObject([{ status: 'SUCCEEDED' }]);
+    expect(await PaymentActivity.countDocuments({ eventId, organizationId: ids.organizationId, unitId: ids.unitId })).toBe(1);
+    expect((await DomainEvent.findOne({ eventId }))?.publishedAt).toBeInstanceOf(Date);
+    await EventDeliveryService.replay(eventId, auth);
+    expect((await Job.findOne({ 'payload.eventId': eventId }))?.completedAt).toBeUndefined();
+    expect(await JobService.runDueJobs(1)).toMatchObject([{ status: 'SUCCEEDED' }]);
+    expect(await PaymentActivity.countDocuments({ eventId })).toBe(1);
+    expect(await PaymentAllocation.countDocuments({ paymentId: payment._id })).toBe(2);
+    expect(await AuditLog.countDocuments({ action: 'domain-event.replay', resourceId: event._id })).toBe(1);
+  });
+
+  it('keeps replay audit and job state atomic when audit storage fails', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map(charge => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    const event = await DomainEvent.findOne({ aggregateId: payment._id });
+    if (!event) throw new Error('Expected payment event');
+    await JobService.runDueJobs(1);
+    vi.spyOn(AuditLog, 'create').mockRejectedValueOnce(new Error('audit unavailable'));
+    await expect(EventDeliveryService.replay(event.eventId, auth)).rejects.toThrow('audit unavailable');
+    expect((await Job.findOne({ 'payload.eventId': event.eventId }))?.status).toBe('SUCCEEDED');
+    expect(await AuditLog.countDocuments({ action: 'domain-event.replay' })).toBe(0);
+  });
+
+  it('rolls back payment writes when its delivery job cannot be stored', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    vi.spyOn(Job, 'create').mockRejectedValueOnce(new Error('outbox unavailable'));
+    await expect(FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map(charge => ({ rentChargeId: String(charge._id), amount: 50 })) })).rejects.toThrow('outbox unavailable');
+    expect((await Payment.findById(payment._id))?.status).toBe('PENDING');
+    expect(await PaymentAllocation.countDocuments({ paymentId: payment._id })).toBe(0);
+    expect(await DomainEvent.countDocuments({ aggregateId: payment._id })).toBe(0);
+    expect(await AuditLog.countDocuments({ action: 'payment.confirmed', resourceId: payment._id })).toBe(0);
+  });
+
+  it('rejects cross-organization delivery and leaves the job dead-lettered', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map(charge => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    const event = await DomainEvent.findOne({ aggregateId: payment._id });
+    if (!event) throw new Error('Expected payment event');
+    const job = await Job.findOne({ 'payload.eventId': event.eventId });
+    if (!job) throw new Error('Expected delivery job');
+    await Job.updateOne({ _id: job._id }, { $set: { organizationId: new Types.ObjectId(), maxAttempts: 1 } });
+    expect(await JobService.runDueJobs(1)).toMatchObject([{ status: 'DEAD_LETTER' }]);
+    expect(await PaymentActivity.countDocuments({ eventId: event.eventId })).toBe(0);
+  });
+
+  it('rejects replay by a non-platform member before queuing work', async () => {
+    const { ids, charges, payment } = await fixture();
+    const admin: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(admin, String(payment._id), { allocations: charges.map(charge => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    const event = await DomainEvent.findOne({ aggregateId: payment._id });
+    if (!event) throw new Error('Expected payment event');
+    await JobService.runDueJobs(1);
+    const member: AuthenticatedUser = { userId: new Types.ObjectId(), isPlatformAdmin: false, memberships: [] };
+    await expect(EventDeliveryService.replay(event.eventId, member)).rejects.toMatchObject({ statusCode: 403 });
+    expect((await Job.findOne({ 'payload.eventId': event.eventId }))?.status).toBe('SUCCEEDED');
+    expect(await AuditLog.countDocuments({ action: 'domain-event.replay' })).toBe(0);
   });
 
   it('restricts payment domain events to an assigned unit', async () => {

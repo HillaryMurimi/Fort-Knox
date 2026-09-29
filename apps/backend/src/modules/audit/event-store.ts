@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Types, type ClientSession } from 'mongoose';
 import { DomainEvent } from '../../database/models/DomainEvent.js';
 import { AppError } from '../../core/errors/AppError.js';
+import { EventDeliveryService } from './event-delivery.service.js';
 
 export interface EventInput {
   organizationId: Types.ObjectId;
@@ -44,6 +45,9 @@ function assertSafePayload(payload: unknown): void {
 export class EventStore {
   static async append(input: EventInput, session?: ClientSession) {
     assertSafePayload(input.payload);
+    if (EventDeliveryService.isSupported(input.name) && !session) {
+      throw new AppError(500, 'EVENT_TRANSACTION_REQUIRED', 'Payment events require a transaction for durable delivery');
+    }
     if (input.version !== undefined && (!Number.isSafeInteger(input.version) || input.version < 1)) {
       throw new AppError(400, 'EVENT_VERSION_INVALID', 'Event version must be a positive integer');
     }
@@ -70,6 +74,7 @@ export class EventStore {
         };
         if (session) {
           const [created] = await DomainEvent.create([event], { session });
+          await EventDeliveryService.enqueue(created, session);
           return created;
         }
         return await DomainEvent.create(event);

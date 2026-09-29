@@ -464,6 +464,10 @@ returns append-only event records with `eventId`, aggregate identity,
 aggregate `version`, `schemaVersion`, `source`, optional actor/request and
 correlation/causation IDs, payload, and timestamps. Older records may omit
 the newly added trace fields. No event mutation endpoint is exposed.
+Platform admins may requeue one supported payment event using
+`POST /jobs/domain-events/replay` with `{ "eventId": "<uuid>" }`. It returns
+the event ID and `QUEUED` status, and writes an audit record. The jobs worker
+must run to deliver it; replay never reconfirms or reverses a payment.
 
 ## 18. Admin
 
