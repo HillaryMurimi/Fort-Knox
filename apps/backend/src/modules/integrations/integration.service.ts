@@ -2,6 +2,7 @@ import mongoose, { Types } from 'mongoose';
 import { Payment, type PaymentDocument } from '../../database/models/Payment.js';
 import { RefundService } from '../finance/refund.service.js';
 import { PaymentDestination } from '../../database/models/PaymentDestination.js';
+import { Organization } from '../../database/models/Organization.js';
 import { WebhookEvent } from '../../database/models/WebhookEvent.js';
 import { IntegrationAttempt } from '../../database/models/IntegrationAttempt.js';
 import { User } from '../../database/models/User.js';
@@ -25,6 +26,7 @@ import { verifyHmacSignature, hashPayload } from '../../core/integrations/webhoo
 import { withRetry } from '../../core/integrations/retry.js';
 import { toPaystackMinorUnits } from '../../core/integrations/paystack.provider.js';
 import { addMinorUnits, legacyMajorUnits, legacyMinorUnits } from '../../core/money/legacy-finance.js';
+import { assertOperatingRail } from '../../core/money/operating-rails.js';
 import { choosePaidRenewalPlan } from '../../core/billing/renewal-plan.js';
 import { PaystackBillingProvider } from '../../core/billing/billing-provider.js';
 import type { PaymentInitiationResult, PaymentProviderKey, PaystackChannel } from '../../core/integrations/provider.types.js';
@@ -53,6 +55,12 @@ export class IntegrationService {
     if (p.providerTransactionId) {
       throw new AppError(409, 'PAYMENT_ALREADY_INITIATED', 'Payment has already been initiated');
     }
+    if (providerKey !== 'MPESA' && providerKey !== 'PAYSTACK') {
+      throw new AppError(400, 'UNSUPPORTED_PAYMENT_PROVIDER', 'This provider cannot initiate rent checkout');
+    }
+    const organization = await Organization.findById(p.organizationId).select('regionalProfile').lean();
+    if (!organization) throw new AppError(404, 'ORGANIZATION_NOT_FOUND', 'Organization not found');
+    assertOperatingRail(organization.regionalProfile, p.currency, providerKey);
     const openCharges = await RentCharge.find({
       organizationId: p.organizationId,
       tenancyId: p.tenancyId,
@@ -60,8 +68,8 @@ export class IntegrationService {
       status: { $in: ['OPEN', 'PARTIALLY_PAID', 'OVERDUE'] },
       balanceAmount: { $gt: 0 },
     }).select('balanceAmount').lean();
-    const outstanding = openCharges.reduce((sum, charge) => sum + charge.balanceAmount, 0);
-    if (p.amount > outstanding + 0.000001) {
+    const outstanding = openCharges.reduce((sum, charge) => addMinorUnits(sum, legacyMinorUnits(charge.balanceAmount, p.currency)), 0);
+    if (legacyMinorUnits(p.amount, p.currency) > outstanding) {
       throw new AppError(
         409,
         'PAYMENT_EXCEEDS_OUTSTANDING_RENT',
@@ -82,6 +90,19 @@ export class IntegrationService {
       throw new AppError(400, 'PAYSTACK_EMAIL_REQUIRED', 'A payer email address is required');
     }
 
+    const destination = await PaymentDestination.findOne({
+      organizationId: p.organizationId,
+      provider: providerKey,
+      status: 'ACTIVE',
+      isDefault: true,
+      currency: p.currency,
+      country: organization.regionalProfile?.countryCode ?? 'KE',
+    }).lean();
+    if (!destination || (providerKey === 'PAYSTACK' && (!integrationConfig.paystack.enabled || !destination.paystackSubaccountCode)) ||
+      (providerKey === 'MPESA' && (!integrationConfig.mpesa.enabled || !destination.mpesaShortCode || destination.mpesaShortCode !== integrationConfig.mpesa.shortCode))) {
+      throw new AppError(409, 'PAYMENT_DESTINATION_REQUIRED', 'An active default settlement destination is required before checkout');
+    }
+
     const attempt = await IntegrationAttempt.create({
       organizationId: p.organizationId,
       provider: providerKey,
@@ -92,14 +113,6 @@ export class IntegrationService {
     });
 
     try {
-      const destination = providerKey === 'PAYSTACK' || providerKey === 'MPESA'
-        ? await PaymentDestination.findOne({
-            organizationId: p.organizationId,
-            provider: providerKey,
-            status: 'ACTIVE',
-            isDefault: true,
-          }).lean()
-        : null;
       const result = await IntegrationDispatcher.payment(providerKey).initiate({
         organizationId: String(p.organizationId),
         paymentId: String(p._id),

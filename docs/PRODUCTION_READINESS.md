@@ -7,6 +7,9 @@ Last updated: 2026-09-24
 PMCC now has production startup validation, deterministic quality commands, container builds, CI, liveness/readiness probes, and production-only safeguards around preview mode and local storage. A deployment is **not approved for live customer money or security operations** until every required owner action below is complete and the release gate passes in the target environment.
 
 Phase A's authoritative minor-unit ledger and multi-country provider matrix are still incomplete. Follow [Phase A owner actions](PHASE_A_OWNER_ACTIONS.md) for the exact credentials, inventory check, and deployment prerequisites. The legacy KES calculation hardening is not a storage migration.
+Coolify is the chosen host; use [Coolify deployment](COOLIFY_DEPLOYMENT.md) and
+`docker-compose.coolify.yml` rather than the older env-file-based reference
+Compose definition.
 
 Run from the repository root:
 
@@ -52,7 +55,7 @@ These options must remain disabled or hidden until implemented and security-test
 - Create production Safaricom Daraja, Paystack, Twilio, SendGrid, object-storage and CCTV-gateway accounts.
 - Complete provider KYB/KYC, settlement-bank verification and live-mode approval.
 - Generate two different random JWT secrets of at least 64 characters in a secret manager. Never place live secrets in Git or frontend variables.
-- Configure every variable in `apps/backend/.env.example`; create the deployed secret set as `.env.production` only in the deployment system.
+- Configure the required keys from `apps/backend/.env.example` as Coolify environment variables for the Git-backed Compose application. Do not commit or mount a `.env.production` file for Coolify. The separate non-Coolify reference Compose file still expects an external env file.
 - Set only `NEXT_PUBLIC_API_URL` in the frontend production build. Keep all `NEXT_PUBLIC_DEV_*` flags false or absent.
 
 ### Networking and callbacks
@@ -89,6 +92,6 @@ These options must remain disabled or hidden until implemented and security-test
 
 ## Deployment Notes
 
-`infrastructure/docker-compose.production.yml` is a reference single-host deployment, not a substitute for managed secrets, TLS termination, backups or autoscaling. For a serious launch, deploy the API, worker and frontend as separate services behind HTTPS and use a managed MongoDB cluster and private object storage.
+`docker-compose.coolify.yml` is the intended Git-backed Coolify application; `infrastructure/docker-compose.production.yml` is a non-Coolify reference. Neither substitutes for managed secrets, TLS termination, backups or autoscaling. Use a managed MongoDB cluster and private object storage.
 
 Do not enable the development preview system in production. The frontend excludes preview role resolution when `NODE_ENV=production`, and `/dev/preview` returns 404 in production.

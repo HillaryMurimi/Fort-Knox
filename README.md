@@ -198,7 +198,7 @@ npm run certify:release
 
 `npm run verify:production` runs the combined workspace gate. Static certification is one part of verification, not a substitute for staging acceptance or live-provider testing.
 
-The [reference Compose deployment](infrastructure/docker-compose.production.yml) runs the API, worker and frontend separately. Follow the [production runbook](docs/PRODUCTION_READINESS.md) to configure HTTPS, provider callbacks, database backups, storage, monitoring and deployment secrets.
+The intended host is Coolify. Use the [Coolify deployment guide](docs/COOLIFY_DEPLOYMENT.md) and its [Compose definition](docker-compose.coolify.yml) for the API, worker and frontend. Follow the [production runbook](docs/PRODUCTION_READINESS.md) for HTTPS, provider callbacks, database backups, storage, monitoring and deployment secrets. The [reference Compose deployment](infrastructure/docker-compose.production.yml) is for non-Coolify setups.
 
 ## Documentation
 

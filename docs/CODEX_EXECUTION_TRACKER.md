@@ -6,7 +6,7 @@ This is the dependency order for the attached platform expansion brief. Existing
 
 | Phase | Current position | Exit work still required |
 | --- | --- | --- |
-| A - Architecture | Partial: regional profile, boundary Money helper, event store, payment provider adapters, transactional finance writes, and payment-activity outbox/worker/replay exist. | Authoritative integer-minor-unit finance migration; country/currency/provider matrix; transactional events and consumers across other critical domains; bulk backfill and delivery observability; provider-boundary review. |
+| A - Architecture | Partial: regional profile, boundary Money helper, KE/KES rail guard, event store, payment provider adapters, transactional finance writes, and payment-activity outbox/worker/replay exist. | Authoritative integer-minor-unit finance migration; expanded country/currency/provider matrix with merchant acceptance; transactional events and consumers across other critical domains; bulk backfill and delivery observability; provider-boundary review. |
 | B - Recurring services | Job-based contractor module exists; recurring service lifecycle is not complete. | Scoped providers, contracts, schedules, visits, verification, invoices, SLA/performance, UI and E2E. |
 | C - Reliability | Jobs and integration attempts exist; reliability center is not complete. | Integration health signals, queue/webhook observability, safe retry policy, admin/operator views and tests. |
 | D - Evidence/documents | Documents and evidence modules exist; intelligence and integrity are not complete. | Content hashing/verification, extraction, permission-filtered grounded retrieval, invoice review and tests. |
@@ -14,6 +14,13 @@ This is the dependency order for the attached platform expansion brief. Existing
 | F - Owner intelligence | Command-center and intelligence modules exist; requested owner workflows are not complete. | Event timeline, morning brief, experience score, guarded churn support, scenario simulation and tests. |
 
 Next dependency gate: migrate authoritative finance values to integer minor units, then establish the country/currency/provider matrix. Expand event delivery beyond payment activity before treating Phase B-F features as production-ready. Payment settlement reconciliation remains a separate financial workstream; the recent Paystack refund slices did not close Phase A. See `PHASE_A_OWNER_ACTIONS.md` for owner-side inputs and release gates.
+
+## Slice 45 - Fail-Closed Rent Rails and Coolify Deployment (2026-09-29)
+
+- Operational checkout now applies a centralized KE/KES M-Pesa/Paystack rail policy against the organization's regional profile. It refuses unsupported country/currency/provider combinations and requires an active default organization destination matching the currency and country before a provider call. Paystack checkout must pass the configured subaccount code; M-Pesa destination shortcode must match deployment credentials. Destination setup checks the organization region before onboarding. This prevents fallback to an unscoped platform-level Paystack rent checkout.
+- Added a Git-backed Coolify Compose application with private API/worker and proxied web/API services, health checks, frontend build-time public URLs, runtime secrets through Coolify variables, and no committed `.env.production`. The owner runbook records Coolify domains, variables, seed commands, and provider callbacks. The existing non-Coolify Compose reference now supplies the frontend site URL build argument.
+- Phase A remains **partial**: the policy intentionally enables only KE/KES because storage and reports have not been migrated. Per-market merchant approval, additional currencies, provider settlement verification, event coverage, and canonical minor-unit storage are not complete.
+- Verification: `docker compose -f docker-compose.coolify.yml config --quiet` passed with placeholder variables. Root typecheck, lint (283 backend and 24 frontend warnings, zero errors), tests (174 backend passed/35 opt-in skipped; 59 frontend passed), and build passed. The opt-in replica-set E2E suite passed 35 tests. Docker image builds could not run because the local Docker Desktop engine is unavailable; the first Coolify staging deployment must verify both images and service health.
 
 ## Slice 44 - Exact Legacy Finance Arithmetic and Phase A Inventory (2026-09-29)
 

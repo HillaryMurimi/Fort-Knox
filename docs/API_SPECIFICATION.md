@@ -229,6 +229,12 @@ masked account details. M-Pesa destinations become active only when they
 match the securely configured Daraja shortcode. Crypto destinations remain
 `PENDING_PROVIDER_SETUP` until a supported processor and reconciliation
 adapter are connected.
+Provider initiation now fails with `PAYMENT_RAIL_UNAVAILABLE` when the
+organization's regional profile does not support the selected country,
+currency and rail. It fails with `PAYMENT_DESTINATION_REQUIRED` before any
+provider call if there is no active default destination matching the payment
+country/currency or if its routing code does not match the configured merchant.
+Paystack rent checkout always includes the organization's subaccount code.
 While the operational finance ledger still stores major-unit KES amounts,
 new rent charges, generated rent, payments, expenses, and service-charge
 assessments accept only `KES`. Paystack/M-Pesa settlement destinations must

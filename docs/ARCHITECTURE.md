@@ -284,6 +284,12 @@ cents. Rent totals and manual/provider allocation and reversal arithmetic
 use safe integer minor units, converting back only for the existing major-unit
 schema. This is not authoritative minor-unit storage. A read-only Phase A
 inventory command identifies collections that require a verified cutover.
+The operating rail policy currently permits only KE/KES with M-Pesa or
+Paystack. Checkout rechecks the organization's regional profile and requires
+an active default destination matching organization, currency and country.
+Paystack rent checkout always passes its subaccount code; there is no silent
+platform-account fallback. This is a guarded Kenya deployment, not broad
+multi-country readiness.
 PMCC verifies the signed `charge.success` payload, transaction reference,
 amount, and currency before applying a payment. M-Pesa success callbacks
 must match the server-initiated amount and KES currency before allocation.

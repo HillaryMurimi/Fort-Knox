@@ -11,6 +11,7 @@ import { FinancialPeriod } from '../../database/models/FinancialPeriod.js';
 import { Tenancy } from '../../database/models/Tenancy.js';
 import { Tenant } from '../../database/models/Tenant.js';
 import { Property } from '../../database/models/Property.js';
+import { Organization } from '../../database/models/Organization.js';
 import { Contractor } from '../../database/models/Contractor.js';
 import { AuthorizationService } from '../../core/authorization/authorization.service.js';
 import { ResourceScopeService } from '../../core/authorization/resource-scope.service.js';
@@ -19,6 +20,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { PaystackProvider } from '../../core/integrations/paystack.provider.js';
 import { integrationConfig } from '../../core/integrations/config.js';
 import { addMinorUnits, assertMatchingCurrency, legacyMajorUnits, legacyMinorUnits } from '../../core/money/legacy-finance.js';
+import { assertOperatingRail } from '../../core/money/operating-rails.js';
 import type { AuthenticatedUser } from '../../core/types/auth.js';
 import type { AllocationInput, ArrearsActionInput, ExpenseInput, GenerateRentInput, PeriodInput, PaymentDestinationInput, PaymentInput, RentChargeInput, ReportInput, ServiceChargeInput } from './finance.schemas.js';
 
@@ -67,6 +69,10 @@ export class FinanceService {
 
   static async createPaymentDestination(auth:AuthenticatedUser,organizationId:string,data:PaymentDestinationInput){
     const orgId=toId(organizationId);AuthorizationService.assertPermission(auth,'organization.settings.manage',orgId);
+    const organization=await Organization.findById(orgId).select('regionalProfile').lean();
+    if(!organization)throw new AppError(404,'ORGANIZATION_NOT_FOUND','Organization not found');
+    if(data.provider!=='CRYPTO')assertOperatingRail(organization.regionalProfile,data.currency,data.provider);
+    if(data.country!==(organization.regionalProfile?.countryCode??'KE'))throw new AppError(409,'PAYMENT_DESTINATION_COUNTRY_MISMATCH','Destination country must match the organization');
     let providerFields:Record<string,unknown>;let status:'ACTIVE'|'PENDING_PROVIDER_SETUP'='PENDING_PROVIDER_SETUP';let verified=false;
     if(data.provider==='PAYSTACK'){
       const subaccount=await new PaystackProvider().createSubaccount({businessName:data.businessName,bankCode:data.bankCode,accountNumber:data.accountNumber,percentageCharge:data.percentageCharge,primaryContactEmail:data.contactEmail,primaryContactPhone:data.contactPhone,metadata:{organizationId}});

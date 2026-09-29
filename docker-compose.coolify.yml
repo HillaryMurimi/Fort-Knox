@@ -1,0 +1,89 @@
+x-backend-environment: &backend-environment
+  NODE_ENV: production
+  PORT: "9000"
+  API_PREFIX: /api/v1
+  WEB_ORIGIN: ${WEB_ORIGIN:?Set the HTTPS frontend origin}
+  PUBLIC_API_URL: ${PUBLIC_API_URL:?Set the HTTPS API origin}
+  MONGODB_URI: ${MONGODB_URI:?Set a production MongoDB replica-set URI}
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set a unique access secret}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set a unique refresh secret}
+  REFRESH_COOKIE_SECURE: "true"
+  MPESA_BASE_URL: ${MPESA_BASE_URL:?Set the production Daraja base URL}
+  MPESA_CONSUMER_KEY: ${MPESA_CONSUMER_KEY:?Set the Daraja consumer key}
+  MPESA_CONSUMER_SECRET: ${MPESA_CONSUMER_SECRET:?Set the Daraja consumer secret}
+  MPESA_SHORT_CODE: ${MPESA_SHORT_CODE:?Set the Daraja shortcode}
+  MPESA_PASSKEY: ${MPESA_PASSKEY:?Set the Daraja passkey}
+  MPESA_CALLBACK_URL: ${MPESA_CALLBACK_URL:?Set the HTTPS M-Pesa callback URL}
+  MPESA_WEBHOOK_SECRET: ${MPESA_WEBHOOK_SECRET:-}
+  PAYSTACK_BASE_URL: https://api.paystack.co
+  PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:?Set the Paystack secret key}
+  PAYSTACK_CALLBACK_URL: ${PAYSTACK_CALLBACK_URL:?Set the HTTPS Paystack return URL}
+  SMS_PROVIDER: TWILIO
+  SMS_FROM: ${SMS_FROM:?Set the production SMS sender}
+  TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:?Set the Twilio account SID}
+  TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:?Set the Twilio auth token}
+  EMAIL_PROVIDER: SENDGRID
+  EMAIL_FROM: ${EMAIL_FROM:?Set the verified email sender}
+  SENDGRID_API_KEY: ${SENDGRID_API_KEY:?Set the SendGrid API key}
+  S3_BUCKET: ${S3_BUCKET:?Set the private object-storage bucket}
+  S3_REGION: ${S3_REGION:?Set the object-storage region}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set the object-storage key ID}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set the object-storage secret}
+  S3_ENDPOINT: ${S3_ENDPOINT:-}
+  CCTV_PROVIDER_BASE_URL: ${CCTV_PROVIDER_BASE_URL:?Set the HTTPS CCTV gateway URL}
+  CCTV_PROVIDER_API_KEY: ${CCTV_PROVIDER_API_KEY:?Set the CCTV gateway key}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  FACEBOOK_CLIENT_ID: ${FACEBOOK_CLIENT_ID:-}
+  FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET:-}
+  APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
+  APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
+  APPLE_KEY_ID: ${APPLE_KEY_ID:-}
+  APPLE_PRIVATE_KEY: ${APPLE_PRIVATE_KEY:-}
+  WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+  WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+
+services:
+  api:
+    build:
+      context: ./apps/backend
+    environment: *backend-environment
+    restart: unless-stopped
+    expose:
+      - "9000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9000/api/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    stop_grace_period: 20s
+
+  worker:
+    build:
+      context: ./apps/backend
+    command: ["node", "dist/jobs-worker.js"]
+    environment: *backend-environment
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  web:
+    build:
+      context: ./apps/frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set the HTTPS public API URL including /api/v1}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set the HTTPS frontend origin}
+    environment:
+      NODE_ENV: production
+    restart: unless-stopped
+    expose:
+      - "3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

@@ -119,6 +119,9 @@ Critical user journeys through frontend/API.
 -   Manual refund review rejects missing/foreign Paystack IDs and unauthorized reviewers, never sends another provider refund POST, and rolls back review note/status when audit fails. Needs-attention notes do not imply the provider has processed the refund.
 -   New non-KES operational finance writes rejected until ledger migration.
 -   Cross-currency manual/provider allocation rejected before balance updates.
+-   Unsupported regional payment rails and missing settlement destinations
+    must fail before contacting a provider or creating an integration attempt;
+    a valid Paystack checkout must carry its organization subaccount code.
 -   KES cent-value allocations and reversals must not drift; over-precise
     payment input or historical balances must fail before any ledger write.
 -   Reconciliation.

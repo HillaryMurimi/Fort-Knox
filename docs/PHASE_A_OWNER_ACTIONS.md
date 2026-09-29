@@ -5,6 +5,9 @@ but operational finance collections, APIs, reports, and older events still use
 major-unit numbers. Do not enable non-KES operating currencies or describe the
 ledger as migrated. The owner has confirmed there is no live customer finance
 data; verify the actual deployment database before a future storage cutover.
+The app will be hosted on Coolify; follow [Coolify deployment](COOLIFY_DEPLOYMENT.md)
+for its Git/Compose setup and URL mappings. Enter secrets in Coolify environment
+variables rather than committing a deployment `.env` file.
 
 ## Your Actions
 
@@ -29,6 +32,11 @@ data; verify the actual deployment database before a future storage cutover.
    enabled channels, recurring-card eligibility, and subaccount capability
    in your specific merchant account; code support does not grant merchant
    approval. Use test keys for staging, live keys only for the live deployment.
+   Each landlord organization must create an active default Paystack or M-Pesa
+   destination before tenant checkout on that rail. PMCC no longer falls back
+   to a platform-only Paystack transaction when a destination is missing.
+   Review any older destinations lacking country or currency metadata and
+   recreate them through the verified setup flow before accepting rent.
 5. For production login and notifications: configure
    `SMS_PROVIDER=TWILIO`, `SMS_FROM`, `TWILIO_ACCOUNT_SID`,
    `TWILIO_AUTH_TOKEN`, `EMAIL_PROVIDER=SENDGRID`, `EMAIL_FROM`, and
@@ -50,6 +58,7 @@ data; verify the actual deployment database before a future storage cutover.
    The delivery worker requires one unique sparse index. Migrate an older
    non-unique index under a maintenance plan after duplicate review. Deploy
    the compiled jobs worker continuously and alert on dead-letter jobs.
+   In Coolify, `worker` is a private service in `docker-compose.coolify.yml`.
 10. Run `npm run verify:production` and the replica-set E2E suite in staging.
     Perform real-provider test-mode acceptance, small live M-Pesa/Paystack
     payments, refund and settlement checks, backup restore, and security review

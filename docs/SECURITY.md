@@ -101,6 +101,9 @@ Protect against IDOR/BOLA.
 -   New KES monetary inputs reject excess precision/unsafe values. Payment
     allocation and reversal arithmetic uses integer cents, but stored balances
     remain legacy major-unit numbers until the full migration is complete.
+-   Rent checkout fails closed outside the KE/KES M-Pesa/Paystack matrix and
+    without an active organization-matched default settlement destination.
+    Paystack initiation cannot silently omit the landlord subaccount code.
 -   Paystack bank account details are sent directly from the authenticated
     setup request to Paystack subaccount provisioning; PMCC retains only the
     provider subaccount code, account name, bank code, and final four digits.
