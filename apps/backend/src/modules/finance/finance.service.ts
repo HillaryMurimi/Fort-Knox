@@ -19,7 +19,7 @@ import { AppError } from '../../core/errors/AppError.js';
 import { AuditService } from '../audit/audit.service.js';
 import { PaystackProvider } from '../../core/integrations/paystack.provider.js';
 import { integrationConfig } from '../../core/integrations/config.js';
-import { addMinorUnits, assertMatchingCurrency, legacyMajorUnits, legacyMinorUnits } from '../../core/money/legacy-finance.js';
+import { addMinorUnits, assertMatchingCurrency, legacyMajorUnits, legacyMinorUnits, storedMinorUnits } from '../../core/money/legacy-finance.js';
 import { assertOperatingRail } from '../../core/money/operating-rails.js';
 import type { AuthenticatedUser } from '../../core/types/auth.js';
 import type { AllocationInput, ArrearsActionInput, ExpenseInput, GenerateRentInput, PeriodInput, PaymentDestinationInput, PaymentInput, RentChargeInput, ReportInput, ServiceChargeInput } from './finance.schemas.js';
@@ -46,7 +46,7 @@ export class FinanceService {
     if(!['ACTIVE','NOTICE'].includes(tenancy.status)) throw new AppError(409,'TENANCY_INACTIVE','Rent can only be charged to an active tenancy');
     const totalMinor=addMinorUnits(addMinorUnits(legacyMinorUnits(data.rentAmount,data.currency),legacyMinorUnits(data.serviceChargeAmount,data.currency)),legacyMinorUnits(data.adjustments,data.currency));
     if(totalMinor<0)throw new AppError(400,'INVALID_RENT_TOTAL','Rent charge total cannot be negative');
-    const total=legacyMajorUnits(totalMinor,data.currency); const charge=await RentCharge.create({organizationId:orgId,...data,propertyId:tenancy.propertyId,buildingId:tenancy.buildingId,floorId:tenancy.floorId,unitId:tenancy.unitId,tenantId:tenancy.tenantId,tenancyId:tenancy._id,totalAmount:total,balanceAmount:total,status:'OPEN',createdBy:auth.userId,updatedBy:auth.userId}); return charge;
+    const total=legacyMajorUnits(totalMinor,data.currency); const charge=await RentCharge.create({organizationId:orgId,...data,propertyId:tenancy.propertyId,buildingId:tenancy.buildingId,floorId:tenancy.floorId,unitId:tenancy.unitId,tenantId:tenancy.tenantId,tenancyId:tenancy._id,rentAmountMinor:legacyMinorUnits(data.rentAmount,data.currency),serviceChargeAmountMinor:legacyMinorUnits(data.serviceChargeAmount,data.currency),adjustmentsMinor:legacyMinorUnits(data.adjustments,data.currency),totalAmount:total,totalAmountMinor:totalMinor,paidAmountMinor:0,balanceAmount:total,balanceAmountMinor:totalMinor,status:'OPEN',createdBy:auth.userId,updatedBy:auth.userId}); return charge;
   }
 
   static async generateRent(auth:AuthenticatedUser, organizationId:string, data:GenerateRentInput) {
@@ -54,7 +54,7 @@ export class FinanceService {
     const tenancies=await Tenancy.find(filter).lean(); const created:unknown[]=[];
     for(const tenancy of tenancies){
       const exists=await RentCharge.exists({organizationId:orgId,tenancyId:tenancy._id,periodStart:data.periodStart}); if(exists) continue;
-      const total=legacyMajorUnits(addMinorUnits(legacyMinorUnits(tenancy.monthlyRent,data.currency),legacyMinorUnits(tenancy.serviceCharge,data.currency)),data.currency); const charge=await RentCharge.create({organizationId:orgId,propertyId:tenancy.propertyId,buildingId:tenancy.buildingId,floorId:tenancy.floorId,unitId:tenancy.unitId,tenantId:tenancy.tenantId,tenancyId:tenancy._id,periodStart:data.periodStart,periodEnd:data.periodEnd,dueDate:data.dueDate,rentAmount:tenancy.monthlyRent,serviceChargeAmount:tenancy.serviceCharge,adjustments:0,totalAmount:total,balanceAmount:total,currency:data.currency,status:'OPEN',createdBy:auth.userId,updatedBy:auth.userId}); created.push(charge);
+      const rentMinor=legacyMinorUnits(tenancy.monthlyRent,data.currency);const serviceMinor=legacyMinorUnits(tenancy.serviceCharge,data.currency);const totalMinor=addMinorUnits(rentMinor,serviceMinor);const total=legacyMajorUnits(totalMinor,data.currency); const charge=await RentCharge.create({organizationId:orgId,propertyId:tenancy.propertyId,buildingId:tenancy.buildingId,floorId:tenancy.floorId,unitId:tenancy.unitId,tenantId:tenancy.tenantId,tenancyId:tenancy._id,periodStart:data.periodStart,periodEnd:data.periodEnd,dueDate:data.dueDate,rentAmount:tenancy.monthlyRent,rentAmountMinor:rentMinor,serviceChargeAmount:tenancy.serviceCharge,serviceChargeAmountMinor:serviceMinor,adjustments:0,adjustmentsMinor:0,totalAmount:total,totalAmountMinor:totalMinor,paidAmountMinor:0,balanceAmount:total,balanceAmountMinor:totalMinor,currency:data.currency,status:'OPEN',createdBy:auth.userId,updatedBy:auth.userId}); created.push(charge);
     }
     return created;
   }
@@ -63,7 +63,7 @@ export class FinanceService {
 
   static async listPayments(auth:AuthenticatedUser,organizationId:string){const orgId=toId(organizationId);AuthorizationService.assertPermission(auth,'payment.view',orgId);const ids=await ResourceScopeService.scopedUnitIds(auth,orgId);const filter:Record<string,unknown>={organizationId:orgId};if(ids)filter.unitId={$in:ids};return Payment.find(filter).sort({createdAt:-1}).lean();}
 
-  static async createPayment(auth:AuthenticatedUser,organizationId:string,data:PaymentInput){const orgId=toId(organizationId);const {tenancy,tenant}=await this.tenancyFor(auth,data.tenancyId,'payment.create');if(String(tenancy.organizationId)!==String(orgId))throw new AppError(403,'ORGANIZATION_ACCESS_DENIED','Tenancy does not belong to this organization');const payment=await Payment.create({organizationId:orgId,...data,propertyId:tenancy.propertyId,buildingId:tenancy.buildingId,floorId:tenancy.floorId,unitId:tenancy.unitId,tenantId:tenant?._id ?? tenancy.tenantId,tenancyId:tenancy._id,status:'PENDING',createdBy:auth.userId,updatedBy:auth.userId});return payment;}
+  static async createPayment(auth:AuthenticatedUser,organizationId:string,data:PaymentInput){const orgId=toId(organizationId);const {tenancy,tenant}=await this.tenancyFor(auth,data.tenancyId,'payment.create');if(String(tenancy.organizationId)!==String(orgId))throw new AppError(403,'ORGANIZATION_ACCESS_DENIED','Tenancy does not belong to this organization');const payment=await Payment.create({organizationId:orgId,...data,amountMinor:legacyMinorUnits(data.amount,data.currency),propertyId:tenancy.propertyId,buildingId:tenancy.buildingId,floorId:tenancy.floorId,unitId:tenancy.unitId,tenantId:tenant?._id ?? tenancy.tenantId,tenancyId:tenancy._id,status:'PENDING',createdBy:auth.userId,updatedBy:auth.userId});return payment;}
 
   static async listPaymentDestinations(auth:AuthenticatedUser,organizationId:string){const orgId=toId(organizationId);AuthorizationService.assertPermission(auth,'organization.settings.manage',orgId);return PaymentDestination.find({organizationId:orgId}).sort({isDefault:-1,createdAt:-1}).lean();}
 
@@ -100,7 +100,7 @@ export class FinanceService {
         if(!payment)throw new AppError(404,'NOT_FOUND','Payment not found');
         ResourceScopeService.assertUnit(auth,payment,'payment.confirm',(await Tenant.findById(payment.tenantId).session(session).lean())?.userId);
         if(payment.status!=='PENDING')throw new AppError(409,'INVALID_PAYMENT_STATE','Only pending payments can be confirmed');
-        const paymentMinor=legacyMinorUnits(payment.amount,payment.currency);
+        const paymentMinor=storedMinorUnits(payment.amount,payment.amountMinor,payment.currency);
         const sum=data.allocations.reduce((total,item)=>addMinorUnits(total,legacyMinorUnits(item.amount,payment.currency)),0);
         if(sum!==paymentMinor)throw new AppError(400,'ALLOCATION_MISMATCH','Allocation total must equal payment amount');
 
@@ -116,20 +116,23 @@ export class FinanceService {
           ResourceScopeService.assertUnit(auth,charge,'payment.confirm',(await Tenant.findById(charge.tenantId).session(session).lean())?.userId);
           assertMatchingCurrency(payment.currency,charge.currency);
           const amountMinor=legacyMinorUnits(item.amount,payment.currency);
-          const paidMinor=legacyMinorUnits(charge.paidAmount,payment.currency);
-          const totalMinor=legacyMinorUnits(charge.totalAmount,payment.currency);
-          const balanceMinor=legacyMinorUnits(charge.balanceAmount,payment.currency);
+          const paidMinor=storedMinorUnits(charge.paidAmount,charge.paidAmountMinor,payment.currency);
+          const totalMinor=storedMinorUnits(charge.totalAmount,charge.totalAmountMinor,payment.currency);
+          const balanceMinor=storedMinorUnits(charge.balanceAmount,charge.balanceAmountMinor,payment.currency);
+          if(addMinorUnits(paidMinor,balanceMinor)!==totalMinor)throw new AppError(409,'FINANCIAL_STORAGE_MISMATCH','Rent charge balances do not match its total');
           if(amountMinor>balanceMinor)throw new AppError(409,'OVER_ALLOCATION','Allocation exceeds rent charge balance');
           const duplicate=await PaymentAllocation.exists({paymentId:payment._id,rentChargeId:charge._id}).session(session);
           if(duplicate)throw new AppError(409,'DUPLICATE_ALLOCATION','Payment is already allocated to this rent charge');
           checked.push({charge,amountMinor,paidMinor,totalMinor});
         }
         for(const {charge,amountMinor,paidMinor,totalMinor} of checked){
-          await PaymentAllocation.create([{organizationId:payment.organizationId,paymentId:payment._id,rentChargeId:charge._id,amount:legacyMajorUnits(amountMinor,payment.currency),allocatedBy:auth.userId}],{session});
+          await PaymentAllocation.create([{organizationId:payment.organizationId,paymentId:payment._id,rentChargeId:charge._id,amount:legacyMajorUnits(amountMinor,payment.currency),amountMinor,allocatedBy:auth.userId}],{session});
           const nextPaid=addMinorUnits(paidMinor,amountMinor);
           if(nextPaid>totalMinor)throw new AppError(409,'OVER_ALLOCATION','Allocation exceeds rent charge total');
           charge.paidAmount=legacyMajorUnits(nextPaid,payment.currency);
+          charge.paidAmountMinor=nextPaid;
           charge.balanceAmount=legacyMajorUnits(totalMinor-nextPaid,payment.currency);
+          charge.balanceAmountMinor=totalMinor-nextPaid;
           charge.status=charge.balanceAmount===0?'PAID':'PARTIALLY_PAID';
           charge.updatedBy=auth.userId;
           await charge.save({session});
@@ -163,8 +166,8 @@ export class FinanceService {
         }
 
         const allocations=await PaymentAllocation.find({organizationId:payment.organizationId,paymentId:payment._id}).session(session);
-        const allocatedMinor=allocations.reduce((sum,allocation)=>addMinorUnits(sum,legacyMinorUnits(allocation.amount,payment.currency)),0);
-        if(!allocations.length||allocatedMinor!==legacyMinorUnits(payment.amount,payment.currency)){
+        const allocatedMinor=allocations.reduce((sum,allocation)=>addMinorUnits(sum,storedMinorUnits(allocation.amount,allocation.amountMinor,payment.currency)),0);
+        if(!allocations.length||allocatedMinor!==storedMinorUnits(payment.amount,payment.amountMinor,payment.currency)){
           throw new AppError(409,'INVALID_PAYMENT_ALLOCATIONS','Payment allocations are incomplete');
         }
         const checked: Array<{charge:HydratedDocument<RentChargeDocument>;amountMinor:number;paidMinor:number;totalMinor:number}> = [];
@@ -176,9 +179,11 @@ export class FinanceService {
           }
           ResourceScopeService.assertUnit(auth,charge,'payment.reverse',(await Tenant.findById(charge.tenantId).session(session).lean())?.userId);
           assertMatchingCurrency(payment.currency,charge.currency);
-          const amountMinor=legacyMinorUnits(allocation.amount,payment.currency);
-          const paidMinor=legacyMinorUnits(charge.paidAmount,payment.currency);
-          const totalMinor=legacyMinorUnits(charge.totalAmount,payment.currency);
+          const amountMinor=storedMinorUnits(allocation.amount,allocation.amountMinor,payment.currency);
+          const paidMinor=storedMinorUnits(charge.paidAmount,charge.paidAmountMinor,payment.currency);
+          const totalMinor=storedMinorUnits(charge.totalAmount,charge.totalAmountMinor,payment.currency);
+          const balanceMinor=storedMinorUnits(charge.balanceAmount,charge.balanceAmountMinor,payment.currency);
+          if(addMinorUnits(paidMinor,balanceMinor)!==totalMinor)throw new AppError(409,'FINANCIAL_STORAGE_MISMATCH','Rent charge balances do not match its total');
           if(paidMinor<amountMinor){
             throw new AppError(409,'INVALID_CHARGE_BALANCE','Rent charge paid balance is less than its allocation');
           }
@@ -189,7 +194,9 @@ export class FinanceService {
         for(const {charge,amountMinor,paidMinor,totalMinor} of checked){
           const nextPaid=paidMinor-amountMinor;
           charge.paidAmount=legacyMajorUnits(nextPaid,payment.currency);
+          charge.paidAmountMinor=nextPaid;
           charge.balanceAmount=legacyMajorUnits(totalMinor-nextPaid,payment.currency);
+          charge.balanceAmountMinor=totalMinor-nextPaid;
           charge.status=charge.balanceAmount===0?'PAID':(charge.paidAmount>0?'PARTIALLY_PAID':(charge.dueDate<now?'OVERDUE':'OPEN'));
           charge.updatedBy=auth.userId;
           await charge.save({session});

@@ -104,6 +104,8 @@ Critical user journeys through frontend/API.
 
 ### Finance
 
+-   Transitional rent-ledger minor fields must match legacy major values, and mismatches must abort confirmation before allocation writes. New manual/provider allocations and charge balance updates must write both representations; historical rows lacking minor fields must remain readable until backfilled.
+
 -   Charge generation idempotent.
 -   Payment webhook verified.
 -   Duplicate webhook idempotent.

@@ -76,9 +76,21 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
     expect((await Payment.findById(payment._id))?.status).toBe('CONFIRMED');
     expect(await PaymentAllocation.countDocuments({ paymentId: payment._id })).toBe(2);
     expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, status: 'PAID', balanceAmount: 0 })).toBe(2);
+    expect((await PaymentAllocation.find({ paymentId: payment._id }).lean()).map(allocation => allocation.amountMinor)).toEqual([5000, 5000]);
+    expect(await RentCharge.countDocuments({ _id: { $in: charges.map(charge => charge._id) }, paidAmountMinor: 5000, balanceAmountMinor: 0 })).toBe(2);
     expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.confirmed' })).toBe(1);
     expect(await DomainEvent.countDocuments({ aggregateId: payment._id, name: 'payment.confirmed', version: 1 })).toBe(1);
     expect(await Job.countDocuments({ organizationId: ids.organizationId, type: 'domain-event.payment-activity', status: 'QUEUED' })).toBe(1);
+  });
+
+  it('rejects a payment whose stored major and minor values disagree before ledger writes', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await Payment.updateOne({ _id: payment._id }, { $set: { amountMinor: 9999 } });
+    await expect(FinanceService.confirmPayment(auth, String(payment._id), {
+      allocations: charges.map(charge => ({ rentChargeId: String(charge._id), amount: 50 })),
+    })).rejects.toMatchObject({ code: 'FINANCIAL_STORAGE_MISMATCH' });
+    expect(await PaymentAllocation.countDocuments({ paymentId: payment._id })).toBe(0);
   });
 
   it('allocates KES cents exactly and reverses them without balance drift', async () => {

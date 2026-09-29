@@ -282,8 +282,12 @@ guard, not a multi-currency implementation.
 Within the legacy KES boundary, new monetary inputs must be representable in
 cents. Rent totals and manual/provider allocation and reversal arithmetic
 use safe integer minor units, converting back only for the existing major-unit
-schema. This is not authoritative minor-unit storage. A read-only Phase A
-inventory command identifies collections that require a verified cutover.
+schema. New rent charges, payments, and allocations now also persist integer
+minor-unit fields. Payment transactions verify the two representations agree
+before writing and update both together. Historical records may lack the new
+fields. Reports and other collections remain on major units, so this is not
+yet an authoritative minor-unit cutover. A read-only Phase A inventory command
+identifies collections that require a verified backfill and cutover.
 The operating rail policy currently permits only KE/KES with M-Pesa or
 Paystack. Checkout rechecks the organization's regional profile and requires
 an active default destination matching organization, currency and country.

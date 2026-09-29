@@ -5,6 +5,9 @@ but operational finance collections, APIs, reports, and older events still use
 major-unit numbers. Do not enable non-KES operating currencies or describe the
 ledger as migrated. The owner has confirmed there is no live customer finance
 data; verify the actual deployment database before a future storage cutover.
+New rent ledger records now dual-write minor-unit fields, but old rows and
+reports still rely on major units. Do not backfill or drop fields manually;
+the controlled migration and parity verification are still pending.
 The app will be hosted on Coolify; follow [Coolify deployment](COOLIFY_DEPLOYMENT.md)
 for its Git/Compose setup and URL mappings. Enter secrets in Coolify environment
 variables rather than committing a deployment `.env` file.

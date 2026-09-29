@@ -25,8 +25,8 @@ describe('payment allocation transactions', () => {
     const tenancyId = new Types.ObjectId();
     const tenantId = new Types.ObjectId();
     const ids = [new Types.ObjectId(), new Types.ObjectId()];
-    const payment = { _id: new Types.ObjectId(), organizationId, tenancyId, tenantId, amount: 100, currency: 'KES', status: 'PENDING', paidAt: null as Date | null, confirmedAt: null as Date | null, save: vi.fn() };
-    const charges = ids.map((_id, index) => ({ _id, organizationId, tenancyId, tenantId, totalAmount: index === 0 ? 60 : 40, paidAmount: 0, balanceAmount: index === 0 ? 60 : 40, currency: 'KES', status: 'OPEN', save: vi.fn() }));
+    const payment = { _id: new Types.ObjectId(), organizationId, tenancyId, tenantId, amount: 100, amountMinor: 10000, currency: 'KES', status: 'PENDING', paidAt: null as Date | null, confirmedAt: null as Date | null, save: vi.fn() };
+    const charges = ids.map((_id, index) => ({ _id, organizationId, tenancyId, tenantId, totalAmount: index === 0 ? 60 : 40, totalAmountMinor: index === 0 ? 6000 : 4000, paidAmount: 0, paidAmountMinor: 0, balanceAmount: index === 0 ? 60 : 40, balanceAmountMinor: index === 0 ? 6000 : 4000, currency: 'KES', status: 'OPEN', save: vi.fn() }));
     vi.spyOn(Payment, 'findById').mockReturnValue({ session: async () => payment } as never);
     vi.spyOn(Tenant, 'findById').mockReturnValue({ session: () => ({ lean: async () => ({ userId: new Types.ObjectId() }) }) } as never);
     vi.spyOn(ResourceScopeService, 'assertUnit').mockImplementation(() => undefined);
@@ -41,11 +41,30 @@ describe('payment allocation transactions', () => {
 
     expect(confirmed.status).toBe('CONFIRMED');
     expect(createAllocation).toHaveBeenCalledTimes(2);
+    expect(createAllocation.mock.calls.map(call => call[0][0].amountMinor)).toEqual([6000, 4000]);
     for (const call of createAllocation.mock.calls) expect(call[1]).toEqual({ session });
-    for (const charge of charges) expect(charge.save).toHaveBeenCalledWith({ session });
+    for (const charge of charges) {
+      expect(charge.save).toHaveBeenCalledWith({ session });
+      expect(charge.paidAmountMinor).toBe(charge.totalAmountMinor);
+      expect(charge.balanceAmountMinor).toBe(0);
+    }
     expect(payment.save).toHaveBeenCalledWith({ session });
     expect(audit).toHaveBeenCalledWith(expect.objectContaining({ action: 'payment.confirmed', resourceId: payment._id }), session);
     expect(publish).toHaveBeenCalledWith(expect.objectContaining({ name: 'payment.confirmed', aggregateId: payment._id }), session);
+    expect(session.endSession).toHaveBeenCalledOnce();
+  });
+
+  it('refuses mismatched payment storage before creating an allocation', async () => {
+    const session = mockSession();
+    const payment = { _id: new Types.ObjectId(), tenantId: new Types.ObjectId(), amount: 50, amountMinor: 4999, currency: 'KES', status: 'PENDING' };
+    vi.spyOn(Payment, 'findById').mockReturnValue({ session: async () => payment } as never);
+    vi.spyOn(Tenant, 'findById').mockReturnValue({ session: () => ({ lean: async () => ({ userId: new Types.ObjectId() }) }) } as never);
+    vi.spyOn(ResourceScopeService, 'assertUnit').mockImplementation(() => undefined);
+    const createAllocation = vi.spyOn(PaymentAllocation, 'create');
+
+    await expect(FinanceService.confirmPayment({ userId: new Types.ObjectId() } as AuthenticatedUser, String(payment._id), { allocations: [] }))
+      .rejects.toMatchObject({ code: 'FINANCIAL_STORAGE_MISMATCH' });
+    expect(createAllocation).not.toHaveBeenCalled();
     expect(session.endSession).toHaveBeenCalledOnce();
   });
 

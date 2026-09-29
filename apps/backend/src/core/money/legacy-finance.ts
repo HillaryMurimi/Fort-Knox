@@ -16,6 +16,15 @@ export function legacyMinorUnits(amount: number, currency: string): number {
   catch { throw new AppError(409, 'INVALID_FINANCIAL_AMOUNT', 'Amount is not representable in currency minor units'); }
 }
 
+export function storedMinorUnits(majorUnits: number, minorUnits: number | null | undefined, currency: string): number {
+  const legacy = legacyMinorUnits(majorUnits, currency);
+  if (minorUnits == null) return legacy;
+  if (!Number.isSafeInteger(minorUnits) || minorUnits !== legacy) {
+    throw new AppError(409, 'FINANCIAL_STORAGE_MISMATCH', 'Stored minor and major amounts disagree');
+  }
+  return minorUnits;
+}
+
 export function isLegacyKesAmount(amount: number): boolean {
   try { moneyFromMajorUnits(amount, LEGACY_FINANCE_CURRENCY); return true; }
   catch { return false; }

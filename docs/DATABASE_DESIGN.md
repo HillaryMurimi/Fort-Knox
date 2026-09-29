@@ -275,16 +275,21 @@ The `jobs.dedupeKey` index must be unique and sparse. Existing databases may
 hold an older non-unique index on that key and need a controlled index migration
 after checking for duplicate values.
 
-Financial collections still contain legacy major-unit Number fields. The new
-money helper protects provider conversion and exact KES allocation arithmetic
-but does not change stored units. The read-only `phase-a:inventory` command
-reports which target collections contain records before a planned cutover.
+Financial collections still contain legacy major-unit Number fields. New
+`rent_charges` and `payments` also store optional integer minor-unit fields;
+new `payment_allocations` store `amountMinor`. Current writes populate both
+representations. Transactional confirmation and reversal verify parity and
+reject drift, while old rows without minor fields use validated conversion.
+Reports and other finance collections still read major-unit values, so this
+is a transitional dual-write contract, not a completed storage cutover. The
+read-only `phase-a:inventory` command reports which target collections contain
+records before a planned backfill and cutover.
 
 ### payment_allocations
 
 -   paymentId
 -   chargeId
--   amount (currently legacy major units; target is integer minor units)
+-   amount (legacy major units) and optional amountMinor (integer minor units)
 -   timestamps
 
 ### payment_refunds

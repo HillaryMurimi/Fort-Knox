@@ -6,7 +6,7 @@ This is the dependency order for the attached platform expansion brief. Existing
 
 | Phase | Current position | Exit work still required |
 | --- | --- | --- |
-| A - Architecture | Partial: regional profile, boundary Money helper, KE/KES rail guard, event store, payment provider adapters, transactional finance writes, and payment-activity outbox/worker/replay exist. | Authoritative integer-minor-unit finance migration; expanded country/currency/provider matrix with merchant acceptance; transactional events and consumers across other critical domains; bulk backfill and delivery observability; provider-boundary review. |
+| A - Architecture | Partial: regional profile, boundary Money helper, transitional rent-ledger minor-unit fields, KE/KES rail guard, event store, payment provider adapters, transactional finance writes, and payment-activity outbox/worker/replay exist. | Complete authoritative integer-minor-unit finance migration and API/report conversion; expanded country/currency/provider matrix with merchant acceptance; transactional events and consumers across other critical domains; bulk backfill and delivery observability; provider-boundary review. |
 | B - Recurring services | Job-based contractor module exists; recurring service lifecycle is not complete. | Scoped providers, contracts, schedules, visits, verification, invoices, SLA/performance, UI and E2E. |
 | C - Reliability | Jobs and integration attempts exist; reliability center is not complete. | Integration health signals, queue/webhook observability, safe retry policy, admin/operator views and tests. |
 | D - Evidence/documents | Documents and evidence modules exist; intelligence and integrity are not complete. | Content hashing/verification, extraction, permission-filtered grounded retrieval, invoice review and tests. |
@@ -14,6 +14,12 @@ This is the dependency order for the attached platform expansion brief. Existing
 | F - Owner intelligence | Command-center and intelligence modules exist; requested owner workflows are not complete. | Event timeline, morning brief, experience score, guarded churn support, scenario simulation and tests. |
 
 Next dependency gate: migrate authoritative finance values to integer minor units, then establish the country/currency/provider matrix. Expand event delivery beyond payment activity before treating Phase B-F features as production-ready. Payment settlement reconciliation remains a separate financial workstream; the recent Paystack refund slices did not close Phase A. See `PHASE_A_OWNER_ACTIONS.md` for owner-side inputs and release gates.
+
+## Slice 46 - Transitional Rent Ledger Minor Fields (2026-09-29)
+
+- New rent charges, pending payments, and manual/provider payment allocations now write integer minor-unit fields alongside the existing major-unit fields. Confirmation and reversal prefer the minor fields when present, verify major/minor parity and charge balance invariants, then update both representations transactionally. Legacy records without minor fields remain readable for the transition; mismatches fail before allocation writes.
+- This does **not** complete the canonical migration. Major-unit fields still drive API responses, report aggregates, arrears queries, other finance collections, and older event payloads. No production database has been inventoried or backfilled, and non-KES operating finance remains disabled. The next work must migrate the remaining money-bearing collections and readers, verify/backfill historical rows, then deliberately retire the major-unit authority.
+- Verification: typecheck, lint (warnings only), tests (176 backend passed/36 opt-in skipped; 59 frontend passed), and build passed. The replica-set E2E attempt could not run because `mongodb-memory-server` began downloading a 694 MB binary and exceeded its setup timeout before any assertion. Re-run that suite with an installed/cached `mongod` binary in staging before release.
 
 ## Slice 45 - Fail-Closed Rent Rails and Coolify Deployment (2026-09-29)
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMinorUnits, legacyMajorUnits, legacyMinorUnits } from './legacy-finance.js';
+import { addMinorUnits, legacyMajorUnits, legacyMinorUnits, storedMinorUnits } from './legacy-finance.js';
 
 describe('legacy finance minor-unit boundary', () => {
   it('uses exact KES cents for addition and subtraction', () => {
@@ -13,5 +13,12 @@ describe('legacy finance minor-unit boundary', () => {
     expect(() => legacyMinorUnits(1.001, 'KES')).toThrow('Amount is not representable');
     expect(() => addMinorUnits(Number.MAX_SAFE_INTEGER, 1)).toThrow('outside the safe integer range');
     expect(() => legacyMajorUnits(0.5, 'KES')).toThrow('outside the safe integer range');
+  });
+
+  it('reads historical amounts but refuses inconsistent canonical values', () => {
+    expect(storedMinorUnits(12.34, undefined, 'KES')).toBe(1234);
+    expect(storedMinorUnits(12.34, 1234, 'KES')).toBe(1234);
+    expect(() => storedMinorUnits(12.34, 1235, 'KES')).toThrow('Stored minor and major amounts disagree');
+    expect(() => storedMinorUnits(12.34, 12.34, 'KES')).toThrow('Stored minor and major amounts disagree');
   });
 });
