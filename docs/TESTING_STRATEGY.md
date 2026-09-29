@@ -112,6 +112,7 @@ Critical user journeys through frontend/API.
 -   Duplicate provider confirmation creates no additional allocation or audit record.
 -   Reversal restores balances exactly once, retains allocations, rejects incomplete history, and rolls back when audit fails.
 -   Refund request submits once, verifies original provider ownership and amount, rejects unauthorized or unsupported payments, quarantines ambiguous submissions, and accepts only signed matching refund events. Provider status changes must leave rent balances unchanged.
+-   Refund review respects assigned-unit and organization scope; pending refunds and the generic Paystack reversal path cannot change rent. A supervised correction requires fresh processed-provider evidence, reverses exactly once, and rolls back balances and the refund marker if audit fails.
 -   New non-KES operational finance writes rejected until ledger migration.
 -   Cross-currency manual/provider allocation rejected before balance updates.
 -   Reconciliation.

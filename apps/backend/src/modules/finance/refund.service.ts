@@ -1,8 +1,10 @@
 import mongoose from 'mongoose';
+import { Types } from 'mongoose';
 import { Payment } from '../../database/models/Payment.js';
 import { PaymentRefund } from '../../database/models/PaymentRefund.js';
 import { Tenant } from '../../database/models/Tenant.js';
 import { ResourceScopeService } from '../../core/authorization/resource-scope.service.js';
+import { AuthorizationService } from '../../core/authorization/authorization.service.js';
 import { AppError } from '../../core/errors/AppError.js';
 import { getRefundProvider } from '../../core/integrations/payment-providers.js';
 import { getPaymentProvider } from '../../core/integrations/payment-providers.js';
@@ -11,6 +13,7 @@ import type { RefundResult, RefundStatus } from '../../core/integrations/provide
 import { moneyFromMajorUnits } from '../../core/money/money.js';
 import type { AuthenticatedUser } from '../../core/types/auth.js';
 import { AuditService } from '../audit/audit.service.js';
+import { FinanceService } from './finance.service.js';
 
 export class RefundService {
   private static async scopedPayment(auth: AuthenticatedUser, paymentId: string) {
@@ -47,6 +50,7 @@ export class RefundService {
       await session.withTransaction(async () => {
         const [refund] = await PaymentRefund.create([{
           organizationId: payment.organizationId, paymentId: payment._id, provider: 'PAYSTACK',
+          propertyId: payment.propertyId, buildingId: payment.buildingId, unitId: payment.unitId,
           transactionReference, amountMinorUnits, currency: payment.currency,
           status: 'SUBMITTING', reason, requestedBy: auth.userId,
         }], { session });
@@ -87,6 +91,14 @@ export class RefundService {
     return PaymentRefund.findOne({ organizationId: payment.organizationId, paymentId: payment._id });
   }
 
+  static async list(auth: AuthenticatedUser, organizationId: string) {
+    if (!Types.ObjectId.isValid(organizationId)) throw new AppError(400, 'INVALID_ORGANIZATION_ID', 'Invalid organization ID');
+    const orgId = new Types.ObjectId(organizationId);
+    AuthorizationService.assertPermission(auth, 'financial.manage', orgId);
+    const ids = await ResourceScopeService.scopedUnitIds(auth, orgId);
+    return PaymentRefund.find({ organizationId: orgId, ...(ids ? { unitId: { $in: ids } } : {}) }).sort({ createdAt: -1 }).limit(100).lean();
+  }
+
   static async reconcile(auth: AuthenticatedUser, paymentId: string) {
     const refund = await this.get(auth, paymentId);
     if (!refund) throw new AppError(404, 'REFUND_NOT_FOUND', 'Refund request not found');
@@ -94,6 +106,12 @@ export class RefundService {
     const provider = getRefundProvider('PAYSTACK');
     if (!provider) throw new AppError(503, 'REFUND_PROVIDER_UNAVAILABLE', 'Refund provider is unavailable');
     return this.recordProviderStatus(String(refund._id), await provider.getRefund(refund.providerRefundId));
+  }
+
+  static async applyLedger(auth: AuthenticatedUser, paymentId: string) {
+    const refund = await this.reconcile(auth, paymentId);
+    if (!refund || refund.status !== 'PROCESSED') throw new AppError(409, 'REFUND_NOT_PROCESSED', 'Paystack has not processed this refund');
+    return FinanceService.reversePayment(auth, paymentId, String(refund._id));
   }
 
   static async recordWebhookStatus(transactionReference: string, result: Omit<RefundResult, 'providerRefundId'> & { providerRefundId?: number }) {

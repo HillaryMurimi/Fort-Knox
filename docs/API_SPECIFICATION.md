@@ -250,7 +250,9 @@ rejected. This is an internal ledger reversal, not a Paystack or M-Pesa refund;
 provider refunds and bank settlement corrections require a separate workflow.
 Full Paystack refunds use `POST /api/v1/payments/:id/refund` with
 `{ "reason": "..." }` (10-500 characters), `GET /api/v1/payments/:id/refund`,
-and `POST /api/v1/payments/:id/refund/reconcile`. All require scoped
+`GET /api/v1/organizations/:organizationId/payment-refunds` (latest 100,
+organization and assigned-unit scoped), and
+`POST /api/v1/payments/:id/refund/reconcile`. All require scoped
 `financial.manage`. A request is allowed only for a confirmed Paystack payment
 whose server-verified transaction amount, currency, and PMCC payment and
 organization metadata match. One refund record is permitted per payment;
@@ -259,8 +261,13 @@ repeating the request never sends a second provider POST. The request returns
 refund webhooks and provider fetch reconcile `PENDING`, `PROCESSING`,
 `NEEDS_ATTENTION`, `FAILED`, and `PROCESSED`. `SUBMISSION_UNKNOWN` requires
 provider-dashboard investigation; PMCC does not retry that submission. The
-payment and rent charges stay unchanged even when a refund becomes `PROCESSED`;
-an authorized ledger correction is a separate operation. Partial refunds and
+payment and rent charges stay unchanged even when a refund becomes `PROCESSED`.
+`POST /api/v1/payments/:id/refund/apply-ledger` requires both scoped
+`financial.manage` and `payment.reverse`. It re-fetches the provider refund,
+requires `PROCESSED`, then atomically reverses the full rent allocation,
+marks the refund ledger-corrected, and audits the action. The generic payment
+reversal endpoint cannot reverse a Paystack payment or a payment with a refund
+record without this supervised action. Partial refunds and
 automated M-Pesa reversals are not supported by these endpoints.
 
 Paystack initiation accepts an optional payer email override and optional

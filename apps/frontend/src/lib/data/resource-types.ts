@@ -183,6 +183,22 @@ export interface Payment {
   updatedAt?: string;
 }
 
+export interface PaymentRefund {
+  _id: string;
+  organizationId: string;
+  paymentId: string;
+  provider: 'PAYSTACK';
+  transactionReference: string;
+  providerRefundId?: number;
+  amountMinorUnits: number;
+  currency: string;
+  status: 'SUBMITTING' | 'SUBMISSION_UNKNOWN' | 'PENDING' | 'PROCESSING' | 'NEEDS_ATTENTION' | 'FAILED' | 'PROCESSED';
+  reason: string;
+  ledgerReversedAt?: string;
+  createdAt: string;
+  providerUpdatedAt?: string;
+}
+
 export interface PaymentDestination {
   _id: string;
   organizationId: string;

@@ -18,6 +18,7 @@ import {
 } from '@/hooks/queries';
 import type { Payment, RentCharge } from '@/lib/data/resource-types';
 import { PaymentDestinations } from '@/components/payments/payment-destinations';
+import { PaymentRefundReview } from '@/components/payments/payment-refund-review';
 
 const isoDate = (date: Date) => date.toISOString().slice(0, 10);
 const monthStart = (date = new Date()) => new Date(date.getFullYear(), date.getMonth(), 1);
@@ -112,6 +113,7 @@ export default function FinancePage() {
       )}
 
       <PaymentDestinations organizationId={activeOrganizationId} />
+      <PaymentRefundReview organizationId={activeOrganizationId} payments={payments.data ?? []} />
 
       <div className="flex flex-wrap items-end gap-3 mb-5 card p-4">
         <div>

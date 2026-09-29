@@ -1,5 +1,5 @@
 import { api } from '../api';
-import type { ArrearsCase, Expense, FinancialPeriod, FinancialReport, Payment, PaymentDestination, RentCharge, ServiceChargeAssessment } from './resource-types';
+import type { ArrearsCase, Expense, FinancialPeriod, FinancialReport, Payment, PaymentDestination, PaymentRefund, RentCharge, ServiceChargeAssessment } from './resource-types';
 import { toQueryString, type QueryValue } from './query-params';
 
 export interface RentChargeInput { tenancyId: string; periodStart: string; periodEnd: string; dueDate: string; rentAmount: number; serviceChargeAmount?: number; adjustments?: number; currency?: string; notes?: string; }
@@ -29,6 +29,12 @@ export const financeClient = {
     create: (organizationId: string, input: PaymentInput) => api<Payment>(`/organizations/${organizationId}/payments`, { method: 'POST', body: JSON.stringify(input) }),
     confirm: (id: string, input?: AllocationInput) => input ? api<Payment>(`/payments/${id}/confirm`, { method: 'POST', body: JSON.stringify(input) }) : api<Payment>(`/payments/${id}/confirm`, { method: 'POST' }),
     reverse: (id: string) => api<Payment>(`/payments/${id}/reverse`, { method: 'POST' }),
+  },
+  refunds: {
+    list: (organizationId: string) => api<PaymentRefund[]>(`/organizations/${organizationId}/payment-refunds`),
+    request: (paymentId: string, reason: string) => api<PaymentRefund>(`/payments/${paymentId}/refund`, { method: 'POST', body: JSON.stringify({ reason }) }),
+    reconcile: (paymentId: string) => api<PaymentRefund>(`/payments/${paymentId}/refund/reconcile`, { method: 'POST' }),
+    applyLedger: (paymentId: string) => api<Payment>(`/payments/${paymentId}/refund/apply-ledger`, { method: 'POST' }),
   },
   paymentDestinations: {
     list: (organizationId:string) => api<PaymentDestination[]>(`/organizations/${organizationId}/payment-destinations`),

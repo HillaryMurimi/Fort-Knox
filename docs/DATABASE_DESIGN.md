@@ -274,7 +274,11 @@ money helper protects provider conversion but does not change stored units.
 The implemented `payment_refunds` collection keeps one full Paystack refund
 request per payment (`paymentId` unique), organization ownership, original
 transaction reference, integer minor-unit amount and currency, provider refund
-ID, current provider status, requested-by actor, reason, and timestamps. It
+ID, current provider status, requested-by actor, reason, and timestamps. New
+records also snapshot property/building/unit scope and store ledger reversal
+actor/time separately from provider status. The scope fields are optional for
+records created before this change; older records need a controlled backfill
+before unit-scoped reviewers can see them in the list. It
 does not mutate or replace historical payment allocations. `SUBMISSION_UNKNOWN`
 is a manual-review state, not permission to retry a provider POST.
 

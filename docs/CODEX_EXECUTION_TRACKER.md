@@ -1,5 +1,13 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Slice 40 - Supervised Paystack Refund Ledger Review (2026-09-29)
+
+- Added a landlord Finance refund review with full-refund request, provider status refresh, distinct processed-refund ledger correction, confirmation, and responsive error/empty states. The correction control requires both `financial.manage` and `payment.reverse`; the backend remains authoritative.
+- Added a bounded, organization/unit-scoped refund list and a supervised `apply-ledger` endpoint. It re-fetches Paystack status and requires `PROCESSED` before transactionally reversing the full rent allocation, recording actor/time on the refund, and auditing. The generic reversal endpoint cannot bypass this rule for Paystack payments or recorded refunds.
+- Replica-set E2E tests cover pending-refund refusal, single application, audit-failure rollback, and scoped list isolation. Existing refunds without scope fields require a controlled backfill for unit-scoped list visibility.
+- Remaining: manual resolution of `SUBMISSION_UNKNOWN`/`NEEDS_ATTENTION`, partial refunds, M-Pesa Daraja reversal, settlement/bank reconciliation, live Paystack staging acceptance, and a read-only refund fixture for development preview. Provider `PROCESSED` is not proof of receipt in the customer's account.
+- Verification: root typecheck, lint (282 existing backend and 24 existing frontend warnings, no errors), tests (backend 162 passed/22 opt-in skipped; frontend 59 passed), and build passed. The opt-in replica-set E2E command passed all 22 tests.
+
 ## Slice 39 - Paystack Refund Tracking (2026-09-28)
 
 - Added one full Paystack refund record per confirmed payment, a scoped `financial.manage` request/get/reconcile API, fresh verification of the original Paystack transaction and PMCC ownership metadata, and an adapter for provider create/fetch. Refund submission is not retried after an ambiguous failure.

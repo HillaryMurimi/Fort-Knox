@@ -1,6 +1,7 @@
 import mongoose, { Types, type HydratedDocument } from 'mongoose';
 import { RentCharge, type RentChargeDocument } from '../../database/models/RentCharge.js';
 import { Payment } from '../../database/models/Payment.js';
+import { PaymentRefund } from '../../database/models/PaymentRefund.js';
 import { PaymentDestination } from '../../database/models/PaymentDestination.js';
 import { PaymentAllocation } from '../../database/models/PaymentAllocation.js';
 import { Expense } from '../../database/models/Expense.js';
@@ -128,7 +129,7 @@ export class FinanceService {
     }finally{await session.endSession();}
   }
 
-  static async reversePayment(auth:AuthenticatedUser,id:string){
+  static async reversePayment(auth:AuthenticatedUser,id:string,processedRefundId?:string){
     const session=await mongoose.startSession();
     try{
       const reversed=await session.withTransaction(async()=>{
@@ -136,6 +137,14 @@ export class FinanceService {
         if(!payment)throw new AppError(404,'NOT_FOUND','Payment not found');
         ResourceScopeService.assertUnit(auth,payment,'payment.reverse',(await Tenant.findById(payment.tenantId).session(session).lean())?.userId);
         if(payment.status!=='CONFIRMED')throw new AppError(409,'INVALID_PAYMENT_STATE','Only confirmed payments can be reversed');
+        const refund=await PaymentRefund.findOne({paymentId:payment._id,organizationId:payment.organizationId}).session(session);
+        if(payment.provider==='PAYSTACK'||refund){
+          if(!refund||!processedRefundId||String(refund._id)!==processedRefundId||refund.status!=='PROCESSED'){
+            throw new AppError(409,'REFUND_LEDGER_ACTION_REQUIRED','Paystack ledger reversal requires a processed refund and the supervised refund action');
+          }
+        }else if(processedRefundId){
+          throw new AppError(409,'REFUND_NOT_FOUND','A processed refund is required for this action');
+        }
 
         const allocations=await PaymentAllocation.find({organizationId:payment.organizationId,paymentId:payment._id}).session(session);
         if(!allocations.length||Math.abs(allocations.reduce((sum,allocation)=>sum+allocation.amount,0)-payment.amount)>0.000001){
@@ -166,7 +175,8 @@ export class FinanceService {
         }
         payment.status='REVERSED';payment.reversedAt=now;payment.updatedBy=auth.userId;
         await payment.save({session});
-        await AuditService.record({organizationId:payment.organizationId,actorUserId:auth.userId,action:'payment.reversed',resourceType:'Payment',resourceId:payment._id,propertyId:payment.propertyId,buildingId:payment.buildingId,unitId:payment.unitId,metadata:{amount:payment.amount,currency:payment.currency,allocationCount:checked.length}},session);
+        if(refund){refund.ledgerReversedAt=now;refund.ledgerReversedBy=auth.userId;await refund.save({session});}
+        await AuditService.record({organizationId:payment.organizationId,actorUserId:auth.userId,action:'payment.reversed',resourceType:'Payment',resourceId:payment._id,propertyId:payment.propertyId,buildingId:payment.buildingId,unitId:payment.unitId,metadata:{amount:payment.amount,currency:payment.currency,allocationCount:checked.length,...(refund?{refundId:String(refund._id)}:{})}},session);
         return payment;
       });
       if(!reversed)throw new AppError(500,'PAYMENT_REVERSAL_FAILED','Payment reversal did not complete');

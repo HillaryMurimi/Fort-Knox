@@ -295,6 +295,10 @@ and its audit commit before the external POST; an ambiguous provider response
 is quarantined as `SUBMISSION_UNKNOWN` rather than retried. Status updates
 are checked against the expected integer-minor-unit amount and currency and
 audited transactionally. Provider `PROCESSED` is not a rent-ledger reversal.
+The Finance review UI separates provider status from the ledger marker. A
+supervised action re-fetches `PROCESSED` status and reverses the full allocation
+with the refund marker and audit in one transaction; the generic Paystack
+reversal path is blocked. Refund lists use organization and assigned-unit scope.
 M-Pesa operator-credential reversal and settlement correction are not yet
 automated.
 

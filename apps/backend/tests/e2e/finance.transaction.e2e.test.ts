@@ -156,6 +156,60 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
     expect(await AuditLog.countDocuments({ resourceType: 'PaymentRefund', action: 'payment.refund.requested' })).toBe(1);
   });
 
+  it('lists refunds only within the manager assigned unit and organization', async () => {
+    const { ids, payment } = await fixture();
+    const otherUnitId = new Types.ObjectId();
+    const otherPaymentId = new Types.ObjectId();
+    await PaymentRefund.create([
+      { organizationId: ids.organizationId, paymentId: payment._id, propertyId: ids.propertyId, buildingId: ids.buildingId, unitId: ids.unitId, provider: 'PAYSTACK', transactionReference: 'scoped-1', amountMinorUnits: 10000, currency: 'KES', status: 'PENDING', reason: 'Duplicate rent payment', requestedBy: ids.actorId },
+      { organizationId: ids.organizationId, paymentId: otherPaymentId, propertyId: ids.propertyId, buildingId: ids.buildingId, unitId: otherUnitId, provider: 'PAYSTACK', transactionReference: 'scoped-2', amountMinorUnits: 10000, currency: 'KES', status: 'PENDING', reason: 'Duplicate rent payment', requestedBy: ids.actorId },
+    ]);
+    const manager: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: false, memberships: [{ organizationId: ids.organizationId, roleIds: [], roles: ['PROPERTY_MANAGER'], permissions: ['financial.manage'], scope: { allProperties: false, propertyIds: [], buildingIds: [], unitIds: [ids.unitId] } }] };
+    const refunds = await RefundService.list(manager, String(ids.organizationId));
+    expect(refunds.map(refund => String(refund.paymentId))).toEqual([String(payment._id)]);
+    await expect(RefundService.list(manager, String(new Types.ObjectId()))).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('requires processed provider evidence and supervised action before reversing Paystack rent', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map((charge) => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    await Payment.updateOne({ _id: payment._id }, { provider: 'PAYSTACK', providerTransactionId: 'rent-ref-ledger' });
+    mockVerifiedRefundPayment(payment, 'rent-ref-ledger');
+    vi.spyOn(PaystackProvider.prototype, 'createRefund').mockResolvedValue({ providerRefundId: 500, amountMinorUnits: 10000, currency: 'KES', status: 'PENDING' });
+    const fetch = vi.spyOn(PaystackProvider.prototype, 'getRefund').mockResolvedValueOnce({ providerRefundId: 500, amountMinorUnits: 10000, currency: 'KES', status: 'PENDING' }).mockResolvedValue({ providerRefundId: 500, amountMinorUnits: 10000, currency: 'KES', status: 'PROCESSED' });
+    await RefundService.request(auth, String(payment._id), 'Duplicate rent payment');
+
+    await expect(FinanceService.reversePayment(auth, String(payment._id))).rejects.toMatchObject({ code: 'REFUND_LEDGER_ACTION_REQUIRED' });
+    await expect(RefundService.applyLedger(auth, String(payment._id))).rejects.toMatchObject({ code: 'REFUND_NOT_PROCESSED' });
+    expect((await Payment.findById(payment._id))?.status).toBe('CONFIRMED');
+    await RefundService.applyLedger(auth, String(payment._id));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect((await Payment.findById(payment._id))?.status).toBe('REVERSED');
+    expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, paidAmount: 0, balanceAmount: 50 })).toBe(2);
+    expect((await PaymentRefund.findOne({ paymentId: payment._id }))?.ledgerReversedBy).toEqual(auth.userId);
+    await expect(RefundService.applyLedger(auth, String(payment._id))).rejects.toMatchObject({ code: 'INVALID_PAYMENT_STATE' });
+    expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.reversed' })).toBe(1);
+  });
+
+  it('rolls back the refund ledger marker with balances when audit fails', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map((charge) => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    await Payment.updateOne({ _id: payment._id }, { provider: 'PAYSTACK', providerTransactionId: 'rent-ref-rollback' });
+    mockVerifiedRefundPayment(payment, 'rent-ref-rollback');
+    vi.spyOn(PaystackProvider.prototype, 'createRefund').mockResolvedValue({ providerRefundId: 501, amountMinorUnits: 10000, currency: 'KES', status: 'PROCESSED' });
+    vi.spyOn(PaystackProvider.prototype, 'getRefund').mockResolvedValue({ providerRefundId: 501, amountMinorUnits: 10000, currency: 'KES', status: 'PROCESSED' });
+    await RefundService.request(auth, String(payment._id), 'Duplicate rent payment');
+    const audit = vi.spyOn(AuditService, 'record').mockRejectedValueOnce(new Error('audit unavailable'));
+    await expect(RefundService.applyLedger(auth, String(payment._id))).rejects.toThrow('audit unavailable');
+    audit.mockRestore();
+
+    expect((await Payment.findById(payment._id))?.status).toBe('CONFIRMED');
+    expect((await PaymentRefund.findOne({ paymentId: payment._id }))?.ledgerReversedAt).toBeUndefined();
+    expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, status: 'PAID', balanceAmount: 0 })).toBe(2);
+  });
+
   it('quarantines an ambiguous submission and rejects mismatched provider evidence', async () => {
     const { ids, charges, payment } = await fixture();
     const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };

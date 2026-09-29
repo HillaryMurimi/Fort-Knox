@@ -55,6 +55,8 @@ export const queryKeys = {
       ["finance", organizationId, "rent", id] as const,
     payments: (organizationId: string) =>
       ["finance", organizationId, "payments"] as const,
+    refunds: (organizationId: string) =>
+      ["finance", organizationId, "refunds"] as const,
     paymentDestinations: (organizationId: string) =>
       ["finance", organizationId, "payment-destinations"] as const,
     expenses: (organizationId: string) =>
