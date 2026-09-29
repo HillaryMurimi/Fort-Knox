@@ -122,6 +122,7 @@ export class FinanceService {
         payment.status='CONFIRMED';payment.confirmedAt=new Date();payment.paidAt=payment.paidAt??new Date();payment.updatedBy=auth.userId;
         await payment.save({session});
         await AuditService.record({organizationId:payment.organizationId,actorUserId:auth.userId,action:'payment.confirmed',resourceType:'Payment',resourceId:payment._id,propertyId:payment.propertyId,buildingId:payment.buildingId,unitId:payment.unitId,metadata:{amount:payment.amount,currency:payment.currency,allocationCount:checked.length}},session);
+        await AuditService.publish({organizationId:payment.organizationId,name:'payment.confirmed',aggregateType:'Payment',aggregateId:payment._id,actorUserId:auth.userId,source:'APPLICATION',payload:{propertyId:String(payment.propertyId),buildingId:String(payment.buildingId),unitId:String(payment.unitId),amountMajorUnits:payment.amount,currency:payment.currency,allocationCount:checked.length}},session);
         return payment;
       });
       if(!confirmed)throw new AppError(500,'PAYMENT_CONFIRMATION_FAILED','Payment confirmation did not complete');
@@ -177,6 +178,7 @@ export class FinanceService {
         await payment.save({session});
         if(refund){refund.ledgerReversedAt=now;refund.ledgerReversedBy=auth.userId;await refund.save({session});}
         await AuditService.record({organizationId:payment.organizationId,actorUserId:auth.userId,action:'payment.reversed',resourceType:'Payment',resourceId:payment._id,propertyId:payment.propertyId,buildingId:payment.buildingId,unitId:payment.unitId,metadata:{amount:payment.amount,currency:payment.currency,allocationCount:checked.length,...(refund?{refundId:String(refund._id)}:{})}},session);
+        await AuditService.publish({organizationId:payment.organizationId,name:'payment.reversed',aggregateType:'Payment',aggregateId:payment._id,actorUserId:auth.userId,source:'APPLICATION',payload:{propertyId:String(payment.propertyId),buildingId:String(payment.buildingId),unitId:String(payment.unitId),amountMajorUnits:payment.amount,currency:payment.currency,allocationCount:checked.length,...(refund?{refundId:String(refund._id)}:{})}},session);
         return payment;
       });
       if(!reversed)throw new AppError(500,'PAYMENT_REVERSAL_FAILED','Payment reversal did not complete');

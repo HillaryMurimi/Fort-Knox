@@ -1,5 +1,27 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Phase A-F Delivery Map
+
+This is the dependency order for the attached platform expansion brief. Existing related modules are foundations, not evidence that a phase is complete.
+
+| Phase | Current position | Exit work still required |
+| --- | --- | --- |
+| A - Architecture | Partial: regional profile, boundary Money helper, event store, payment provider adapters, and transactional finance writes exist. | Authoritative integer-minor-unit finance migration; country/currency/provider matrix; transactionally persisted events across critical domains; durable dispatch, checkpoints and replay; provider-boundary review. |
+| B - Recurring services | Job-based contractor module exists; recurring service lifecycle is not complete. | Scoped providers, contracts, schedules, visits, verification, invoices, SLA/performance, UI and E2E. |
+| C - Reliability | Jobs and integration attempts exist; reliability center is not complete. | Integration health signals, queue/webhook observability, safe retry policy, admin/operator views and tests. |
+| D - Evidence/documents | Documents and evidence modules exist; intelligence and integrity are not complete. | Content hashing/verification, extraction, permission-filtered grounded retrieval, invoice review and tests. |
+| E - Automation | Decision automation exists; the requested structured low-code engine is not complete. | Versioned safe rules, event/schedule triggers, dry-run, scoped execution, audit and tests. |
+| F - Owner intelligence | Command-center and intelligence modules exist; requested owner workflows are not complete. | Event timeline, morning brief, experience score, guarded churn support, scenario simulation and tests. |
+
+Next dependency gate: finish Phase A's durable event delivery and financial currency migration before treating Phase B-F features as production-ready. Payment settlement reconciliation remains a separate financial workstream; the recent Paystack refund slices did not close Phase A.
+
+## Slice 42 - Transactional Payment Domain Events (2026-09-29)
+
+- Extended `EventStore.append` to join a caller's MongoDB transaction. Payment confirmation (manual or provider) and reversal now append scoped, non-secret `payment.confirmed` and `payment.reversed` events atomically with rent balances and audit. The existing `audit.view` Domain Events tab exposes these records; event and audit-log reads now restrict unit-scoped viewers to their assigned units. No new public API or permission was added.
+- Replica-set tests cover sequence, duplicate-provider idempotence, audit rollback, and event-failure rollback. Event delivery to handlers is not implemented here; do not treat `publishedAt` or the event collection as a reliable broker.
+- Remaining Phase A work is tracked in the delivery map above. The current finance fields still use legacy major units, so event payloads explicitly label their amount as `amountMajorUnits`.
+- Verification: root typecheck, lint (282 existing backend and 24 existing frontend warnings, no errors), tests (backend 163 passed/27 opt-in skipped; frontend 59 passed), and build passed. The opt-in replica-set E2E command passed all 27 tests. A direct Vitest invocation from the wrong workspace hit a transient Windows worker `EPERM`; the backend-scoped focused test and full repository suite passed on rerun.
+
 ## Slice 41 - Paystack Refund Investigation (2026-09-29)
 
 - Added a Finance review dialog for `SUBMISSION_UNKNOWN` and `NEEDS_ATTENTION` with investigation notes. Unknown submissions require the existing Paystack refund ID; customer bank details stay in Paystack. No review action submits a second refund or adjusts rent.

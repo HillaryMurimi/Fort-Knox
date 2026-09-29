@@ -17,6 +17,12 @@ business history. - Compound indexes matching real query patterns. -
 Transactions for multi-document operations that require atomic
 consistency.
 
+The existing `domain_events` collection uses a unique aggregate type/ID/version
+index. Selected finance transactions now append events using the same MongoDB
+session as ledger and audit writes. Event rows remain immutable business
+history; `publishedAt` is delivery metadata, not evidence of a durable
+dispatcher or consumer checkpoint.
+
 ## 2. Identity and Access Collections
 
 ### users

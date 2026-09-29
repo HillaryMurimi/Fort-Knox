@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 import { DomainEvent } from '../../database/models/DomainEvent.js';
 import { AppError } from '../../core/errors/AppError.js';
 
@@ -42,7 +42,7 @@ function assertSafePayload(payload: unknown): void {
 }
 
 export class EventStore {
-  static async append(input: EventInput) {
+  static async append(input: EventInput, session?: ClientSession) {
     assertSafePayload(input.payload);
     if (input.version !== undefined && (!Number.isSafeInteger(input.version) || input.version < 1)) {
       throw new AppError(400, 'EVENT_VERSION_INVALID', 'Event version must be a positive integer');
@@ -53,21 +53,29 @@ export class EventStore {
 
     const aggregate = { aggregateType: input.aggregateType, aggregateId: input.aggregateId };
     for (let attempt = 0; attempt < 8; attempt += 1) {
-      const latest = await DomainEvent.findOne(aggregate).sort({ version: -1 }).select('version').lean();
+      const query = DomainEvent.findOne(aggregate).sort({ version: -1 }).select('version');
+      if (session) query.session(session);
+      const latest = await query.lean();
       const version = (latest?.version ?? 0) + 1;
       if (input.version !== undefined && input.version !== version) {
         throw new AppError(409, 'EVENT_VERSION_CONFLICT', 'Aggregate event version has changed');
       }
       try {
-        return await DomainEvent.create({
+        const event = {
           ...input,
           eventId: randomUUID(),
           version,
           schemaVersion: input.schemaVersion ?? 1,
           occurredAt: new Date(),
-        });
+        };
+        if (session) {
+          const [created] = await DomainEvent.create([event], { session });
+          return created;
+        }
+        return await DomainEvent.create(event);
       } catch (error) {
         if (!(error && typeof error === 'object' && 'code' in error && error.code === 11000)) throw error;
+        if (session) throw new AppError(409, 'EVENT_VERSION_CONFLICT', 'Aggregate event version changed during the transaction');
       }
     }
     throw new AppError(409, 'EVENT_VERSION_CONFLICT', 'Could not reserve the next aggregate event version');

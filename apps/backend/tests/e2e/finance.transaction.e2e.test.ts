@@ -7,6 +7,7 @@ import { PaymentRefund } from '../../src/database/models/PaymentRefund.js';
 import { RentCharge } from '../../src/database/models/RentCharge.js';
 import { PaymentAllocation } from '../../src/database/models/PaymentAllocation.js';
 import { AuditLog } from '../../src/database/models/AuditLog.js';
+import { DomainEvent } from '../../src/database/models/DomainEvent.js';
 import { AuditService } from '../../src/modules/audit/audit.service.js';
 import { FinanceService } from '../../src/modules/finance/finance.service.js';
 import { RefundService } from '../../src/modules/finance/refund.service.js';
@@ -72,6 +73,21 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
     expect(await PaymentAllocation.countDocuments({ paymentId: payment._id })).toBe(2);
     expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, status: 'PAID', balanceAmount: 0 })).toBe(2);
     expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.confirmed' })).toBe(1);
+    expect(await DomainEvent.countDocuments({ aggregateId: payment._id, name: 'payment.confirmed', version: 1 })).toBe(1);
+  });
+
+  it('restricts payment domain events to an assigned unit', async () => {
+    const { ids, charges, payment } = await fixture();
+    const admin: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(admin, String(payment._id), { allocations: charges.map(charge => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    await DomainEvent.create({ organizationId: ids.organizationId, eventId: crypto.randomUUID(), name: 'payment.confirmed', aggregateType: 'Payment', aggregateId: new Types.ObjectId(), version: 1, schemaVersion: 1, payload: { unitId: String(new Types.ObjectId()), amountMajorUnits: 50, currency: 'KES' }, occurredAt: new Date() });
+    await AuditLog.create({ organizationId: ids.organizationId, action: 'payment.confirmed', resourceType: 'Payment', resourceId: new Types.ObjectId(), unitId: new Types.ObjectId(), occurredAt: new Date() });
+    const manager: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: false, memberships: [{ organizationId: ids.organizationId, roleIds: [], roles: ['PROPERTY_MANAGER'], permissions: ['audit.view'], scope: { allProperties: false, propertyIds: [], buildingIds: [], unitIds: [ids.unitId] } }] };
+    const visible = await AuditService.listEvents(manager, { organizationId: String(ids.organizationId), limit: 20 });
+    expect(visible.map(event => String(event.aggregateId))).toEqual([String(payment._id)]);
+    const auditVisible = await AuditService.list(manager, { organizationId: String(ids.organizationId), limit: 20 });
+    expect(auditVisible.map(entry => String(entry.resourceId))).toEqual([String(payment._id)]);
+    await expect(AuditService.listEvents({ userId: new Types.ObjectId(), isPlatformAdmin: false, memberships: [] }, { organizationId: String(ids.organizationId), limit: 20 })).rejects.toMatchObject({ statusCode: 403 });
   });
 
   it('rolls back manual allocations and balances when audit fails', async () => {
@@ -83,7 +99,19 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
 
     expect((await Payment.findById(payment._id))?.status).toBe('PENDING');
     expect(await PaymentAllocation.countDocuments({ paymentId: payment._id })).toBe(0);
+    expect(await DomainEvent.countDocuments({ aggregateId: payment._id })).toBe(0);
     expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, balanceAmount: 50 })).toBe(2);
+  });
+
+  it('rolls back payment confirmation when event append fails', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    vi.spyOn(AuditService, 'publish').mockRejectedValueOnce(new Error('event store unavailable'));
+    await expect(FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map(charge => ({ rentChargeId: String(charge._id), amount: 50 })) })).rejects.toThrow('event store unavailable');
+    expect((await Payment.findById(payment._id))?.status).toBe('PENDING');
+    expect(await PaymentAllocation.countDocuments({ paymentId: payment._id })).toBe(0);
+    expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.confirmed' })).toBe(0);
+    expect(await DomainEvent.countDocuments({ aggregateId: payment._id })).toBe(0);
   });
 
   it('reverses confirmed payment balances and records the audit once', async () => {
@@ -97,6 +125,7 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
     expect(await PaymentAllocation.countDocuments({ paymentId: payment._id })).toBe(2);
     expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, paidAmount: 0, balanceAmount: 50, status: { $in: ['OPEN', 'OVERDUE'] } })).toBe(2);
     expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.reversed' })).toBe(1);
+    expect((await DomainEvent.find({ aggregateId: payment._id }).sort({ version: 1 }).lean()).map(event => [event.name, event.version])).toEqual([['payment.confirmed', 1], ['payment.reversed', 2]]);
     await expect(FinanceService.reversePayment(auth, String(payment._id))).rejects.toMatchObject({ code: 'INVALID_PAYMENT_STATE' });
     expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.reversed' })).toBe(1);
   });
@@ -112,6 +141,19 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
     expect((await Payment.findById(payment._id))?.status).toBe('CONFIRMED');
     expect(await RentCharge.countDocuments({ _id: { $in: charges.map((charge) => charge._id) }, status: 'PAID', paidAmount: 50, balanceAmount: 0 })).toBe(2);
     expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.reversed' })).toBe(0);
+    expect(await DomainEvent.countDocuments({ aggregateId: payment._id, name: 'payment.reversed' })).toBe(0);
+  });
+
+  it('rolls back payment reversal when event append fails', async () => {
+    const { ids, charges, payment } = await fixture();
+    const auth: AuthenticatedUser = { userId: ids.actorId, isPlatformAdmin: true, memberships: [] };
+    await FinanceService.confirmPayment(auth, String(payment._id), { allocations: charges.map(charge => ({ rentChargeId: String(charge._id), amount: 50 })) });
+    vi.spyOn(AuditService, 'publish').mockRejectedValueOnce(new Error('event store unavailable'));
+    await expect(FinanceService.reversePayment(auth, String(payment._id))).rejects.toThrow('event store unavailable');
+    expect((await Payment.findById(payment._id))?.status).toBe('CONFIRMED');
+    expect(await RentCharge.countDocuments({ _id: { $in: charges.map(charge => charge._id) }, status: 'PAID', balanceAmount: 0 })).toBe(2);
+    expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.reversed' })).toBe(0);
+    expect(await DomainEvent.countDocuments({ aggregateId: payment._id, name: 'payment.reversed' })).toBe(0);
   });
 
   it('refuses reversal when the historical allocation set is incomplete', async () => {
@@ -355,5 +397,6 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
     await IntegrationService.confirmProviderPayment(payment);
     expect(await PaymentAllocation.countDocuments({ paymentId: payment._id })).toBe(2);
     expect(await AuditLog.countDocuments({ resourceId: payment._id, action: 'payment.provider.confirmed' })).toBe(1);
+    expect(await DomainEvent.countDocuments({ aggregateId: payment._id, name: 'payment.confirmed', source: 'PROVIDER' })).toBe(1);
   });
 });

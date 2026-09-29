@@ -313,10 +313,18 @@ subscription can become active.
 
 Domain events are appended through `EventStore`, which allocates an aggregate
 sequence using the existing unique aggregate/version index and retries
-concurrent version collisions. Events carry schema version, source, actor and
-correlation fields. The current writer is not a transactional outbox: callers
-must not assume a business write and its event are atomic. Durable publishing,
-consumer checkpoints, replay, and backfill belong to a subsequent phase.
+concurrent version collisions outside transactions. Events carry schema
+version, source, actor and correlation fields. With a MongoDB session, append
+uses the caller's transaction and treats a version collision as a conflict
+that aborts the write. Manual/provider payment confirmation and payment
+reversal now append their events atomically with balances and audit. Other
+publishers do not gain atomicity automatically. This is not yet a complete
+transactional outbox: durable delivery, consumer checkpoints, replay, and
+backfill remain open.
+Scoped event and audit-log reads require `audit.view` and restrict
+non-portfolio members to records carrying an allowed unit ID. Older records
+without unit scope remain visible only to portfolio-wide viewers until a
+validated backfill is planned.
 
 ## 10. Frontend Architecture
 

@@ -42,4 +42,15 @@ describe('EventStore', () => {
     await expect(EventStore.append({ ...input, payload: { nested: { apiKey: 'secret' } } })).rejects.toMatchObject({ code: 'EVENT_PAYLOAD_SENSITIVE' });
     expect(create).not.toHaveBeenCalled();
   });
+
+  it('passes a transaction session to both sequence read and append', async () => {
+    const session = { id: 'transaction' } as unknown as Parameters<typeof EventStore.append>[1];
+    const sessionQuery = vi.fn();
+    findOne.mockReturnValue({ sort: () => ({ select: () => ({ session: sessionQuery, lean: async () => null }) }) });
+    create.mockResolvedValueOnce([{ eventId: 'in-transaction', version: 1 }]);
+    const event = await EventStore.append(input, session);
+    expect(sessionQuery).toHaveBeenCalledWith(session);
+    expect(create).toHaveBeenCalledWith([expect.objectContaining({ name: 'property.updated', version: 1 })], { session });
+    expect(event).toMatchObject({ eventId: 'in-transaction', version: 1 });
+  });
 });

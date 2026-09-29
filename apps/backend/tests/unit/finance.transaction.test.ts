@@ -34,6 +34,7 @@ describe('payment allocation transactions', () => {
     vi.spyOn(PaymentAllocation, 'exists').mockReturnValue({ session: async () => null } as never);
     const createAllocation = vi.spyOn(PaymentAllocation, 'create').mockResolvedValue([] as never);
     const audit = vi.spyOn(AuditService, 'record').mockResolvedValue(undefined as never);
+    const publish = vi.spyOn(AuditService, 'publish').mockResolvedValue(undefined as never);
     const auth = { userId: new Types.ObjectId() } as AuthenticatedUser;
 
     const confirmed = await FinanceService.confirmPayment(auth, String(payment._id), { allocations: ids.map((rentChargeId, index) => ({ rentChargeId: String(rentChargeId), amount: index === 0 ? 60 : 40 })) });
@@ -44,6 +45,7 @@ describe('payment allocation transactions', () => {
     for (const charge of charges) expect(charge.save).toHaveBeenCalledWith({ session });
     expect(payment.save).toHaveBeenCalledWith({ session });
     expect(audit).toHaveBeenCalledWith(expect.objectContaining({ action: 'payment.confirmed', resourceId: payment._id }), session);
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({ name: 'payment.confirmed', aggregateId: payment._id }), session);
     expect(session.endSession).toHaveBeenCalledOnce();
   });
 

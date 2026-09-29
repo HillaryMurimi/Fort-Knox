@@ -595,6 +595,7 @@ export class IntegrationService {
         if(current.amount!==payment.amount||current.currency!==payment.currency)throw new AppError(409,'PAYMENT_CHANGED','Payment amount or currency changed during provider confirmation');
 
         let remaining=current.amount;
+        let allocationCount=0;
         const charges=await RentCharge.find({
           organizationId:current.organizationId,
           tenancyId:current.tenancyId,
@@ -609,6 +610,7 @@ export class IntegrationService {
           if(remaining<=0.000001)break;
           const allocationAmount=Math.min(remaining,charge.balanceAmount);
           await PaymentAllocation.create([{organizationId:current.organizationId,paymentId:current._id,rentChargeId:charge._id,amount:allocationAmount,allocatedBy:current.createdBy}],{session});
+          allocationCount+=1;
           charge.paidAmount+=allocationAmount;
           charge.balanceAmount=Math.max(0,charge.totalAmount-charge.paidAmount);
           charge.status=charge.balanceAmount===0?'PAID':'PARTIALLY_PAID';
@@ -625,6 +627,7 @@ export class IntegrationService {
         current.method=payment.method;
         await current.save({session});
         await AuditService.record({organizationId:current.organizationId,actorUserId:current.createdBy,action:'payment.provider.confirmed',resourceType:'Payment',resourceId:current._id,propertyId:current.propertyId,buildingId:current.buildingId,unitId:current.unitId,metadata:{amount:current.amount,currency:current.currency}},session);
+        await AuditService.publish({organizationId:current.organizationId,name:'payment.confirmed',aggregateType:'Payment',aggregateId:current._id,source:'PROVIDER',payload:{propertyId:String(current.propertyId),buildingId:String(current.buildingId),unitId:String(current.unitId),amountMajorUnits:current.amount,currency:current.currency,provider:current.provider,allocationCount}},session);
         return current;
       });
       if(!confirmed)throw new AppError(500,'PAYMENT_CONFIRMATION_FAILED','Provider payment confirmation did not complete');
