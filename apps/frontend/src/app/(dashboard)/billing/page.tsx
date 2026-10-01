@@ -64,6 +64,7 @@ export default function BillingPage() {
   const cancel = useCancelSubscriptionMutation(organizationId);
   const provider = "PAYSTACK" as const;
   const [billingEmail, setBillingEmail] = useState("");
+  const [prepaidMonths, setPrepaidMonths] = useState(3);
   const [atEnd, setAtEnd] = useState(true);
   const [cancelAtEnd, setCancelAtEnd] = useState(true);
   const [busy, setBusy] = useState<string>();
@@ -108,7 +109,7 @@ export default function BillingPage() {
     setBusy(p.key);
     if (!sub.data || sub.data.status === "CANCELLED" || sub.data.status === "EXPIRED")
       subscribe.mutate(
-        { planKey: p.key, provider, ...(billingEmail ? { email: billingEmail } : {}) },
+        { planKey: p.key, provider, prepaidMonths, ...(billingEmail ? { email: billingEmail } : {}) },
         { onSettled: () => setBusy(undefined) },
       );
     else
@@ -147,6 +148,14 @@ export default function BillingPage() {
         />
       ) : (
         <>
+          <div className="mb-5 rounded-xl border border-border bg-card p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div><div className="text-sm font-semibold">Initial activation payment</div><p className="mt-1 text-xs text-muted-foreground">Landlords pay at least three months upfront. After activation, billing renews monthly.</p></div>
+              <select aria-label="Initial prepaid months" value={prepaidMonths} onChange={(event) => setPrepaidMonths(Number(event.target.value))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                {[3, 6, 12, 24].map((months) => <option key={months} value={months}>{months} months upfront</option>)}
+              </select>
+            </div>
+          </div>
           <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
             <Stat
               label="Current plan"

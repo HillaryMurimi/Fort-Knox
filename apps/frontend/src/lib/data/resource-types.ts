@@ -1255,6 +1255,7 @@ export interface BillingSubscription {
   providerSubscriptionId?: string;
   providerCheckoutUrl?: string;
   gracePeriodEndsAt?: string;
+  metadata?: { prepaidMonths?: number };
 }
 
 export interface SubscriptionInvoice {

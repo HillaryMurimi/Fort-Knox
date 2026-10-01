@@ -30,7 +30,7 @@ export default function SignupPage() {
     setIsSubmitting(true);
     try {
       await bootstrapLandlord({ firstName: form.firstName, lastName: form.lastName, email: form.email, phone: form.phone, password: form.password, organization: { name: form.name, ...(form.slug ? { slug: form.slug } : {}) } });
-      router.replace('/login');
+      router.replace('/login?next=%2Fonboarding');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to create organization.');
     } finally {

@@ -30,7 +30,7 @@ export default function LoginPage() {
   const [devCode, setDevCode] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isAuthenticated) router.replace(getRoleRedirect(roles));
+    if (isAuthenticated) router.replace(new URLSearchParams(window.location.search).get('next') === '/onboarding' ? '/onboarding' : getRoleRedirect(roles));
   }, [isAuthenticated, roles, router]);
 
   function changeMethod(next: Method) {
@@ -55,7 +55,7 @@ export default function LoginPage() {
         setStep('OTP');
         return;
       }
-      router.replace(getRoleRedirect(result.roles));
+      router.replace(new URLSearchParams(window.location.search).get('next') === '/onboarding' ? '/onboarding' : getRoleRedirect(result.roles));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message || 'Unable to sign in.' : 'Unable to sign in.');
     }
@@ -66,7 +66,7 @@ export default function LoginPage() {
     setError(null);
     try {
       const result = method === 'email' ? await verifyStepUp(email.trim(), code) : await verifyOtp(phone.trim(), code);
-      router.replace(getRoleRedirect(result.roles));
+      router.replace(new URLSearchParams(window.location.search).get('next') === '/onboarding' ? '/onboarding' : getRoleRedirect(result.roles));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message || 'Unable to verify code.' : 'Unable to verify code.');
     }

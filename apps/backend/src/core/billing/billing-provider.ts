@@ -19,6 +19,7 @@ export interface CreateSubscriptionInput {
   currency: string;
   amount: number;
   interval: 'MONTH' | 'QUARTER' | 'YEAR';
+  prepaidMonths?: number;
 }
 
 export interface BillingProviderSubscription {
@@ -91,12 +92,12 @@ export class PaystackBillingProvider {
   private async initializeCheckout(planCode: string, input: CreateSubscriptionInput) {
     const transaction = await this.request<{ authorization_url: string; reference: string }>('transaction/initialize', {
       email: input.email,
-      amount: String(toPaystackMinorUnits(input.amount, input.currency)),
+      amount: String(toPaystackMinorUnits(input.amount * (input.prepaidMonths ?? 1), input.currency)),
       currency: input.currency.toUpperCase(),
       plan: planCode,
       channels: ['card'],
       callback_url: `${env.WEB_ORIGIN}/billing`,
-      metadata: { organizationId: input.organizationId, planKey: input.planKey, purpose: 'SUBSCRIPTION' },
+      metadata: { organizationId: input.organizationId, planKey: input.planKey, purpose: 'SUBSCRIPTION', prepaidMonths: input.prepaidMonths ?? 1 },
     });
     if (!transaction.reference || !transaction.authorization_url.startsWith('https://checkout.paystack.com/')) {
       throw new Error('PAYSTACK_CHECKOUT_INVALID');

@@ -5,7 +5,7 @@ export type BillingProvider = 'INTERNAL' | 'PAYSTACK';
 export type InvoiceStatus = 'DRAFT' | 'OPEN' | 'PAID' | 'PAST_DUE' | 'VOID' | 'UNCOLLECTIBLE';
 
 export interface ChangePlanInput { planKey: string; atPeriodEnd: boolean }
-export interface SubscribeInput { planKey: string; provider: BillingProvider; email?: string }
+export interface SubscribeInput { planKey: string; provider: BillingProvider; email?: string; prepaidMonths: number }
 
 export const billingClient = {
   plans: () => api<BillingPlan[]>('/billing/plans'),
