@@ -10,6 +10,7 @@ import { ResourceScopeService } from "../../core/authorization/resource-scope.se
 import { AuthorizationService } from "../../core/authorization/authorization.service.js";
 import { AppError } from "../../core/errors/AppError.js";
 import { AuditService } from "../audit/audit.service.js";
+import { BillingService } from "../billing/billing.service.js";
 import type { AuthenticatedUser } from "../../core/types/auth.js";
 import type { z } from "zod";
 import type * as S from "./security.schemas.js";
@@ -232,6 +233,7 @@ export class SecurityService {
       throw new AppError(400, "INVALID_ID", "Invalid camera id");
     const c = await SecurityCamera.findById(id);
     if (!c) throw new AppError(404, "CAMERA_NOT_FOUND", "Camera not found");
+    await BillingService.assertFeature(String(c.organizationId), "security");
     await authorizeStored(auth, c, "cctv.manage");
     const before = c.toObject();
     Object.assign(c, {
@@ -260,6 +262,7 @@ export class SecurityService {
   static async getLiveStream(auth: AuthenticatedUser, id: string) {
     const c = await SecurityCamera.findById(id).lean();
     if (!c) throw new AppError(404, "CAMERA_NOT_FOUND", "Camera not found");
+    await BillingService.assertFeature(String(c.organizationId), "security");
     await authorizeStored(auth, c, "cctv.view");
     if (!c.streamRef)
       throw new AppError(
@@ -272,6 +275,7 @@ export class SecurityService {
   static async getPlayback(auth: AuthenticatedUser, id: string) {
     const c = await SecurityCamera.findById(id).lean();
     if (!c) throw new AppError(404, "CAMERA_NOT_FOUND", "Camera not found");
+    await BillingService.assertFeature(String(c.organizationId), "security");
     await authorizeStored(auth, c, "cctv.playback");
     if (!c.playbackRef)
       throw new AppError(
@@ -375,6 +379,7 @@ export class SecurityService {
         "SECURITY_EVENT_NOT_FOUND",
         "Security event not found",
       );
+    await BillingService.assertFeature(String(e.organizationId), "security");
     await authorizeStored(auth, e, "security-event.manage");
     if (
       !["OPEN", "ACKNOWLEDGED", "ESCALATED", "RESOLVED", "DISMISSED"].includes(
@@ -497,6 +502,7 @@ export class SecurityService {
     const inc = await Incident.findById(id);
     if (!inc)
       throw new AppError(404, "INCIDENT_NOT_FOUND", "Incident not found");
+    await BillingService.assertFeature(String(inc.organizationId), "security");
     await authorizeStored(auth, inc, "incident.manage");
     const transitions: Record<string, string[]> = {
       OPEN: ["INVESTIGATING", "FALSE_ALARM"],
@@ -589,6 +595,7 @@ export class SecurityService {
         "ACCESS_POINT_NOT_FOUND",
         "Access point not found",
       );
+    await BillingService.assertFeature(String(p.organizationId), "security");
     await authorizeStored(auth, p, "access-point.manage");
     const before = p.toObject();
     Object.assign(p, {
