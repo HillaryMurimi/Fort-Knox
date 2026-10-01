@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Check, ChevronLeft, ChevronRight, CreditCard, FileSignature, ShieldCheck } from "lucide-react";
 import { Alert, Button, Input } from "@/components/ui";
 import { useOrganization } from "@/hooks/use-organization";
@@ -90,7 +91,7 @@ export default function LandlordOnboardingPage() {
             <div className="mt-6 flex gap-3"><Button variant="secondary" disabled={step === 0} onClick={() => setStep((currentStep) => currentStep - 1)}><ChevronLeft size={16} /> Back</Button>{step < 2 ? <Button disabled={step === 0 ? !selected : !accepted || !billingEmail} onClick={next}>Continue <ChevronRight size={16} /></Button> : <Button disabled={!accepted || !billingEmail} loading={subscribe.isPending} onClick={next}>Create invoice <CreditCard size={16} /></Button>}</div>
           </aside>
         </div>
-        {subscription.data?.status === "ACTIVE" && <Alert tone="success" className="mt-6">Your subscription is active. You can now enter the Command Center.</Alert>}
+        {subscription.data?.status === "ACTIVE" && <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"><span>Your subscription is active. You can now enter the Command Center.</span><Link href="/property-onboarding-help" className="btn-primary">Request property setup help</Link></div>}
       </div>
     </main>
   );

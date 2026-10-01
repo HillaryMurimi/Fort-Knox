@@ -21,8 +21,8 @@ export function DemoRequestDialog({ open, onOpenChange, source }: { open: boolea
     finally { setSubmitting(false); }
   }
 
-  return <Dialog open={open} onOpenChange={onOpenChange} title="Request a private demo" description="Tell us what you manage. This preview prepares the request; CRM delivery is connected separately." className="max-w-[720px]">
-    {reference?<div className="py-8 text-center"><CheckCircle2 className="mx-auto text-[#067647]" size={38}/><h3 className="mt-4 text-xl font-semibold">Your request is prepared.</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Reference {reference}. No contact data has left this browser because the production lead API is not connected yet.</p><Button className="mt-6" onClick={()=>{setReference(undefined);setForm(initialRequest);onOpenChange(false);}}>Done</Button></div>:
+  return <Dialog open={open} onOpenChange={onOpenChange} title="Request a private demo" description="Tell us what you manage. Your request is added to our sales pipeline so we can schedule the right demo and follow up." className="max-w-[720px]">
+    {reference?<div className="py-8 text-center"><CheckCircle2 className="mx-auto text-[#067647]" size={38}/><h3 className="mt-4 text-xl font-semibold">Your demo request is in the pipeline.</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Reference {reference}. We will contact you to schedule the demo. Your reference is also used for the contract, invoice and onboarding handoff.</p><Button className="mt-6" onClick={()=>{setReference(undefined);setForm(initialRequest);onOpenChange(false);}}>Done</Button></div>:
     <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
       <div><Label htmlFor="demo-name">Name</Label><Input id="demo-name" autoComplete="name" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></div>
       <div><Label htmlFor="demo-phone">Phone</Label><Input id="demo-phone" type="tel" autoComplete="tel" required placeholder="+254 7XX XXX XXX" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></div>
