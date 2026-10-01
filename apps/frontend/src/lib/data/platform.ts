@@ -9,6 +9,8 @@ export interface PlatformPermission { _id: string; key: string; resource?: strin
 export interface PlatformJob { _id: string; organizationId?: string; type: string; status: 'QUEUED'|'RUNNING'|'SUCCEEDED'|'FAILED'|'CANCELLED'|'DEAD_LETTER'; priority: number; attempts: number; maxAttempts: number; availableAt?: string; startedAt?: string; completedAt?: string; failedAt?: string; error?: string; createdAt?: string; }
 export interface PlatformAuditLog { _id: string; organizationId?: string; actorUserId?: string; actorRole?: string; action: string; resourceType: string; resourceId?: string; requestId?: string; occurredAt: string; }
 export interface PlatformDiagnostics { status: string; [key: string]: unknown }
+export type PlatformSwitchMode = 'ON' | 'OFF' | 'MAINTENANCE';
+export interface PlatformSwitch { _id: string; key: string; kind: 'SERVICE' | 'FEATURE'; name: string; description: string; environment: string; enabled: boolean; mode: PlatformSwitchMode; reason: string; modifiedBy?: string; modifiedAt?: string; }
 
 export interface CreatePlanInput {
   key: string; name: string; description?: string; currency: string; amount: number;
@@ -31,6 +33,8 @@ export const platformClient = {
   domainEvents: (organizationId: string) => api<PlatformAuditLog[]>(`/domain-events?organizationId=${organizationId}&limit=50`),
   diagnostics: () => api<PlatformDiagnostics>('/operations/diagnostics'),
   integrationsHealth: () => api<Record<string, boolean>>('/integrations/integrations/health'),
+  switches: () => api<PlatformSwitch[]>('/platform-control/switches'),
+  updateSwitch: (key: string, input: { mode: PlatformSwitchMode; reason: string; confirm: true }) => api<PlatformSwitch>(`/platform-control/switches/${key}`, { method: 'PATCH', body: JSON.stringify(input) }),
   plans: (includeInactive = true) => api<BillingPlan[]>(`/billing/plans?activeOnly=${includeInactive ? 'false' : 'true'}`),
   createPlan: (input: CreatePlanInput) => api<BillingPlan>('/billing/plans', { method: 'POST', body: JSON.stringify(input) }),
   updatePlan: (planId: string, input: Partial<CreatePlanInput>) => api<BillingPlan>(`/billing/plans/${planId}`, { method: 'PATCH', body: JSON.stringify(input) }),

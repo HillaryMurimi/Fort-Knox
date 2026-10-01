@@ -204,6 +204,7 @@ export const queryKeys = {
       ["platform", "events", organizationId] as const,
     diagnostics: () => ["platform", "diagnostics"] as const,
     integrations: () => ["platform", "integrations"] as const,
+    switches: () => ["platform", "switches"] as const,
     subscription: (organizationId: string) =>
       ["platform", "subscription", organizationId] as const,
     usage: (organizationId: string) =>
