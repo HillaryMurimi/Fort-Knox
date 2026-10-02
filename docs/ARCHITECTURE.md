@@ -414,3 +414,7 @@ storage. - Streaming gateway isolated from core API. - Secret
 manager/environment injection. - Centralized monitoring/logging.
 
 Use health/readiness endpoints and graceful shutdown.
+
+## Contract-based landlord activation
+
+The landlord workflow extends Organization, OrganizationSubscription, SubscriptionInvoice, Document/Evidence, Paystack provider/reconciliation and transactional audit/event infrastructure. Contracts add append-only template versions and rendered organization snapshots. Signature and paid activation transactions retain immutable evidence. The one-off prepaid charge is distinct from a deferred recurring subscription, preserving later plan billing cycles. See [LANDLORD_CONTRACT_WORKFLOW.md](LANDLORD_CONTRACT_WORKFLOW.md).

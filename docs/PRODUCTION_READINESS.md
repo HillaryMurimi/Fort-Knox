@@ -114,3 +114,7 @@ Run npm --prefix apps/backend run monitoring:create-indexes against the configur
 Deploy the API and jobs worker together. Each writes a 30-second heartbeat, and the worker collects alerts approximately every minute. Use stable LAUNCH_READINESS_ENV scopes as described above. Optional MONITORING_* thresholds are documented in apps/backend/.env.example. Signal and heartbeat retention use TTL indexes (seven days and three days respectively); alert/history retention still needs an operational policy.
 
 These views cover current records and instrumented processes. They do not establish external uptime, backup/restore success, verified notification delivery, fleet capacity or complete service-switch enforcement. Configure those sources before relying on them as release evidence. Maintenance windows suppress alerts only and do not disable services.
+
+## Contract workflow release prerequisites
+
+Before real landlord enrollment, complete the explicit contract/provider-reference index migration, publish operator-approved template terms, verify MongoDB transactions/backups, ship the font/PDF runtime asset in the backend image, schedule billing.reconcile and complete Paystack test-mode collection/delayed-renewal/webhook/cancellation acceptance. No new environment variables or Coolify services are needed. API/worker versions must match. See [LANDLORD_CONTRACT_WORKFLOW.md](LANDLORD_CONTRACT_WORKFLOW.md). Automated fixtures do not certify live payments or the legal sufficiency of the starting draft.

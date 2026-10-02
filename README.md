@@ -221,3 +221,5 @@ For product feedback or technical discussion, [open an issue](https://github.com
 **Your property is too valuable to manage blind.**
 
 Connect the people, money, work and evidence behind it.
+
+Landlord contract and prepaid activation lifecycle, API, tests and deployment prerequisites: [docs/LANDLORD_CONTRACT_WORKFLOW.md](docs/LANDLORD_CONTRACT_WORKFLOW.md).

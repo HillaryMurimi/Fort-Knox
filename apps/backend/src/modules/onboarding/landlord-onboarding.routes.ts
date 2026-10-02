@@ -1,0 +1,20 @@
+import { Router } from 'express';
+import { requireAuth } from '../../middleware/auth.middleware.js';
+import { asyncHandler } from '../../core/http/asyncHandler.js';
+import * as controller from './landlord-onboarding.controller.js';
+export const landlordOnboardingRouter = Router();
+landlordOnboardingRouter.use(['/organizations/:organizationId/landlord-onboarding','/platform-control/landlord-onboarding','/platform-control/contract-templates'],requireAuth);
+landlordOnboardingRouter.get('/organizations/:organizationId/landlord-onboarding', asyncHandler(controller.status));
+landlordOnboardingRouter.put('/organizations/:organizationId/landlord-onboarding/details', asyncHandler(controller.configure));
+landlordOnboardingRouter.post('/organizations/:organizationId/landlord-onboarding/contract', asyncHandler(controller.generate));
+landlordOnboardingRouter.post('/organizations/:organizationId/landlord-onboarding/replacement', asyncHandler(controller.replace));
+landlordOnboardingRouter.post('/organizations/:organizationId/landlord-onboarding/signature', asyncHandler(controller.sign));
+landlordOnboardingRouter.post('/organizations/:organizationId/landlord-onboarding/checkout', asyncHandler(controller.checkout));
+landlordOnboardingRouter.post('/organizations/:organizationId/landlord-onboarding/reconcile', asyncHandler(controller.recover));
+landlordOnboardingRouter.get('/platform-control/landlord-onboarding', asyncHandler(controller.oversight));
+landlordOnboardingRouter.get('/platform-control/contract-templates/draft',asyncHandler(controller.templateDraft));
+landlordOnboardingRouter.get('/platform-control/contract-templates', asyncHandler(controller.templates));
+landlordOnboardingRouter.post('/platform-control/contract-templates', asyncHandler(controller.createTemplate));
+landlordOnboardingRouter.patch('/platform-control/contract-templates/:templateVersionId', asyncHandler(controller.templateStatus));
+
+landlordOnboardingRouter.get('/organizations/:organizationId/landlord-onboarding/quote',asyncHandler(controller.quote));

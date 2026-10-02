@@ -736,3 +736,81 @@ Prepared the requested existing laptop work for publication: Super Admin monitor
 Verification on the laptop passed root typecheck, lint (existing warnings, no errors), tests (268 backend passed / 44 opt-in skipped; 67 frontend passed), both builds and static certification (35 route files, 154 permissions, 6 critical paths). The same requested source changes passed all 44 isolated MongoDB replica-set E2E regressions in Linux. The temporary test harness disabled MongoDB Unix sockets because this execution environment restricts them; database transactions and assertions were unchanged. That harness is not included in the commit.
 
 Reviewed the requested diff and scanned the changed files for common credential patterns; the only match was a private-key header string in a rejection test, with no key material. No non-example environment file is included. Documented the monitoring API, records, index prerequisites, worker collection and known source limitations. This checkpoint does not approve live payments/CCTV or execute production indexes, provider calls or deployment.
+
+
+## 2026-10-02 — Versioned landlord contracts and prepaid activation
+
+Continued the existing main codebase after checkpoint 8d2fe84; no parallel organization, invoice, billing or evidence system was introduced. Added versioned templates, organization-specific commercial snapshots, typed electronic signature evidence, retained PDFs, explicit pre-payment replacements, server-calculated portfolio pricing, backend-verified activation and deferred Paystack renewal. New organization signup starts durable onboarding. Existing legacy subscriptions remain intact. The landlord screen restores backend progress; Super Admin has template/oversight controls and monitoring includes durable agreement and activation state records.
+
+The existing prepaid request's plan/amount conflict was corrected for contract-based onboarding by omitting plan from the upfront checkout and scheduling the separate recurring subscription at paid-term expiry. Payment, receipt, activation, event and audit are atomic. Template/signature/invoice history cannot be rewritten through normal workflows. Provider-reference partial indexes fix concurrent unpaid-organization collisions.
+
+Release/operator details and limitations: [LANDLORD_CONTRACT_WORKFLOW.md](LANDLORD_CONTRACT_WORKFLOW.md). Production requires the reviewed index migration, approved template publication and real provider staging acceptance. Paid amendments and uncertain provider submissions require explicit settlement/support review. Automated provider fixtures are not live financial or legal certification.
+
+Certification on the final source snapshot: root typecheck, lint, tests and production build passed; backend static release audit passed (36 route files, 154 permissions). Backend unit/security tests: 281 passed, 59 opt-in tests skipped in the default command. All 59 opt-in replica-set tests passed when explicitly run, including 15 new landlord tests. Frontend: 78 tests passed. Lint: zero errors, 366 backend and 25 frontend warnings; existing warning debt remains. Contract, signed contract, invoice and receipt samples were rendered and visually inspected; retained hashes and KES 33,000 initial totals agree for the 55-unit Control fixture. Providers in automated tests are fixtures; production indexes, legal approval, live provider acceptance and deployed browser rehearsal were not performed.
+
+Release file manifest (24 added, 35 modified):
+
+Added:
+
+- `apps/backend/assets/fonts/DejaVuSans.ttf`
+- `apps/backend/assets/fonts/LICENSE-DejaVu.txt`
+- `apps/backend/scripts/migrate-contract-indexes.ts`
+- `apps/backend/src/database/models/ContractTemplate.ts`
+- `apps/backend/src/database/models/OrganizationContract.ts`
+- `apps/backend/src/modules/billing/prepaid-billing.service.ts`
+- `apps/backend/src/modules/documents/generated-document.service.ts`
+- `apps/backend/src/modules/onboarding/contract-default.ts`
+- `apps/backend/src/modules/onboarding/contract-indexes.ts`
+- `apps/backend/src/modules/onboarding/contract-snapshot.ts`
+- `apps/backend/src/modules/onboarding/contract-template.service.ts`
+- `apps/backend/src/modules/onboarding/landlord-onboarding.controller.ts`
+- `apps/backend/src/modules/onboarding/landlord-onboarding.openapi.ts`
+- `apps/backend/src/modules/onboarding/landlord-onboarding.routes.ts`
+- `apps/backend/src/modules/onboarding/landlord-onboarding.schemas.ts`
+- `apps/backend/src/modules/onboarding/landlord-onboarding.service.ts`
+- `apps/backend/tests/e2e/landlord-onboarding.e2e.test.ts`
+- `apps/backend/tests/unit/contract-snapshot.test.ts`
+- `apps/frontend/src/components/landlord-oversight.tsx`
+- `apps/frontend/src/hooks/queries/use-landlord-onboarding.ts`
+- `apps/frontend/src/lib/data/landlord-onboarding-ui.test.ts`
+- `apps/frontend/src/lib/data/landlord-onboarding.test.ts`
+- `apps/frontend/src/lib/data/landlord-onboarding.ts`
+- `docs/LANDLORD_CONTRACT_WORKFLOW.md`
+
+Modified:
+
+- `.github/workflows/quality.yml`
+- `README.md`
+- `apps/backend/Dockerfile`
+- `apps/backend/package-lock.json`
+- `apps/backend/package.json`
+- `apps/backend/scripts/run-e2e.mjs`
+- `apps/backend/src/core/api/openapi.ts`
+- `apps/backend/src/core/billing/billing-provider.test.ts`
+- `apps/backend/src/core/billing/billing-provider.ts`
+- `apps/backend/src/database/models/Document.ts`
+- `apps/backend/src/database/models/Organization.ts`
+- `apps/backend/src/database/models/OrganizationSubscription.ts`
+- `apps/backend/src/database/models/SubscriptionInvoice.ts`
+- `apps/backend/src/modules/auth/auth.service.ts`
+- `apps/backend/src/modules/auth/social.service.ts`
+- `apps/backend/src/modules/billing/billing.service.ts`
+- `apps/backend/src/modules/documents/document.controller.ts`
+- `apps/backend/src/modules/documents/document.routes.ts`
+- `apps/backend/src/modules/documents/document.service.ts`
+- `apps/backend/src/modules/integrations/integration.service.ts`
+- `apps/backend/src/modules/organizations/organization.service.ts`
+- `apps/backend/src/modules/platform-control/platform-monitoring.snapshot.ts`
+- `apps/backend/src/routes/index.ts`
+- `apps/frontend/src/app/(dashboard)/platform/page.tsx`
+- `apps/frontend/src/app/onboarding/page.tsx`
+- `apps/frontend/src/lib/api.ts`
+- `docs/API_SPECIFICATION.md`
+- `docs/ARCHITECTURE.md`
+- `docs/CODEX_EXECUTION_TRACKER.md`
+- `docs/DATABASE_DESIGN.md`
+- `docs/FEATURES.md`
+- `docs/PRODUCTION_READINESS.md`
+- `docs/ROLES_PERMISSIONS.md`
+- `docs/SECURITY.md`
+- `docs/TESTING_STRATEGY.md`

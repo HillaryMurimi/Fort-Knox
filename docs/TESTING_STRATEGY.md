@@ -241,3 +241,7 @@ alongside the fix whenever technically feasible.
 
 Never weaken or delete a valid security/business test simply to make a
 build green.
+
+## Landlord workflow certification
+
+`npm --prefix apps/backend run test:e2e` now also runs `landlord-onboarding.e2e.test.ts` against a MongoDB replica set. It exercises signup/owner step-up through verified activation and property access, tenant isolation, RBAC, snapshots/PDFs, duplicate/concurrent requests, failed payments, reconciliation, renewal timing, audit rollback and Super Admin oversight. Provider responses are controlled fixtures. Unit tests verify integer pricing, interpolation, consent/hash validation, calendar billing and deterministic multipage PDFs; frontend tests verify backend resume routing and signature/reconciliation requests. GitHub Quality explicitly runs the replica-set suites. Live Paystack staging and a browser rehearsal remain deployment acceptance, not inferred from fixtures.

@@ -13,7 +13,7 @@ export class OrganizationService {
     authUserId: Types.ObjectId,
     data: { name: string; slug: string },
   ) {
-    const organization = await Organization.create(data);
+    const organization = await Organization.create({ ...data, onboarding: { state: "ACCOUNT_CREATED" } });
     const landlord = await Role.findOne({
       key: "LANDLORD",
       system: true,

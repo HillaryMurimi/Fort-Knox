@@ -66,6 +66,7 @@ export class ApiError extends Error {
 }
 
 interface ApiRequestOptions extends RequestInit {
+  responseType?: 'blob';
   /**
    * Whether this request requires an authenticated access token.
    *
@@ -257,10 +258,12 @@ async function rawRequest<T>(
 }> {
   const {
     authenticated = true,
+    responseType: _responseType,
     headers: providedHeaders,
     ...requestInit
   } = init;
 
+  void _responseType;
   const headers = new Headers(providedHeaders);
 
   /**
@@ -528,6 +531,8 @@ export async function api<T>(
       body,
     );
   }
+
+  if (init.responseType === 'blob') return await response.blob() as T;
 
   /**
    * Backend API convention:

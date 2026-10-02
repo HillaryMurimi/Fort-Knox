@@ -570,3 +570,7 @@ All monitoring routes below are under /api/v1/platform-control/monitoring and re
 The worker collects conditions approximately every minute, with a database lease, fingerprint deduplication and revision checks. Maintenance windows suppress alert creation/reopening/automatic resolution, not metrics or services. Unavailable or capped sources cannot automatically clear existing alerts. HTTP metrics describe one process; security/OTP counters cover instrumented endpoints only. Wider revenue, integration and backup/storage probes remain unavailable.
 
 Monitoring environment follows LAUNCH_READINESS_ENV, falling back to NODE_ENV. Initialize declared indexes with monitoring:create-indexes before alert writes or collection; a replica set or sharded MongoDB is required. No monitoring endpoint changes provider credentials or activates a service switch.
+
+## Versioned landlord contracts and prepaid activation
+
+See [LANDLORD_CONTRACT_WORKFLOW.md](LANDLORD_CONTRACT_WORKFLOW.md) for request fields, lifecycle and deployment prerequisites. Generated OpenAPI includes GET progress/quote, PUT details and POST contract/replacement/signature/checkout/reconcile under `/organizations/:organizationId/landlord-onboarding`; `/documents/:documentId/pdf` retains exact historical bytes. SUPER_ADMIN oversight and append-only template commands use `/platform-control/landlord-onboarding` and `/platform-control/contract-templates`. Current reviewed contract hash, owner scope and verified invoice payment are backend prerequisites; there is no frontend activation endpoint.

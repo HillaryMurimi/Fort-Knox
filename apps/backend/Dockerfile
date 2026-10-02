@@ -14,6 +14,7 @@ RUN addgroup -S app && adduser -S app -G app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
+COPY assets ./assets
 USER app
 EXPOSE 9000
 CMD ["node", "dist/server.js"]

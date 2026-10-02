@@ -124,7 +124,7 @@ export async function finishSocial(token: string, code: string, meta: { userAgen
     const role = await Role.findOne({ key: 'LANDLORD', system: true, organizationId: null }).session(session);
     if (!role) throw new AppError(503, 'SYSTEM_ROLE_MISSING', 'Owner setup is temporarily unavailable.');
     const [user] = await User.create([{ firstName: details.firstName, lastName: details.lastName, email: details.email, phone: details.phone, verifiedAt: new Date() }], { session });
-    const [organization] = await Organization.create([{ name: details.organizationName, slug: `portfolio-${randomUUID()}` }], { session });
+    const [organization] = await Organization.create([{ name: details.organizationName, slug: `portfolio-${randomUUID()}`, onboarding: { state: 'ACCOUNT_CREATED' } }], { session });
     await OrganizationMembership.create([{ userId: user!._id, organizationId: organization!._id, roleIds: [role._id], scope: { allProperties: true }, joinedAt: new Date() }], { session });
     await SocialIdentity.create([{ provider: flow.provider, subject: flow.subject!, userId: user!._id }], { session });
     await AuditLog.create([{ actorUserId: user!._id, organizationId: organization!._id, action: 'auth.social.owner_created', resourceType: 'Organization', resourceId: organization!._id, occurredAt: new Date(), metadata: { provider: flow.provider } }], { session });

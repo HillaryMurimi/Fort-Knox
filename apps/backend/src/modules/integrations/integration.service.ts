@@ -1,3 +1,4 @@
+import { settlePrepaidInvoice, settlePrepaidRenewal } from '../billing/prepaid-billing.service.js';
 import mongoose, { Types } from 'mongoose';
 import { Payment, type PaymentDocument } from '../../database/models/Payment.js';
 import { RefundService } from '../finance/refund.service.js';
@@ -452,6 +453,7 @@ export class IntegrationService {
         const recurringCode = typeof recurring === 'string' ? recurring : String(recurring?.subscription_code ?? '');
         const active = recurringCode ? await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerSubscriptionId: recurringCode, status: { $in: ['ACTIVE', 'PAST_DUE'] } }) : null;
         if (!active) return;
+        if ((active.metadata as { contractId?: string } | undefined)?.contractId) { await settlePrepaidRenewal(active._id, data); return; }
         const currentPlan = await SubscriptionPlan.findById(active.planId);
         const pendingPlan = active.pendingPlanId ? await SubscriptionPlan.findById(active.pendingPlanId) : null;
         if (!currentPlan) throw new AppError(409, 'BILLING_PLAN_MISSING', 'Subscription plan is missing');
@@ -469,6 +471,7 @@ export class IntegrationService {
         if (pendingPlan && applyPending) await AuditService.record({ organizationId: active.organizationId, action: 'BILLING_PLAN_CHANGE_APPLIED', resourceType: 'OrganizationSubscription', resourceId: active._id, metadata: { planId: String(plan._id), chargeReference: reference } });
         return;
       }
+      if ((subscription.metadata as { contractId?: string } | undefined)?.contractId) { await settlePrepaidInvoice(subscription._id, data); return; }
       if (subscription.status === 'CANCELLED') throw new AppError(409, 'CHARGE_AFTER_CANCELLATION', 'Paystack reported a charge after cancellation; refund review is required');
       const invoice = await SubscriptionInvoice.findOne({ subscriptionId: subscription._id, provider: 'PAYSTACK' }).sort({ createdAt: -1 });
       if (!invoice) throw new AppError(409, 'BILLING_INVOICE_MISSING', 'Subscription invoice is missing');

@@ -151,7 +151,7 @@ export async function bootstrapLandlord(data: { firstName: string; lastName: str
   const passwordHash = await bcrypt.hash(data.password, 12);
   const user = await User.create({ phone, email, firstName: data.firstName, lastName: data.lastName, passwordHash, verifiedAt: new Date() });
   try {
-    const organization = await Organization.create({ name: data.organization.name, slug });
+    const organization = await Organization.create({ name: data.organization.name, slug, onboarding: { state: 'ACCOUNT_CREATED' } });
     await OrganizationMembership.create({ userId: user._id, organizationId: organization._id, roleIds: [role._id], scope: { allProperties: true, propertyIds: [], buildingIds: [], unitIds: [] }, joinedAt: new Date() });
     return { userId: user._id, organizationId: organization._id, organization, message: 'Landlord account and organization created. You can now sign in with email and password.' };
   } catch (error) {

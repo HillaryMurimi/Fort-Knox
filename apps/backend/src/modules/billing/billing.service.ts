@@ -1,3 +1,5 @@
+import { priceSnapshot, type CommercialSnapshot } from '../onboarding/contract-snapshot.js';
+import { startPrepaidCheckout, reconcilePrepaidCheckouts } from './prepaid-billing.service.js';
 import { SubscriptionPlan } from '../../database/models/SubscriptionPlan.js';
 import { OrganizationSubscription } from '../../database/models/OrganizationSubscription.js';
 import { SubscriptionInvoice } from '../../database/models/SubscriptionInvoice.js';
@@ -20,6 +22,7 @@ function addInterval(date: Date, interval: 'MONTH' | 'QUARTER' | 'YEAR') { const
 function invoiceNumber() { return `INV-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.random().toString(36).slice(2,8).toUpperCase()}`; }
 
 export class BillingService {
+  static startPrepaidCheckout = startPrepaidCheckout;
   static async listPlans(activeOnly = true) { return SubscriptionPlan.find(activeOnly ? { active: true } : {}).sort({ amount: 1 }).lean(); }
   static async createPlan(auth: NonNullable<Express.Request['auth']>, data: Record<string, unknown>) { AuthorizationService.assertPlatformAdmin(auth); return SubscriptionPlan.create(data); }
   static async updatePlan(auth: NonNullable<Express.Request['auth']>, planId: string, data: Record<string, unknown>) {
@@ -40,6 +43,15 @@ export class BillingService {
     AuthorizationService.assertCan(auth, 'billing.subscription.manage', { organizationId });
     if (providerKey === 'INTERNAL') AuthorizationService.assertPlatformAdmin(auth);
     const organization = await Organization.findById(organizationId).lean(); if (!organization) throw new AppError(404,'NOT_FOUND','Organization not found');
+    if (organization.onboarding) {
+      if (providerKey !== 'PAYSTACK') throw new AppError(409, 'PROVIDER_CONFIRMATION_REQUIRED', 'Onboarding requires verified prepaid payment');
+      const { LandlordOnboardingService } = await import('../onboarding/landlord-onboarding.service.js');
+      const state = await LandlordOnboardingService.status(auth, organizationId);
+      const snapshot = state.contract?.snapshot as { planKey?: string; prepaidMonths?: number } | undefined;
+      if (snapshot?.planKey !== planKey || snapshot.prepaidMonths !== prepaidMonths) throw new AppError(409, 'SIGNED_CONTRACT_REQUIRED', 'Review and sign the matching onboarding agreement first');
+      await LandlordOnboardingService.checkout(auth, organizationId);
+      return OrganizationSubscription.findOne({ organizationId }).populate('planId');
+    }
     const plan = await SubscriptionPlan.findOne({ key: planKey, active: true }); if (!plan) throw new AppError(404,'PLAN_NOT_FOUND','Active subscription plan not found');
     const existing = await OrganizationSubscription.findOne({ organizationId });
     if (existing && ['PENDING','ACTIVE','TRIALING','PAST_DUE','PAUSED'].includes(existing.status)) throw new AppError(409,'SUBSCRIPTION_EXISTS','Organization already has an active or pending subscription');
@@ -69,7 +81,7 @@ export class BillingService {
     const verified = await new PaystackProvider().query(subscription.providerCheckoutReference);
     if (verified.providerTransactionId !== subscription.providerCheckoutReference) throw new AppError(409, 'PROVIDER_REFERENCE_MISMATCH', 'Paystack returned a different checkout reference');
     if (verified.status === 'CONFIRMED') {
-      await IntegrationService.processPaystack({ event: 'charge.success', data: { status: 'success', reference: verified.providerTransactionId, amount: verified.amountMinorUnits, currency: verified.currency, paid_at: verified.paidAt?.toISOString() } });
+      await IntegrationService.processPaystack({ event: 'charge.success', data: { ...(verified.raw as Record<string, unknown>), status: 'success', reference: verified.providerTransactionId, amount: verified.amountMinorUnits, currency: verified.currency, paid_at: verified.paidAt?.toISOString() } });
       return OrganizationSubscription.findById(subscription._id).populate('planId');
     }
     if (verified.status === 'PENDING') return OrganizationSubscription.findById(subscription._id).populate('planId');
@@ -81,7 +93,9 @@ export class BillingService {
     try {
       const configuredPrepaidMonths = (subscription.metadata as { prepaidMonths?: unknown } | undefined)?.prepaidMonths;
       const prepaidMonths = typeof configuredPrepaidMonths === 'number' ? configuredPrepaidMonths : 3;
-      const retry = await new PaystackBillingProvider().retryCheckout(subscription.providerPlanCode, { customerReference: subscription.providerCustomerId, email: subscription.billingEmail, organizationId, planKey: plan.key, currency: plan.currency, amount: plan.amount, interval: plan.billingInterval, prepaidMonths });
+      const commercial = (subscription.metadata as { commercialSnapshot?: { recurringMinor: number; totalMinor: number; currency: string; billingCycle: 'MONTH' | 'QUARTER' | 'YEAR'; planKey: string } } | undefined)?.commercialSnapshot;
+      if (commercial) await (await import('../platform-control/platform-control.guard.js')).assertSwitchEnabled('PAYSTACK_PAYMENTS');
+      const retry = await new PaystackBillingProvider().retryCheckout(subscription.providerPlanCode, { customerReference: subscription.providerCustomerId, email: subscription.billingEmail, organizationId, planKey: plan.key, currency: plan.currency, amount: plan.amount, interval: commercial?.billingCycle ?? plan.billingInterval, prepaidMonths, ...(commercial ? { initialAmount: commercial.totalMinor / 100, amount: commercial.recurringMinor / 100, currency: commercial.currency, planKey: commercial.planKey, callbackPath: '/onboarding' } : {}) });
       const updated = await OrganizationSubscription.findOneAndUpdate({ _id: subscription._id, providerCheckoutReference: verified.providerTransactionId, checkoutRecoveryLockedAt: lockedAt, status: 'PENDING' }, { $push: { checkoutReferences: verified.providerTransactionId }, $set: { providerCheckoutReference: retry.checkoutReference, providerCheckoutUrl: retry.checkoutUrl, updatedBy: auth.userId }, $unset: { checkoutRecoveryLockedAt: 1 } }, { new: true });
       if (!updated) throw new AppError(409, 'CHECKOUT_RECOVERY_CONFLICT', 'Checkout changed during recovery; contact support before making another payment');
       await AuditService.record({ organizationId: subscription.organizationId, actorUserId: auth.userId, action: 'BILLING_CHECKOUT_RETRIED', resourceType: 'OrganizationSubscription', resourceId: subscription._id, metadata: { previousReference: verified.providerTransactionId, newReference: retry.checkoutReference } });
@@ -116,9 +130,12 @@ export class BillingService {
       if (shared) throw new AppError(409, 'SHARED_PROVIDER_PLAN', 'Cannot change a Paystack plan shared with another organization');
       if (plan.amount <= 0) throw new AppError(400, 'INVALID_PLAN_AMOUNT', 'Paystack plans must have a positive amount');
       if (String(subscription.planId) === String(plan._id) && !subscription.pendingPlanId) return subscription.populate('planId');
-      await new PaystackBillingProvider().updatePlan(subscription.providerPlanCode, { planKey: plan.key, amount: plan.amount, currency: plan.currency, interval: plan.billingInterval });
+      const metadata = subscription.metadata as { commercialSnapshot?: CommercialSnapshot };
+      const commercial = metadata.commercialSnapshot ? { ...metadata.commercialSnapshot, ...priceSnapshot(plan, metadata.commercialSnapshot.unitCount, metadata.commercialSnapshot.prepaidMonths), planId: String(plan._id) } : undefined;
+      await new PaystackBillingProvider().updatePlan(subscription.providerPlanCode, { planKey: plan.key, amount: commercial ? commercial.recurringMinor / 100 : plan.amount, currency: plan.currency, interval: plan.billingInterval });
       subscription.pendingPlanId = String(subscription.planId) === String(plan._id) ? undefined : plan._id;
       subscription.pendingPlanEffectiveAt = subscription.pendingPlanId ? subscription.currentPeriodEnd : undefined;
+      if (commercial) subscription.set('metadata', { ...subscription.metadata, pendingCommercialSnapshot: subscription.pendingPlanId ? commercial : undefined });
       subscription.updatedBy = auth.userId;
       await subscription.save();
       await AuditService.record({ organizationId: subscription.organizationId, actorUserId: auth.userId, action: 'BILLING_PLAN_CHANGE_SCHEDULED', resourceType: 'OrganizationSubscription', resourceId: subscription._id, metadata: { fromPlanId: String(subscription.planId), toPlanId: String(plan._id), effectiveAt: subscription.currentPeriodEnd.toISOString() } });
@@ -144,6 +161,7 @@ export class BillingService {
   }
 
   static async reconcile() {
+    const prepaid = await reconcilePrepaidCheckouts();
     const now = new Date(); const subscriptions = await OrganizationSubscription.find({ status: { $in: ['TRIALING','ACTIVE','PAST_DUE'] } }); let expired=0; let cancelled=0; let upgraded=0;
     for (const subscription of subscriptions) {
       if (subscription.status === 'TRIALING' && subscription.trialEndsAt && subscription.trialEndsAt <= now) { subscription.status='PAST_DUE'; subscription.gracePeriodEndsAt=new Date(now.getTime()+7*86_400_000); await subscription.save(); expired++; }
@@ -151,7 +169,7 @@ export class BillingService {
       if (subscription.provider === 'PAYSTACK' && subscription.status === 'ACTIVE' && subscription.currentPeriodEnd <= now) { subscription.status='PAST_DUE'; await subscription.save(); expired++; continue; }
       if (subscription.provider !== 'PAYSTACK' && subscription.pendingPlanId && subscription.pendingPlanEffectiveAt && subscription.pendingPlanEffectiveAt <= now) { subscription.planId=subscription.pendingPlanId; subscription.pendingPlanId=undefined; subscription.pendingPlanEffectiveAt=undefined; subscription.currentPeriodStart=now; const plan=await SubscriptionPlan.findById(subscription.planId); if(plan) subscription.currentPeriodEnd=addInterval(now,plan.billingInterval); await subscription.save(); upgraded++; }
     }
-    return { expired, cancelled, upgraded };
+    return { expired, cancelled, upgraded, prepaid };
   }
 
   static async assertFeature(organizationId: string, feature: string) { const sub=await OrganizationSubscription.findOne({organizationId}).populate('planId').lean(); if(!sub || !['ACTIVE','TRIALING'].includes(sub.status) || (sub.provider === 'PAYSTACK' && sub.currentPeriodEnd <= new Date())) throw new AppError(402,'SUBSCRIPTION_REQUIRED','An active subscription is required'); const plan=sub.planId as unknown as {entitlements?:{features?:string[]}}; if(!plan.entitlements?.features?.includes(feature)) throw new AppError(403,'FEATURE_NOT_ENTITLED',`Subscription does not include feature: ${feature}`); }

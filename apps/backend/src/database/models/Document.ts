@@ -10,8 +10,21 @@ const schema = new Schema({
   storageProvider:{type:String,enum:['LOCAL','S3','CLOUDINARY','OTHER'],required:true,default:'S3'}, storageKey:{type:String,required:true,trim:true,maxlength:1000},
   sha256:{type:String,required:true,trim:true,lowercase:true,index:true}, version:{type:Number,required:true,min:1,default:1},
   visibility:{type:String,enum:['STAFF','TENANT','PRIVATE'],required:true,default:'STAFF'}, status:{type:String,enum:['ACTIVE','ARCHIVED','QUARANTINED'],required:true,default:'ACTIVE',index:true},
+  immutableArtifact:{type:Boolean,default:false},
+  artifactBody:{type:Buffer,select:false}, artifactKind:{type:String,enum:['CONTRACT','SIGNED_CONTRACT','SUBSCRIPTION_INVOICE','SUBSCRIPTION_RECEIPT']},
+  renderVersion:{type:Number},
   tags:[{type:String,trim:true,maxlength:80}], metadata:{type:Map,of:Schema.Types.Mixed,default:()=>({})},
   createdBy:{type:Schema.Types.ObjectId,ref:'User',required:true}, updatedBy:{type:Schema.Types.ObjectId,ref:'User',required:true}
 },{timestamps:true});
 schema.index({organizationId:1,storageKey:1},{unique:true}); schema.index({organizationId:1,category:1,createdAt:-1}); schema.index({organizationId:1,propertyId:1,unitId:1,status:1});
+schema.pre('save', async function(){
+  if(!this.isNew && this.isModified()){
+    const previous=await model('Document').findById(this._id).session(this.$session()).select('immutableArtifact');
+    if(previous?.immutableArtifact) throw new Error('DOCUMENT_ARTIFACT_IMMUTABLE');
+  }
+});
+schema.pre(['updateOne','updateMany','findOneAndUpdate','replaceOne','findOneAndReplace','deleteOne','deleteMany','findOneAndDelete'], async function(){
+  const previous=await model('Document').findOne({$and:[this.getFilter(),{immutableArtifact:true}]}).session(this.getOptions().session ?? null).select('immutableArtifact');
+  if(previous?.immutableArtifact) throw new Error('DOCUMENT_ARTIFACT_IMMUTABLE');
+});
 export type DocumentDocument=InferSchemaType<typeof schema>; export const Document=model('Document',schema);

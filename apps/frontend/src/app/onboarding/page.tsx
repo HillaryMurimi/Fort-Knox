@@ -1,98 +1,53 @@
-"use client";
+'use client';
+import { useState, type FormEvent } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
+import { Check, FileSignature, ShieldCheck, CreditCard, Building2, Download } from 'lucide-react';
+import { Alert, Button, Input } from '@/components/ui';
+import { useOrganization } from '@/hooks/use-organization';
+import { useBillingPlansQuery } from '@/hooks/queries/use-billing-queries';
+import { useLandlordProgress, useLandlordCommand } from '@/hooks/queries/use-landlord-onboarding';
+import { landlordOnboardingClient as client, downloadArtifact, onboardingStepIndex, type LandlordProgress } from '@/lib/data/landlord-onboarding';
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { Check, ChevronLeft, ChevronRight, CreditCard, FileSignature, ShieldCheck } from "lucide-react";
-import { Alert, Button, Input } from "@/components/ui";
-import { useOrganization } from "@/hooks/use-organization";
-import { useBillingPlansQuery, useBillingSubscriptionQuery, useSubscribeMutation } from "@/hooks/queries/use-billing-queries";
-
-const steps = [
-  { label: "Plan", icon: ShieldCheck },
-  { label: "Agreement", icon: FileSignature },
-  { label: "Invoice", icon: CreditCard },
-];
-
+const steps = [{ label: 'Organization', icon: Building2 }, { label: 'Plan & pricing', icon: ShieldCheck }, { label: 'Review & sign', icon: FileSignature }, { label: 'Invoice & payment', icon: CreditCard }, { label: 'Activated', icon: Check }];
+const money = (minor: number, currency = 'KES') => new Intl.NumberFormat('en-KE', { style: 'currency', currency }).format(minor / 100);
+function ArtifactButton({ id, label }: { id?: string | undefined; label: string }) {
+  const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  if (!id) return null;
+  return <div><Button variant="outline" loading={busy} onClick={async () => { setBusy(true); setError(''); try { await downloadArtifact(id); } catch (failure) { setError(failure instanceof Error ? failure.message : 'Download failed. Try again.'); } finally { setBusy(false); } }}><Download size={15} />{label}</Button>{error && <Alert tone="destructive">{error}</Alert>}</div>;
+}
+function GuidedOnboarding({ org, progress }: { org: string; progress: LandlordProgress }) {
+  const action = useLandlordCommand(org), plans = useBillingPlansQuery();
+  const [legalName, setLegalName] = useState(progress.organization.legalName ?? progress.organization.name);
+  const [identifier, setIdentifier] = useState(progress.organization.legalIdentifier ?? '');
+  const [email, setEmail] = useState(progress.organization.billingEmail ?? '');
+  const [units, setUnits] = useState(progress.organization.unitCount ?? 0);
+  const [planKey, setPlanKey] = useState(progress.contract?.snapshot.planKey ?? 'CONTROL');
+  const [months, setMonths] = useState(progress.contract?.snapshot.prepaidMonths ?? 3);
+  const [signatory, setSignatory] = useState(''), [authority, setAuthority] = useState(false), [accepted, setAccepted] = useState(false);
+  const [replacementReason, setReplacementReason] = useState('');
+  const quote = useQuery({ queryKey: ['landlord-quote', org, planKey, months, progress.revision], queryFn: () => client.quote(org, planKey, months), enabled: progress.nextStep === 'PLAN' });
+  const pricing = progress.contract?.snapshot ?? quote.data, current = onboardingStepIndex(progress);
+  const run = (fn: () => Promise<LandlordProgress>) => action.mutate(fn);
+  function configure(event: FormEvent) { event.preventDefault(); run(() => client.configure(org, { legalName, legalIdentifier: identifier, billingEmail: email, unitCount: units })); }
+  return <div className="mx-auto max-w-6xl">
+    <header className="mb-8"><p className="text-xs font-bold uppercase tracking-[.18em] text-accent-foreground">Landlord onboarding</p><h1 className="mt-2 text-3xl font-semibold">Activate your Command Center</h1><p className="mt-2 text-sm text-muted-foreground">Your progress is saved. Review your organization’s agreement, sign and pay the prepaid activation invoice.</p></header>
+    <ol className="mb-8 grid gap-3 sm:grid-cols-5" aria-label="Onboarding progress">{steps.map((step, index) => { const Icon = step.icon; return <li key={step.label} aria-current={current === index ? 'step' : undefined} className={`rounded-xl border p-3 ${current === index ? 'border-primary bg-card' : 'border-border bg-background'}`}><div className="flex items-center gap-2 text-sm font-medium">{index < current ? <Check size={17} /> : <Icon size={17} />}{step.label}</div></li>; })}</ol>
+    {action.error && <Alert tone="destructive" className="mb-5">{action.error.message} Your saved progress is preserved.</Alert>}
+    {progress.organization.attentionCode && <Alert className="mb-5">{progress.organization.attentionCode === 'PAYMENT_FAILED' ? 'Payment was unsuccessful. Use “Verify payment / recover checkout” to check the provider and safely retry.' : 'A payment or renewal step needs attention. Your agreement and invoice remain saved; verify the payment or contact support with your invoice number.'}</Alert>}
+    <div className="grid gap-6 lg:grid-cols-[1fr_340px]"><section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
+      {progress.nextStep === 'DETAILS' && <form onSubmit={configure} className="space-y-5"><h2 className="text-xl font-semibold">Organization and portfolio</h2><label className="block text-sm">Legal organization / landlord name<Input required value={legalName} onChange={e => setLegalName(e.target.value)} maxLength={200} className="mt-2" /></label><label className="block text-sm">Registration number or legal identifier<Input required value={identifier} onChange={e => setIdentifier(e.target.value)} maxLength={100} className="mt-2" /></label><label className="block text-sm">Billing email<Input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="mt-2" /></label><label className="block text-sm">Portfolio unit count<Input required type="number" min={0} max={100000} value={units} onChange={e => setUnits(Number(e.target.value))} className="mt-2" /></label><p className="text-xs text-muted-foreground">This declared portfolio count determines the initial commercial terms. Your property records are created after activation.</p><Button type="submit" loading={action.isPending}>Save and continue</Button></form>}
+      {progress.nextStep === 'PLAN' && <div><h2 className="text-xl font-semibold">Choose your operating tier</h2><p className="mt-2 text-sm text-muted-foreground">Pricing comes from the server and includes the saved portfolio of {progress.organization.unitCount} units.</p>{plans.isLoading && <p className="mt-4" role="status">Loading plans…</p>}{plans.error && <Alert tone="destructive">{plans.error.message}<Button variant="link" onClick={() => void plans.refetch()}>Retry plans</Button></Alert>}<div className="mt-6 grid gap-4 md:grid-cols-2">{plans.data?.filter(plan => ['CONTROL', 'FORT_KNOX'].includes(plan.key)).map(plan => <button key={plan.key} type="button" aria-pressed={plan.key === planKey} onClick={() => setPlanKey(plan.key)} className={`rounded-xl border p-5 text-left ${plan.key === planKey ? 'border-primary ring-2 ring-primary/20' : 'border-border'}`}><h3 className="font-semibold">{plan.name}</h3><p className="mt-2 text-sm text-muted-foreground">{plan.description}</p></button>)}</div><label className="mt-6 block text-sm">Initial prepaid term<select value={months} onChange={e => setMonths(Number(e.target.value))} className="input mt-2">{[3, 6, 12, 24].map(term => <option key={term} value={term}>{term} months upfront</option>)}</select></label>{quote.error && <Alert tone="destructive" className="mt-4">{quote.error.message}<Button variant="link" onClick={() => void quote.refetch()}>Retry pricing</Button></Alert>}<Button className="mt-6" loading={action.isPending || quote.isFetching} disabled={!quote.data} onClick={() => run(() => client.generate(org, { planKey, prepaidMonths: months, expectedRevision: progress.revision }))}>Generate contract and invoice</Button></div>}
+      {progress.nextStep === 'SIGNATURE' && progress.contract && <div><h2 className="text-xl font-semibold">Review your services agreement</h2><p className="mt-2 text-sm text-muted-foreground">Template {progress.contract.templateId}, version {progress.contract.templateVersion}. This version and pricing are retained with your signature.</p><article className="mt-5 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-background p-5 text-sm leading-7" tabIndex={0}>{progress.contract.body}</article><div className="mt-4"><ArtifactButton id={progress.contract.documentId} label="Download contract PDF" /></div><form className="mt-6 space-y-4" onSubmit={event => { event.preventDefault(); run(() => client.sign(org, { contractId: progress.contract!._id, documentHash: progress.contract!.sha256, signatoryName: signatory, authorityConfirmed: true, termsAccepted: true })); }}><label className="block text-sm">Full signatory name (your electronic signature)<Input required minLength={2} maxLength={200} value={signatory} onChange={e => setSignatory(e.target.value)} className="mt-2" /></label><label className="flex items-start gap-3 text-sm"><input required type="checkbox" checked={authority} onChange={e => setAuthority(e.target.checked)} /><span>I confirm that I am authorized to enter this agreement for {progress.organization.legalName}.</span></label><label className="flex items-start gap-3 text-sm"><input required type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} /><span>I have reviewed the contract, accept its terms and consent to use my typed name as an electronic signature.</span></label><Button type="submit" loading={action.isPending} disabled={!authority || !accepted || signatory.trim().length < 2}><FileSignature size={16} />Sign and accept</Button></form></div>}
+      {progress.nextStep === 'PAYMENT' && <div><h2 className="text-xl font-semibold">Pay your activation invoice</h2><p className="mt-2 text-sm text-muted-foreground">Signed by {progress.contract?.signature?.name}. Access begins after backend payment verification.</p><div className="mt-5 rounded-xl border border-border bg-background p-5"><p className="text-sm font-medium">{progress.invoice?.invoiceNumber}</p>{pricing?.lineItems.map(line => <div key={line.description} className="mt-4 flex justify-between gap-3 text-sm"><span>{line.description} × {line.quantity}</span><span>{money(line.totalMinor, pricing.currency)}</span></div>)}<div className="mt-5 flex justify-between border-t border-border pt-4 font-semibold"><span>Amount due</span><span>{money(pricing?.totalMinor ?? 0, pricing?.currency)}</span></div><p className="mt-3 text-xs text-muted-foreground">Invoice status: {progress.invoice?.status} · Payment state: {progress.state.replaceAll('_', ' ')}</p></div><div className="mt-5 flex flex-wrap gap-3"><ArtifactButton id={progress.contract?.signedDocumentId} label="Signed contract" /><ArtifactButton id={progress.invoice?.documentId} label="Invoice PDF" /></div><div className="mt-6 flex flex-wrap gap-3">{progress.subscription?.providerCheckoutUrl ? <a className="btn-primary" href={progress.subscription.providerCheckoutUrl} target="_blank" rel="noreferrer">Open secure Paystack checkout</a> : !progress.subscription?.providerCheckoutReference && <Button loading={action.isPending} onClick={() => run(() => client.checkout(org))}>Prepare secure checkout</Button>}{progress.subscription?.providerCheckoutReference && <Button variant="secondary" loading={action.isPending} onClick={() => run(() => client.reconcile(org))}>Verify payment / recover checkout</Button>}</div><p className="mt-4 text-xs text-muted-foreground">You can safely leave and return. A checkout redirect never activates your account. Successful payments are reconciled by the provider webhook or a server verification.</p></div>}
+      {progress.nextStep === 'COMPLETE' && <div><ShieldCheck size={36} className="text-emerald-600" /><h2 className="mt-4 text-2xl font-semibold">Your Command Center is active</h2><p className="mt-3 text-sm text-muted-foreground">Prepaid access runs until {progress.subscription?.currentPeriodEnd ? new Date(progress.subscription.currentPeriodEnd).toLocaleDateString('en-KE') : 'your current term ends'}. You can now start property onboarding.</p><div className="mt-5 flex flex-wrap gap-3"><ArtifactButton id={progress.contract?.signedDocumentId} label="Signed agreement" /><ArtifactButton id={progress.invoice?.documentId} label="Invoice" /><ArtifactButton id={progress.invoice?.receiptDocumentId} label="Payment confirmation" /></div><div className="mt-6 flex flex-wrap gap-3"><Link href="/properties" className="btn-primary">Add your first property</Link><Link href="/property-onboarding-help" className="btn-secondary">Request setup assistance</Link></div>{progress.subscription?.renewalState === 'REQUIRES_ATTENTION' && <Alert className="mt-5">Your upfront payment is verified. Support must review the recurring payment authorization before the prepaid period ends.</Alert>}</div>}
+    </section><aside className="h-fit rounded-2xl border border-border bg-card p-6"><p className="text-xs font-bold uppercase tracking-[.16em] text-muted-foreground">Activation summary</p><dl className="mt-5 space-y-4 text-sm"><div><dt className="text-muted-foreground">Organization</dt><dd className="mt-1 font-medium">{progress.organization.legalName ?? progress.organization.name}</dd></div><div className="flex justify-between"><dt>Plan</dt><dd>{pricing?.planName ?? 'Choose a plan'}</dd></div><div className="flex justify-between"><dt>Portfolio</dt><dd>{progress.organization.unitCount ?? units} units</dd></div><div className="flex justify-between"><dt>Monthly equivalent</dt><dd>{pricing ? money(pricing.monthlyMinor, pricing.currency) : 'Pending'}</dd></div><div className="flex justify-between"><dt>Prepaid term</dt><dd>{pricing?.prepaidMonths ?? months} months</dd></div><div className="flex justify-between font-semibold"><dt>Initial amount</dt><dd>{pricing ? money(pricing.totalMinor, pricing.currency) : 'Pending'}</dd></div><div className="flex justify-between"><dt>Later billing cycle</dt><dd>{pricing?.billingCycle ?? 'Selected plan'}</dd></div></dl><p className="mt-6 rounded-xl bg-muted p-4 text-xs leading-5 text-muted-foreground">Minimum initial commitment: 3 months. Contract and invoice totals are fixed when generated. Hardware and installation are separate.</p>{progress.contract && !progress.subscription?.providerCheckoutReference && current < 4 && <details className="mt-6 text-sm"><summary className="cursor-pointer">Correct the agreement before payment</summary><p className="mt-3 text-xs text-muted-foreground">A replacement preserves the old contract and voids its unpaid invoice. The replacement must be reviewed and signed again.</p><label className="mt-3 block">Correct legal name<Input value={legalName} onChange={e => setLegalName(e.target.value)} /></label><label className="mt-3 block">Legal identifier<Input value={identifier} onChange={e => setIdentifier(e.target.value)} /></label><label className="mt-3 block">Billing email<Input type="email" value={email} onChange={e => setEmail(e.target.value)} /></label><label className="mt-3 block">Unit count<Input type="number" min={0} max={100000} value={units} onChange={e => setUnits(Number(e.target.value))} /></label><Input aria-label="Replacement reason" value={replacementReason} onChange={e => setReplacementReason(e.target.value)} placeholder="Explain the required correction" className="mt-3" /><Button variant="outline" className="mt-3" disabled={replacementReason.trim().length < 10} loading={action.isPending} onClick={() => run(() => client.replace(org, { planKey: progress.contract!.snapshot.planKey, prepaidMonths: progress.contract!.snapshot.prepaidMonths, expectedRevision: progress.revision, reason: replacementReason, details: { legalName, legalIdentifier: identifier, billingEmail: email, unitCount: units } }))}>Create audited replacement</Button></details>}</aside></div>
+  </div>;
+}
 export default function LandlordOnboardingPage() {
-  const router = useRouter();
-  const { activeOrganizationId } = useOrganization();
-  const plans = useBillingPlansQuery();
-  const subscription = useBillingSubscriptionQuery(activeOrganizationId ?? undefined);
-  const subscribe = useSubscribeMutation(activeOrganizationId ?? undefined);
-  const [step, setStep] = useState(0);
-  const [planKey, setPlanKey] = useState("CONTROL");
-  const [prepaidMonths, setPrepaidMonths] = useState(3);
-  const [billingEmail, setBillingEmail] = useState("");
-  const [accepted, setAccepted] = useState(false);
-  const selected = useMemo(() => plans.data?.find((plan) => plan.key === planKey), [plans.data, planKey]);
-  const total = (selected?.amount ?? 0) * prepaidMonths;
-
-  function next() {
-    if (step < 2) {
-      setStep(step + 1);
-      return;
-    }
-    if (!selected || !activeOrganizationId) return;
-    subscribe.mutate({ planKey: selected.key, provider: "PAYSTACK", email: billingEmail, prepaidMonths });
-  }
-
-  if (!activeOrganizationId) {
-    return <main className="min-h-screen bg-muted p-6"><div className="mx-auto mt-20 max-w-xl rounded-2xl border border-border bg-card p-8 text-center"><h1 className="text-2xl font-semibold">Finish your landlord setup</h1><p className="mt-3 text-sm text-muted-foreground">Sign in with the organization owner account before starting activation.</p><Button className="mt-6" onClick={() => router.push("/login")}>Go to sign in</Button></div></main>;
-  }
-  return (
-    <main className="min-h-screen bg-muted px-4 py-8 sm:px-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[.18em] text-accent-foreground">Landlord onboarding</p>
-            <h1 className="mt-2 text-3xl font-semibold">Activate your Command Center</h1>
-            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Choose your operating tier, review the agreement and pay the initial prepaid period before activation.</p>
-          </div>
-          <div className="hidden rounded-full border border-border bg-card px-4 py-2 text-xs font-medium sm:block">Step {step + 1} of 3</div>
-        </div>
-        <div className="mb-8 grid gap-3 sm:grid-cols-3">
-          {steps.map((item, index) => { const Icon = item.icon; return <div key={item.label} className={`rounded-xl border p-3 ${index === step ? "border-primary bg-card" : "border-border bg-background"}`}><div className="flex items-center gap-2 text-sm font-medium"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted">{index < step ? <Check size={15} /> : <Icon size={15} />}</span>{item.label}</div></div>; })}
-        </div>
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          <section className="rounded-2xl border border-border bg-card p-5 sm:p-8">
-            {step === 0 && <div>
-              <h2 className="text-xl font-semibold">Select your operating tier</h2>
-              <p className="mt-2 text-sm text-muted-foreground">Control is the operating foundation. Fort Knox adds CCTV, evidence, advanced intelligence and security controls.</p>
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                {(plans.data ?? []).filter((plan) => ["CONTROL", "FORT_KNOX"].includes(plan.key)).map((plan) => <button type="button" key={plan.key} onClick={() => setPlanKey(plan.key)} className={`rounded-2xl border p-5 text-left ${plan.key === planKey ? "border-primary ring-2 ring-primary/20" : "border-border"}`}><div className="flex items-center justify-between"><span className="font-semibold">{plan.name}</span><span className="text-sm font-semibold">{plan.currency} {plan.amount.toLocaleString()} / month</span></div><p className="mt-3 text-sm text-muted-foreground">{plan.description}</p><div className="mt-4 flex flex-wrap gap-2">{plan.entitlements.features.slice(0, 6).map((feature) => <span key={feature} className="rounded-full bg-muted px-2 py-1 text-[10px]">{feature.replaceAll("-", " ")}</span>)}</div></button>)}
-              </div>
-              <label className="mt-7 block text-sm font-medium">Billing email<Input type="email" required value={billingEmail} onChange={(event) => setBillingEmail(event.target.value)} placeholder="accounts@yourcompany.co.ke" className="mt-2" /></label>
-              <label className="mt-5 block text-sm font-medium">Initial prepaid period<select value={prepaidMonths} onChange={(event) => setPrepaidMonths(Number(event.target.value))} className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{[3, 6, 12, 24].map((months) => <option key={months} value={months}>{months} months upfront</option>)}</select></label>
-            </div>}
-            {step === 1 && <div>
-              <h2 className="text-xl font-semibold">Review and sign the services agreement</h2>
-              <p className="mt-2 text-sm text-muted-foreground">This agreement records the selected tier, prepaid period and recurring billing arrangement.</p>
-              <article className="mt-6 max-h-96 overflow-auto rounded-xl border border-border bg-background p-5 text-sm leading-7">
-                <h3 className="font-semibold">Property Command Center — Services Agreement</h3>
-                <p className="mt-3">The organization owner subscribes to the {selected?.name ?? planKey} plan for the managed property portfolio.</p>
-                <p>The initial activation invoice covers {prepaidMonths} months at {selected?.currency ?? "KES"} {total.toLocaleString()}. After the prepaid period, the subscription renews monthly at the selected plan rate unless cancelled according to the subscription terms.</p>
-                <p>Access is activated only after a verified provider payment. Provider webhooks and reconciliation are authoritative; opening checkout does not activate the account.</p>
-              </article>
-              <label className="mt-5 flex items-start gap-3 text-sm"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} className="mt-1" /><span>I confirm that I am authorized to subscribe this organization and accept the agreement and billing terms.</span></label>
-            </div>}
-            {step === 2 && <div>
-              <h2 className="text-xl font-semibold">Review your activation invoice</h2>
-              <div className="mt-6 rounded-xl border border-border bg-background p-5"><div className="flex justify-between text-sm"><span>{selected?.name ?? planKey} × {prepaidMonths} months</span><span>{selected?.currency ?? "KES"} {total.toLocaleString()}</span></div><div className="mt-4 flex justify-between border-t border-border pt-4 font-semibold"><span>Amount payable today</span><span>{selected?.currency ?? "KES"} {total.toLocaleString()}</span></div></div>
-              <p className="mt-4 text-sm text-muted-foreground">You will be redirected to Paystack’s secure checkout. The subscription stays pending until the signed payment webhook is verified.</p>
-              {subscribe.error && <Alert tone="destructive" className="mt-4">{subscribe.error.message}</Alert>}
-              {subscribe.data?.providerCheckoutUrl && <div className="mt-5"><a href={subscribe.data.providerCheckoutUrl} target="_blank" rel="noreferrer" className="btn-primary inline-flex">Open secure checkout</a></div>}
-            </div>}
-          </section>
-          <aside className="h-fit rounded-2xl border border-border bg-card p-5">
-            <p className="text-xs font-bold uppercase tracking-[.16em] text-muted-foreground">Activation summary</p>
-            <div className="mt-5 space-y-4 text-sm"><div className="flex justify-between gap-4"><span className="text-muted-foreground">Tier</span><span className="font-medium">{selected?.name ?? "Select a tier"}</span></div><div className="flex justify-between gap-4"><span className="text-muted-foreground">Upfront term</span><span className="font-medium">{prepaidMonths} months</span></div><div className="flex justify-between gap-4"><span className="text-muted-foreground">Due today</span><span className="font-semibold">{selected?.currency ?? "KES"} {total.toLocaleString()}</span></div></div>
-            <div className="mt-6 rounded-xl bg-muted p-4 text-xs leading-5 text-muted-foreground">Minimum initial payment: 3 months. Longer prepaid periods are supported. Monthly billing begins after the prepaid term.</div>
-            <div className="mt-6 flex gap-3"><Button variant="secondary" disabled={step === 0} onClick={() => setStep((currentStep) => currentStep - 1)}><ChevronLeft size={16} /> Back</Button>{step < 2 ? <Button disabled={step === 0 ? !selected : !accepted || !billingEmail} onClick={next}>Continue <ChevronRight size={16} /></Button> : <Button disabled={!accepted || !billingEmail} loading={subscribe.isPending} onClick={next}>Create invoice <CreditCard size={16} /></Button>}</div>
-          </aside>
-        </div>
-        {subscription.data?.status === "ACTIVE" && <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"><span>Your subscription is active. You can now enter the Command Center.</span><Link href="/property-onboarding-help" className="btn-primary">Request property setup help</Link></div>}
-      </div>
-    </main>
-  );
+  const { activeOrganizationId } = useOrganization(), progress = useLandlordProgress(activeOrganizationId ?? undefined);
+  if (!activeOrganizationId) return <main className="min-h-screen bg-muted p-8"><div className="mx-auto max-w-xl rounded-xl border border-border bg-card p-8"><h1 className="text-2xl font-semibold">Finish your landlord setup</h1><p className="mt-3 text-sm text-muted-foreground">Sign in with your organization owner account.</p><Link href="/login" className="btn-primary mt-5 inline-flex">Go to sign in</Link></div></main>;
+  if (progress.isLoading) return <main className="p-10" role="status">Restoring your saved onboarding progress…</main>;
+  if (progress.error || !progress.data) return <main className="p-10"><Alert tone="destructive">{progress.error?.message ?? 'Progress could not be loaded.'}<Button variant="link" onClick={() => void progress.refetch()}>Retry</Button></Alert></main>;
+  return <main className="min-h-screen bg-muted px-4 py-8 sm:px-8"><GuidedOnboarding key={`${activeOrganizationId}:${progress.data.revision}`} org={activeOrganizationId} progress={progress.data} /></main>;
 }

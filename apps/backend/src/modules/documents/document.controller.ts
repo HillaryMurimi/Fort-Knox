@@ -3,3 +3,5 @@ export async function list(req:Request,res:Response){res.json(apiResponse(await 
 export async function get(req:Request,res:Response){res.json(apiResponse(await DocumentService.get(req.auth!,requiredParam(req.params.documentId,'documentId'))));}
 export async function create(req:Request,res:Response){res.status(201).json(apiResponse(await DocumentService.create(req.auth!,requiredParam(req.params.organizationId,'organizationId'),s.createDocumentSchema.parse(req.body))));}
 export async function update(req:Request,res:Response){res.json(apiResponse(await DocumentService.update(req.auth!,requiredParam(req.params.documentId,'documentId'),s.updateDocumentSchema.parse(req.body))));}
+
+export async function artifact(req:Request,res:Response){const doc=await DocumentService.artifact(req.auth!,requiredParam(req.params.documentId,'documentId'));res.set({'Content-Type':'application/pdf','Content-Disposition':`attachment; filename="${doc.fileName}"`,'Cache-Control':'private, no-store','X-Content-SHA256':doc.sha256}).send(doc.body);}

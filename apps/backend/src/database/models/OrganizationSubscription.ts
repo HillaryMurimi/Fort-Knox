@@ -22,14 +22,17 @@ const organizationSubscriptionSchema = new Schema({
   billingEmail: { type: String, select: false },
   providerEmailToken: { type: String, select: false },
   gracePeriodEndsAt: { type: Date },
+  renewalAuthorizationCode: { type: String, select: false },
+  renewalState: { type: String, enum: ['NOT_SCHEDULED', 'SCHEDULING', 'SCHEDULED', 'REQUIRES_ATTENTION'] },
+  renewalAttemptedAt: Date,
   metadata: { type: Schema.Types.Mixed, default: {} },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   updatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 
-organizationSubscriptionSchema.index({ provider: 1, providerSubscriptionId: 1 }, { unique: true, sparse: true });
-organizationSubscriptionSchema.index({ provider: 1, providerCheckoutReference: 1 }, { unique: true, sparse: true });
+organizationSubscriptionSchema.index({ provider: 1, providerSubscriptionId: 1 }, { unique: true, partialFilterExpression: { providerSubscriptionId: { $type: 'string' } } });
+organizationSubscriptionSchema.index({ provider: 1, providerCheckoutReference: 1 }, { unique: true, partialFilterExpression: { providerCheckoutReference: { $type: 'string' } } });
 organizationSubscriptionSchema.index({ provider: 1, checkoutReferences: 1 });
-organizationSubscriptionSchema.index({ provider: 1, providerPlanCode: 1 }, { unique: true, sparse: true });
+organizationSubscriptionSchema.index({ provider: 1, providerPlanCode: 1 }, { unique: true, partialFilterExpression: { providerPlanCode: { $type: 'string' } } });
 export type OrganizationSubscriptionDocument = InferSchemaType<typeof organizationSubscriptionSchema>;
 export const OrganizationSubscription = model('OrganizationSubscription', organizationSubscriptionSchema);

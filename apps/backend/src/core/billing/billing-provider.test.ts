@@ -73,4 +73,30 @@ describe('PaystackBillingProvider', () => {
     expect(url).toBe('https://api.paystack.test/subscription/SUB_123');
     expect(request.headers).toMatchObject({ authorization: 'Bearer sk_test_pmcc' });
   });
+  it('collects the exact prepaid amount without Paystack overriding it with a plan amount', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({status:true,message:'ok',data:{reference:'prepaid-ref',authorization_url:'https://checkout.paystack.com/prepaid'}}),{status:200}));
+    vi.stubGlobal('fetch',fetchMock);
+    await new PaystackBillingProvider().retryCheckout('PLN_control',{customerReference:'CUS_owner',email:'owner@example.com',organizationId:'org1',planKey:'CONTROL',currency:'KES',amount:11000,interval:'MONTH',prepaidMonths:3,initialAmount:33000,checkoutReference:'prepaid-ref',callbackPath:'/onboarding'});
+    const body=JSON.parse(String((fetchMock.mock.calls[0] as [string,RequestInit])[1].body));
+    expect(body.amount).toBe('3300000'); expect(body.reference).toBe('prepaid-ref'); expect(body).not.toHaveProperty('plan'); expect(body.callback_url).toMatch(/\/onboarding$/);
+  });
+  it('schedules the first recurring debit at prepaid expiry, with the verified authorization', async () => {
+    const startsAt=new Date('2027-01-02T08:30:00Z');
+    const fetchMock=vi.fn().mockResolvedValue(new Response(JSON.stringify({status:true,message:'ok',data:{subscription_code:'SUB_deferred',next_payment_date:startsAt.toISOString()}}),{status:200}));
+    vi.stubGlobal('fetch',fetchMock);
+    await new PaystackBillingProvider().scheduleRenewal({customerCode:'CUS_owner',planCode:'PLN_control',authorizationCode:'AUTH_fixture',startsAt});
+    expect(JSON.parse(String((fetchMock.mock.calls[0] as [string,RequestInit])[1].body))).toMatchObject({customer:'CUS_owner',plan:'PLN_control',authorization:'AUTH_fixture',start_date:startsAt.toISOString()});
+  });
+  it('recovers renewal ownership through full provider subscription details, including numeric plan summaries', async () => {
+    const responses=[{subscriptions:[{subscription_code:'SUB_existing',plan:1234}]},{subscription_code:'SUB_existing',customer:{customer_code:'CUS_owner'},plan:{plan_code:'PLN_control'},next_payment_date:'2027-01-02T08:30:00Z',email_token:'fixture-private'}];
+    const fetchMock=vi.fn().mockImplementation(async()=>new Response(JSON.stringify({status:true,message:'ok',data:responses.shift()}),{status:200}));
+    vi.stubGlobal('fetch',fetchMock);
+    await expect(new PaystackBillingProvider().findRenewal('CUS_owner','PLN_control')).resolves.toMatchObject({subscription_code:'SUB_existing',next_payment_date:'2027-01-02T08:30:00Z'});
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it('rejects a provider schedule that would debit before prepaid expiry', async () => {
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({status:true,message:'ok',data:{subscription_code:'SUB_early',next_payment_date:'2026-11-02T08:30:00Z'}}),{status:200})));
+    await expect(new PaystackBillingProvider().scheduleRenewal({customerCode:'CUS_owner',planCode:'PLN_control',authorizationCode:'AUTH_fixture',startsAt:new Date('2027-01-02T08:30:00Z')})).rejects.toThrow('PAYSTACK_RENEWAL_SCHEDULE_INVALID');
+  });
+
 });
