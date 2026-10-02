@@ -39,6 +39,7 @@ const envSchema = z.object({
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
   OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
+  GUIDED_PILOT_DAYS: z.coerce.number().int().min(1).max(60).default(14),
   ADMIN_OTP_TTL_SECONDS: z.coerce.number().int().min(60).max(300).default(180),
   ADMIN_FLOW_SECONDS: z.coerce.number().int().min(300).max(1200).default(900),
   ADMIN_RESEND_SECONDS: z.coerce.number().int().min(30).max(300).default(60),

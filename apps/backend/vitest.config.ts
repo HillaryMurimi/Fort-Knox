@@ -7,5 +7,6 @@ export default defineConfig({
     pool: 'threads',
     maxWorkers: 1,
     fileParallelism: false,
+    setupFiles: ['./tests/helpers/mongo-runtime.ts'],
   },
 });

@@ -17,6 +17,7 @@ export class ResourceScopeService {
   }
 
   private static assertPermission(auth: AuthenticatedUser, permission: string, resource: ResourceContext): void {
+    AuthorizationService.assertPilotWrite(auth, permission, resource.organizationId);
     const membership = auth.isPlatformAdmin ? undefined : AuthorizationService.getMembership(auth, resource.organizationId);
     if (!auth.isPlatformAdmin && !membership!.permissions.includes(permission)) {
       throw new AppError(403, 'FORBIDDEN', 'You are not authorized to perform this action on this resource');

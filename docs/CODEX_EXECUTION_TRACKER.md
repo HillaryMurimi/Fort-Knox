@@ -918,3 +918,8 @@ Modified:
 - `docs/ROLES_PERMISSIONS.md`
 - `docs/SECURITY.md`
 - `docs/TESTING_STRATEGY.md`
+
+
+## Pain-first sales demonstration and guided pilot (2026-10-02)
+
+2026-10-02: Audited clean existing main at cfb82a6 before changes; added isolated sales-conversion engine, actual-activity guided pilot, validated bulk import and sales intelligence. Existing public demo, SUPER_ADMIN MFA, landlord agreement/prepaid activation preserved. Gates and final inventory are recorded in SALES_DEMO_RELEASE_REPORT.md.

@@ -3,8 +3,8 @@ import { model, Schema } from 'mongoose';
 const salesLeadSchema = new Schema({
   reference: { type: String, required: true, unique: true, index: true },
   name: { type: String, required: true, trim: true, maxlength: 160 },
-  phone: { type: String, required: true, trim: true, maxlength: 40 },
-  email: { type: String, required: true, lowercase: true, trim: true, maxlength: 240 },
+  phone: { type: String, trim: true, maxlength: 40 },
+  email: { type: String, lowercase: true, trim: true, maxlength: 240 },
   properties: { type: Number, required: true, min: 1 },
   units: { type: String, required: true, trim: true, maxlength: 40 },
   challenge: { type: String, required: true, trim: true, maxlength: 5000 },
@@ -16,6 +16,9 @@ const salesLeadSchema = new Schema({
   priority: { type: String, default: 'NURTURE' },
   nextAction: { type: String, default: 'Schedule demo' },
   nextActionDate: Date,
+  createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  demoProfile: { type: Schema.Types.Mixed },
+  pilotOrganizationId: { type: Schema.Types.ObjectId, ref: 'Organization' },
   crm: { type: Map, of: Schema.Types.Mixed, default: () => ({}) },
 }, { timestamps: true });
 

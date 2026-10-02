@@ -1,3 +1,4 @@
+import { Organization } from '../../src/database/models/Organization.js';
 import { mockAdminAssurance } from '../helpers/admin-assurance.js';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
@@ -11,6 +12,7 @@ import { OrganizationMembership } from '../../src/database/models/OrganizationMe
 import { PlatformMonitorAlert } from '../../src/database/models/PlatformMonitoring.js';
 afterEach(() => vi.restoreAllMocks());
 function identity(role: string, admin = false) {
+  vi.spyOn(Organization, 'find').mockReturnValue({ distinct: async () => [] } as never);
   const userId = new Types.ObjectId(), roleId = new Types.ObjectId(), organizationId = new Types.ObjectId();
   vi.spyOn(User, 'findById').mockReturnValue({ lean: async () => ({ _id: userId, status: 'ACTIVE', isPlatformAdmin: admin }) } as never);
   vi.spyOn(OrganizationMembership, 'find').mockReturnValue({ lean: async () => [{ organizationId, roleIds: [roleId], scope: { allProperties: true } }] } as never);

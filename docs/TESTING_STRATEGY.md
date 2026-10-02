@@ -253,3 +253,8 @@ New unit/security/Mongo HTTP E2E suites cover Control/Fort Knox, MRR/ARR/prepaid
 ## Administrator authentication certification
 
 The actual backend E2E command now includes admin-auth.e2e.test.ts. Random code delivery is captured only in test memory/private browser IPC. Coverage proves both stages, no partial session, legacy bypass denial, expiry/replay/concurrency, throttling/lockout, notification jobs, audit rollback, revocation, RBAC and owned-session isolation. Existing domain assertions remain; their admin fixtures now represent completed privileged sessions. Browser Plan Performance verification includes both channel stages, direct-navigation bypass denial, memory-only storage and logout.
+
+
+## Pain-first sales demonstration and guided pilot (2026-10-02)
+
+Sales policy/data/status/CSV tests complement real Mongo replica-set HTTP Control/Fort Knox/reset/concurrency/rollback/isolation/pilot/import/activation/commercial-conversion coverage. verify:sales-demo runs real browser workflows at desktop/tablet/mobile in light/dark with keyboard and accessible-control checks. It uses a private isolated test server, ephemeral credentials and private MFA IPC, never production integrations. Both browser journeys are included in Quality CI.

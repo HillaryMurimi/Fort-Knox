@@ -371,6 +371,8 @@ export async function api<T>(
    */
   if (
     DEV_DEMO_MODE &&
+    !path.startsWith('/sales/') &&
+    !path.startsWith('/platform-control/sales-intelligence') &&
     authenticated &&
     typeof window !== 'undefined'
   ) {

@@ -200,3 +200,8 @@ generated modules substantially safer and easier to review.
 ## SUPER_ADMIN operating intelligence release
 
 Implemented Plan Performance and retained platform Morning Brief without a parallel billing/monitoring system. Follow-ups require authoritative data: legacy commercial snapshot evidence, reliable gateway probes, complete historical churn cohorts, scheduled delivery and production-scale benchmarks. Provider production approval and deployment remain intentionally on hold.
+
+
+## Pain-first sales demonstration and guided pilot (2026-10-02)
+
+The pain-first demo and guided activation release extends existing authorities rather than replacing working demo/auth/finance/commercial functionality. New flows are tracked by verified business outcomes and conversion, with realistic deterministic seed scenarios. See SALES_DEMO_AUDIT.md, SALES_RUNBOOK.md and SALES_DEMO_RELEASE_REPORT.md.

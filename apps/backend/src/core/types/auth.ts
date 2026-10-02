@@ -23,6 +23,7 @@ export interface AuthenticatedUser {
   mfaVerifiedAt?: Date;
   memberships: AuthenticatedMembership[];
   activeOrganizationId?: Types.ObjectId;
+  readOnlyOrganizationIds?: Types.ObjectId[];
 }
 
 declare global {

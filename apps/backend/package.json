@@ -23,7 +23,7 @@
     "readiness:create-index": "tsx scripts/create-readiness-index.ts",
     "phase-a:inventory": "tsx scripts/check-phase-a-inventory.ts",
     "billing:reconcile": "tsx scripts/reconcile-billing.ts",
-    "certify:release": "tsx scripts/certify-release.ts",
+    "certify:release": "node --import tsx scripts/certify-release.ts",
     "verify:production": "npm run typecheck && npm run lint && npm test && npm run build && npm run certify:release",
     "test:e2e": "node scripts/run-e2e.mjs",
     "auth:recover-admin-channels": "tsx scripts/recover-admin-channels.ts",
@@ -32,7 +32,8 @@
     "seed:super-admin": "tsx src/database/seeds/super-admin.seed.ts",
     "contracts:migrate-indexes": "tsx scripts/migrate-contract-indexes.ts",
     "business:create-indexes": "tsx scripts/create-business-indexes.ts",
-    "seed:platform-business-demo": "tsx scripts/seed-platform-business-demo.ts"
+    "seed:platform-business-demo": "tsx scripts/seed-platform-business-demo.ts",
+    "sales:create-indexes": "node --import tsx scripts/create-sales-indexes.ts"
   },
   "keywords": [],
   "author": "",

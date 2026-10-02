@@ -29,7 +29,7 @@ const maintenanceRequestSchema = new Schema({
   metadata: { type: Map, of: Schema.Types.Mixed, default: () => ({}) },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   updatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
-}, { timestamps: true });
+}, { timestamps: true, optimisticConcurrency:true });
 maintenanceRequestSchema.index({ organizationId: 1, unitId: 1, status: 1, createdAt: -1 });
 maintenanceRequestSchema.index({ organizationId: 1, contractorId: 1, status: 1 });
 maintenanceRequestSchema.index({ organizationId: 1, priority: 1, status: 1 });

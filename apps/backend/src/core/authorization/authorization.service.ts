@@ -19,7 +19,13 @@ export class AuthorizationService {
     return membership;
   }
 
+  static assertPilotWrite(auth: AuthenticatedUser, permission: string, organizationId: Types.ObjectId | string): void {
+    if (!['.view','.download','.export'].some(suffix=>permission.endsWith(suffix)) && !permission.startsWith('billing.') && auth.readOnlyOrganizationIds?.some(id => same(id, organizationId)))
+      throw new AppError(410, 'PILOT_EXPIRED', 'Pilot expired. Review commercial activation; existing records remain readable.');
+  }
+
   static can(auth: AuthenticatedUser, permission: string, resource: ResourceContext): boolean {
+    if (!['.view','.download','.export'].some(suffix=>permission.endsWith(suffix)) && !permission.startsWith('billing.') && auth.readOnlyOrganizationIds?.some(id=>same(id,resource.organizationId))) return false;
     if (auth.isPlatformAdmin) return true;
     const membership = auth.memberships.find((m) => same(m.organizationId, resource.organizationId));
     if (!membership || !membership.permissions.includes(permission)) return false;
@@ -35,6 +41,7 @@ export class AuthorizationService {
   }
 
   static assertPermission(auth: AuthenticatedUser, permission: string, organizationId: Types.ObjectId | string): void {
+    this.assertPilotWrite(auth, permission, organizationId);
     if (auth.isPlatformAdmin) return;
     const membership = this.getMembership(auth, organizationId);
     if (!membership.permissions.includes(permission)) {
@@ -43,6 +50,7 @@ export class AuthorizationService {
   }
 
   static assertCan(auth: AuthenticatedUser, permission: string, resource: ResourceContext): void {
+    this.assertPilotWrite(auth, permission, resource.organizationId);
     if (!this.can(auth, permission, resource)) throw new AppError(403, 'FORBIDDEN', 'You are not authorized to perform this action on this resource');
   }
 

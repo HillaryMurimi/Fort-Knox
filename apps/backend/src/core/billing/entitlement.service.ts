@@ -1,3 +1,5 @@
+import { Organization } from '../../database/models/Organization.js';
+import { SubscriptionPlan } from '../../database/models/SubscriptionPlan.js';
 import { OrganizationSubscription } from '../../database/models/OrganizationSubscription.js';
 import { Property } from '../../database/models/Property.js';
 import { Unit } from '../../database/models/Unit.js';
@@ -10,7 +12,14 @@ export type LimitMetric = 'PROPERTIES' | 'UNITS' | 'USERS' | 'TENANTS';
 export class EntitlementService {
   static async getPlan(organizationId: string) {
     const subscription = await OrganizationSubscription.findOne({ organizationId }).populate('planId').lean();
-    if (!subscription || !['ACTIVE', 'TRIALING'].includes(subscription.status) || (subscription.provider === 'PAYSTACK' && subscription.currentPeriodEnd <= new Date())) throw new AppError(402, 'SUBSCRIPTION_REQUIRED', 'An active subscription is required');
+    if (!subscription || !['ACTIVE', 'TRIALING'].includes(subscription.status) || (subscription.provider === 'PAYSTACK' && subscription.currentPeriodEnd <= new Date()) || (subscription.status === 'TRIALING' && subscription.trialEndsAt && subscription.trialEndsAt <= new Date())) {
+      const organization = await Organization.findById(organizationId).select('guidedPilot status onboarding').lean();
+      if (organization?.status === 'ACTIVE' && organization.onboarding?.state !== 'ACTIVE' && organization.guidedPilot && organization.guidedPilot.expiresAt > new Date()) {
+        const plan = await SubscriptionPlan.findOne({ key: organization.guidedPilot.planKey, active: true }).lean();
+        if (plan) return plan as unknown as { _id: unknown; key: string; entitlements: { maxProperties: number; maxUnits: number; maxUsers: number; maxTenants: number; features: string[] } };
+      }
+      throw new AppError(402, 'SUBSCRIPTION_REQUIRED', 'An active subscription or unexpired guided pilot is required');
+    }
     return subscription.planId as unknown as { _id: unknown; key: string; entitlements: { maxProperties: number; maxUnits: number; maxUsers: number; maxTenants: number; features: string[] } };
   }
 

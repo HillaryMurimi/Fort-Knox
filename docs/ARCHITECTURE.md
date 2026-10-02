@@ -426,3 +426,8 @@ The existing control plane now includes backend Mongo aggregation and retained P
 ## SUPER_ADMIN dual-channel authentication
 
 The existing auth/provider/session/notification architecture now enforces password, independently verified email and SMS, live server-bound privileged sessions and sensitive step-up. See [architecture, threat boundaries and operator runbook](SUPER_ADMIN_AUTHENTICATION.md).
+
+
+## Pain-first sales demonstration and guided pilot (2026-10-02)
+
+Authenticated sales sessions extend the Sales module with isolated deterministic snapshots, revisioned transactional commands and append-only sales value events. Organization guided-pilot metadata supplies a bounded grant through the existing SubscriptionPlan/EntitlementService. Existing hierarchy, maintenance, import and commercial authorities remain in use. See SALES_DEMO_AUDIT.md and SALES_RUNBOOK.md.

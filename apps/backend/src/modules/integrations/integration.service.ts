@@ -1,3 +1,4 @@
+import { assertOperationalIntegrationAllowed } from '../sales/pilot-safety.js';
 import { settlePrepaidInvoice, settlePrepaidRenewal } from '../billing/prepaid-billing.service.js';
 import mongoose, { Types } from 'mongoose';
 import { Payment, type PaymentDocument } from '../../database/models/Payment.js';
@@ -59,6 +60,7 @@ export class IntegrationService {
     if (providerKey !== 'MPESA' && providerKey !== 'PAYSTACK') {
       throw new AppError(400, 'UNSUPPORTED_PAYMENT_PROVIDER', 'This provider cannot initiate rent checkout');
     }
+    await assertOperationalIntegrationAllowed(p.organizationId);
     const organization = await Organization.findById(p.organizationId).select('regionalProfile').lean();
     if (!organization) throw new AppError(404, 'ORGANIZATION_NOT_FOUND', 'Organization not found');
     assertOperatingRail(organization.regionalProfile, p.currency, providerKey);
@@ -212,6 +214,7 @@ export class IntegrationService {
   private static async reconcileProviderPayment(paymentId: string) {
     const payment = await Payment.findById(paymentId);
     if (!payment?.provider || !payment.providerTransactionId) return null;
+    await assertOperationalIntegrationAllowed(payment.organizationId);
     const providerKey = payment.provider as PaymentProviderKey;
     const result = await withRetry(
       () => IntegrationDispatcher.payment(providerKey).query(payment.providerTransactionId!),
@@ -347,6 +350,7 @@ export class IntegrationService {
     const checkout = String(callback.CheckoutRequestID ?? '');
     const p = await Payment.findOne({ provider: 'MPESA', providerTransactionId: checkout });
     if (!p) return;
+    await assertOperationalIntegrationAllowed(p.organizationId);
 
     const code = Number(callback.ResultCode ?? -1);
     if (code !== 0) {
@@ -495,6 +499,7 @@ export class IntegrationService {
       return;
     }
 
+    await assertOperationalIntegrationAllowed(payment.organizationId);
     const result: PaymentInitiationResult = {
       provider: 'PAYSTACK',
       providerTransactionId: reference,

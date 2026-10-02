@@ -1,3 +1,4 @@
+import { assertOperationalIntegrationAllowed } from '../sales/pilot-safety.js';
 import { Types } from "mongoose";
 import { SecurityCamera } from "../../database/models/SecurityCamera.js";
 import { SecurityEvent } from "../../database/models/SecurityEvent.js";
@@ -265,6 +266,7 @@ export class SecurityService {
     if (!c) throw new AppError(404, "CAMERA_NOT_FOUND", "Camera not found");
     await BillingService.assertFeature(String(c.organizationId), "security");
     await authorizeStored(auth, c, "cctv.view");
+    await assertOperationalIntegrationAllowed(c.organizationId);
     await assertSwitchEnabled(c.provider === "NVR" ? "NVR_GATEWAY" : "CCTV_GATEWAY");
     if (!c.streamRef)
       throw new AppError(
@@ -279,6 +281,7 @@ export class SecurityService {
     if (!c) throw new AppError(404, "CAMERA_NOT_FOUND", "Camera not found");
     await BillingService.assertFeature(String(c.organizationId), "security");
     await authorizeStored(auth, c, "cctv.playback");
+    await assertOperationalIntegrationAllowed(c.organizationId);
     await assertSwitchEnabled(c.provider === "NVR" ? "NVR_GATEWAY" : "CCTV_GATEWAY");
     if (!c.playbackRef)
       throw new AppError(

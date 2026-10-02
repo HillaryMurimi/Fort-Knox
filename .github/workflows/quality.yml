@@ -57,3 +57,7 @@ jobs:
         env:
           CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
         run: npm run verify:platform-business
+      - name: Pain-first sales and guided-pilot browser journeys
+        env:
+          CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
+        run: npm run verify:sales-demo

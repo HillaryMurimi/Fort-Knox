@@ -241,3 +241,8 @@ All platform intelligence endpoints independently enforce platform administrator
 ## SUPER_ADMIN privileged assurance
 
 Every platform-admin request requires a live, unrevoked, contact/version-bound session with password/email/SMS proof. Generic/legacy/social session paths cannot bypass it. Admin OTPs are purpose-bound HMAC/bcrypt hashes, atomic and rate-limited. Privileged tokens are memory-only; server idle/absolute expiry and sensitive step-up remain authoritative. See [security controls and audited recovery](SUPER_ADMIN_AUTHENTICATION.md).
+
+
+## Pain-first sales demonstration and guided pilot (2026-10-02)
+
+Sales simulation has no operational-provider dependency and never writes live domain finance. Server scopes sessions by seller, validates synthetic resource IDs, enforces plan capability and transactionally retains audit. Production unique-index checks fail closed. Guided-pilot operational provider/camera access is blocked until verified commercial ACTIVE; in-app and existing account/commercial verification remain available. Expiry is server-authoritative across write permissions and imports. Imports cannot overwrite global identities and rollback atomically. Client development demo interception cannot handle privileged sales endpoints.

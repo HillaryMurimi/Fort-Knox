@@ -1,3 +1,4 @@
+import { salesDemoPaths } from '../../modules/sales/sales-demo.openapi.js';
 import { platformBusinessPaths } from '../../modules/platform-control/platform-business.openapi.js';
 import { landlordContractPaths } from '../../modules/onboarding/landlord-onboarding.openapi.js';
 import { API_CONTRACT_VERSION, API_VERSION } from './api-contract.js';
@@ -39,6 +40,7 @@ export function buildOpenApiDocument() {
       },
     },
     paths: {
+      ...salesDemoPaths,
       ...platformBusinessPaths,
       ...landlordContractPaths,
       '/platform-control/monitoring': { get: { summary: 'Platform monitoring overview (Super Admin only)', description: 'Seven priority areas with actual record/telemetry values, source/window metadata and null for unavailable data. In-process HTTP telemetry is not fleet uptime. Includes declared switch dependencies and enforcement limitations.', responses: { '200': { description: 'Current scoped environment snapshot; missing sources explicitly unavailable' }, '401': { description: 'Authentication required' }, '403': { description: 'Platform administration required' } } } },

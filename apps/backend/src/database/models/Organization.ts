@@ -20,10 +20,21 @@ const organizationSchema = new Schema({
     invoiceId: { type: Schema.Types.ObjectId, ref: 'SubscriptionInvoice' },
     activatedAt: Date, paymentVerifiedAt: Date, attentionCode: String, stateChangedAt:Date,
   }, { _id: false }) },
+  guidedPilot: { type: new Schema({
+    leadId: { type: Schema.Types.ObjectId, ref: 'SalesLead', required: true },
+    demoSessionId: { type: Schema.Types.ObjectId, ref: 'SalesDemoSession', required: true },
+    ownerUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    planKey: { type: String, enum: ['CONTROL', 'FORT_KNOX'], required: true },
+    startedAt: { type: Date, required: true }, expiresAt: { type: Date, required: true },
+    durationDays: { type: Number, required: true, min: 1, max: 60 },
+    activationMilestoneAt: Date,
+  }, { _id: false }) },
   settings: { type: Schema.Types.Mixed, default: {} },
   regionalProfile: { type: regionalProfileSchema, default: () => ({}) },
 }, { timestamps: true });
 
+organizationSchema.index({ 'guidedPilot.demoSessionId': 1 }, { name:'guided_pilot_demo_unique', unique: true, partialFilterExpression: { 'guidedPilot.demoSessionId': { $type: 'objectId' } } });
+organizationSchema.index({'guidedPilot.leadId':1},{name:'guided_pilot_lead_unique',unique:true,partialFilterExpression:{'guidedPilot.leadId':{$type:'objectId'}}});
 organizationSchema.pre('save',function(){if(this.isNew&&this.onboarding&&!this.onboarding.stateChangedAt)this.onboarding.stateChangedAt=new Date();});
 organizationSchema.index({createdAt:1},{name:'platform_bi_signups_at'});
 organizationSchema.index({'onboarding.activatedAt':1},{name:'platform_bi_activations_at'});

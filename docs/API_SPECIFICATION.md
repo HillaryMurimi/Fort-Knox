@@ -582,3 +582,8 @@ Added authenticated, platform-admin-only business-intelligence overview/drill-do
 ## SUPER_ADMIN dual-channel MFA
 
 Normal /auth/login starts administrator EMAIL then SMS verification. New /auth/admin-mfa/{verify,resend,step-up}, /auth/sessions, /auth/sessions/:sessionId/revoke, /auth/logout-all and /auth/platform-admins extend existing auth. Privileged cookie operations require configured Origin and X-PCC-Auth: 1. Old single-code admin access is rejected. See [complete endpoint and security contract](SUPER_ADMIN_AUTHENTICATION.md).
+
+
+## Pain-first sales demonstration and guided pilot (2026-10-02)
+
+Authenticated /sales/demos catalog/list/prepare/view/commands/pilot and /sales/organizations/:organizationId/pilot progress/insight/import-preview/import-confirm extend the Sales API. /platform-control/sales-intelligence is SUPER_ADMIN-only. Commands require expectedRevision and commandId; demo resource IDs must be synthetic. Import confirmation requires validated rows, matching SHA-256 digest and confirm:true. OpenAPI includes request schemas. Reset never accepts a live organization ID.

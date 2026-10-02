@@ -1,3 +1,4 @@
+import { Organization } from '../../src/database/models/Organization.js';
 import { Types } from 'mongoose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SecurityCamera } from '../../src/database/models/SecurityCamera.js';
@@ -9,6 +10,7 @@ import type { AuthenticatedUser } from '../../src/core/types/auth.js';
 afterEach(() => vi.restoreAllMocks());
 const auth: AuthenticatedUser = { userId: new Types.ObjectId(), isPlatformAdmin: true, memberships: [] };
 function camera(provider: string) {
+  vi.spyOn(Organization, 'findById').mockReturnValue({ select() { return this; }, lean: async () => ({ onboarding: { state: 'ACTIVE' } }) } as never);
   const record = { _id: new Types.ObjectId(), organizationId: new Types.ObjectId(), propertyId: new Types.ObjectId(), provider, streamRef: 'camera-live', playbackRef: 'camera-playback' };
   vi.spyOn(SecurityCamera, 'findById').mockReturnValue({ lean: async () => record } as never);
   vi.spyOn(BillingService, 'assertFeature').mockResolvedValue();

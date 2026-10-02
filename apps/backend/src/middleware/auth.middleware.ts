@@ -1,3 +1,4 @@
+import { Organization } from '../database/models/Organization.js';
 import type { RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import { Types } from 'mongoose';
@@ -42,7 +43,9 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
     const memberships = await OrganizationMembership.find({ userId: user._id, status: 'ACTIVE' }).lean();
     const roleIds = memberships.flatMap((m) => m.roleIds);
     const roles = await Role.find({ _id: { $in: roleIds } }).lean();
+    const readOnlyOrganizationIds = memberships.length ? await Organization.find({ _id: { $in: memberships.map(m => m.organizationId) }, 'guidedPilot.expiresAt': { $lte: new Date() }, 'onboarding.state': { $ne: 'ACTIVE' } }).distinct('_id') : [];
     const authContext: AuthenticatedUser = {
+      readOnlyOrganizationIds,
       userId: user._id,
       isPlatformAdmin: !!user.isPlatformAdmin,
       ...(privilegedSession ? { sessionId: privilegedSession._id, mfaVerifiedAt: authEvidence(privilegedSession.mfaVerifiedAt) } : {}),

@@ -1,3 +1,4 @@
+import { assertOperationalIntegrationAllowed } from '../sales/pilot-safety.js';
 import mongoose, { Types, type HydratedDocument } from 'mongoose';
 import { RentCharge, type RentChargeDocument } from '../../database/models/RentCharge.js';
 import { Payment } from '../../database/models/Payment.js';
@@ -75,6 +76,7 @@ export class FinanceService {
     if(data.country!==(organization.regionalProfile?.countryCode??'KE'))throw new AppError(409,'PAYMENT_DESTINATION_COUNTRY_MISMATCH','Destination country must match the organization');
     let providerFields:Record<string,unknown>;let status:'ACTIVE'|'PENDING_PROVIDER_SETUP'='PENDING_PROVIDER_SETUP';let verified=false;
     if(data.provider==='PAYSTACK'){
+      await assertOperationalIntegrationAllowed(orgId);
       const subaccount=await new PaystackProvider().createSubaccount({businessName:data.businessName,bankCode:data.bankCode,accountNumber:data.accountNumber,percentageCharge:data.percentageCharge,primaryContactEmail:data.contactEmail,primaryContactPhone:data.contactPhone,metadata:{organizationId}});
       status=subaccount.active?'ACTIVE':'PENDING_PROVIDER_SETUP';verified=Boolean(subaccount.is_verified);
       providerFields={paystackSubaccountCode:subaccount.subaccount_code,settlementBankCode:data.bankCode,accountName:subaccount.account_name??subaccount.business_name,accountNumberLast4:data.accountNumber.slice(-4)};

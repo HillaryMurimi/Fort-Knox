@@ -18,6 +18,7 @@ const routes = [
   ["post", "/morning-briefs"],
 ] as const;
 function identity(role: string, admin = false) {
+  vi.spyOn(Organization, 'find').mockReturnValue({ distinct: async () => [] } as never);
   const userId = new Types.ObjectId(),
     roleId = new Types.ObjectId(),
     organizationId = new Types.ObjectId();

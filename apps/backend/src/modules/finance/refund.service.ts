@@ -1,3 +1,4 @@
+import { assertOperationalIntegrationAllowed } from '../sales/pilot-safety.js';
 import mongoose from 'mongoose';
 import { Types } from 'mongoose';
 import { Payment } from '../../database/models/Payment.js';
@@ -29,6 +30,7 @@ export class RefundService {
     const transactionReference = payment.providerTransactionId;
     if (payment.provider !== 'PAYSTACK' || !transactionReference) throw new AppError(409, 'REFUND_PROVIDER_UNAVAILABLE', 'This payment does not support automated refunds');
     if (!integrationConfig.paystack.enabled || !integrationConfig.paystack.secretKey) throw new AppError(503, 'PAYSTACK_NOT_CONFIGURED', 'Paystack refunds are not configured');
+    await assertOperationalIntegrationAllowed(payment.organizationId);
     const provider = getRefundProvider('PAYSTACK');
     if (!provider) throw new AppError(503, 'REFUND_PROVIDER_UNAVAILABLE', 'Refund provider is unavailable');
     const amountMinorUnits = moneyFromMajorUnits(payment.amount, payment.currency).minorUnits;
@@ -103,6 +105,7 @@ export class RefundService {
     const refund = await this.get(auth, paymentId);
     if (!refund) throw new AppError(404, 'REFUND_NOT_FOUND', 'Refund request not found');
     if (!refund.providerRefundId) throw new AppError(409, 'REFUND_REQUIRES_MANUAL_REVIEW', 'Provider refund ID is unavailable; review the provider dashboard before taking further action');
+    await assertOperationalIntegrationAllowed(refund.organizationId);
     const provider = getRefundProvider('PAYSTACK');
     if (!provider) throw new AppError(503, 'REFUND_PROVIDER_UNAVAILABLE', 'Refund provider is unavailable');
     return this.recordProviderStatus(String(refund._id), await provider.getRefund(refund.providerRefundId));
@@ -116,6 +119,7 @@ export class RefundService {
     const providerRefundId = input.providerRefundId ?? refund.providerRefundId;
     if (!providerRefundId) throw new AppError(400, 'REFUND_ID_REQUIRED', 'Enter the refund ID found in Paystack; do not submit another refund');
     if (refund.providerRefundId && refund.providerRefundId !== providerRefundId) throw new AppError(409, 'REFUND_ID_MISMATCH', 'Refund ID does not match this request');
+    await assertOperationalIntegrationAllowed(payment.organizationId);
     const provider = getRefundProvider('PAYSTACK');
     if (!provider) throw new AppError(503, 'REFUND_PROVIDER_UNAVAILABLE', 'Refund provider is unavailable');
     const result = await provider.getRefund(providerRefundId);
@@ -141,6 +145,7 @@ export class RefundService {
   static async recordWebhookStatus(transactionReference: string, result: Omit<RefundResult, 'providerRefundId'> & { providerRefundId?: number }) {
     const payment = await Payment.findOne({ provider: 'PAYSTACK', providerTransactionId: transactionReference });
     if (!payment) return null;
+    await assertOperationalIntegrationAllowed(payment.organizationId);
     const refund = await PaymentRefund.findOne({ organizationId: payment.organizationId, paymentId: payment._id });
     if (!refund) return null;
     if (refund.amountMinorUnits !== result.amountMinorUnits || refund.currency !== result.currency.toUpperCase()) throw new AppError(409, 'REFUND_AMOUNT_MISMATCH', 'Provider refund does not match the payment');

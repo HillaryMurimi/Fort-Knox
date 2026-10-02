@@ -35,6 +35,10 @@ const criticalPaths = [
   '/billing/organizations/{organizationId}/subscription',
   '/billing/organizations/{organizationId}/invoices',
   '/organizations/{organizationId}/command-center',
+  '/sales/demos/{id}/commands',
+  '/sales/demos/{id}/pilot',
+  '/sales/organizations/{organizationId}/pilot/import/confirm',
+  '/platform-control/sales-intelligence',
 ];
 const paths = Object.keys(buildOpenApiDocument().paths);
 const missing = criticalPaths.filter((path) => !paths.includes(path));

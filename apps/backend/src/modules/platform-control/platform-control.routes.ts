@@ -1,3 +1,4 @@
+import { salesIntelligence } from '../sales/sales-demo.controller.js';
 import { Router } from 'express';
 import { requireAuth } from '../../middleware/auth.middleware.js';
 import { asyncHandler } from '../../core/http/asyncHandler.js';
@@ -6,6 +7,7 @@ import * as business from './platform-business.controller.js';
 
 export const platformControlRouter = Router();
 platformControlRouter.use(requireAuth);
+platformControlRouter.get('/sales-intelligence',asyncHandler(salesIntelligence));
 platformControlRouter.get('/business-intelligence',asyncHandler(business.businessOverview));
 platformControlRouter.get('/business-intelligence/drill-down',asyncHandler(business.businessDrill));
 platformControlRouter.post('/morning-briefs',asyncHandler(business.generateBrief));

@@ -42,6 +42,7 @@ export const ROLE_NAVIGATION: Record<SystemRoleKey, NavSection[]> = {
       label: "Command",
       items: [
         item("Command Center", "/dashboard"),
+        item("Guided pilot", "/pilot", "ListChecks"),
         item("Properties", "/properties", "Building2"),
         item("Finance", "/finance", "CircleDollarSign"),
         item("Maintenance", "/maintenance", "Wrench"),
@@ -165,6 +166,8 @@ export const ROLE_NAVIGATION: Record<SystemRoleKey, NavSection[]> = {
       label: "Platform",
       items: [
         item("Platform Overview", "/admin", "Globe2"),
+        item("Sales demonstration", "/sales-demo", "Workflow"),
+        item("Sales intelligence", "/sales-intelligence", "LineChart"),
         item("Organizations", "/platform", "Building2"),
         item("Users & Access", "/admin#users", "Users"),
         item("Roles & Permissions", "/admin#roles", "KeyRound"),
@@ -319,6 +322,7 @@ export function canPresentRoute(
    * Settings remains globally presentable for authenticated application
    * users. Backend APIs must still enforce access to privileged settings.
    */
+  if (normalizedPath === "/sales-demo" && permissions.includes("sales.demo.manage")) return true;
   if (normalizedPath === "/settings") {
     return true;
   }

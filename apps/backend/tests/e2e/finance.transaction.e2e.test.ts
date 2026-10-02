@@ -1,3 +1,4 @@
+import { Organization } from '../../src/database/models/Organization.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose, { Types } from 'mongoose';
@@ -59,6 +60,7 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
       floorId: new Types.ObjectId(), unitId: new Types.ObjectId(), tenantId: new Types.ObjectId(),
       tenancyId: new Types.ObjectId(), actorId: new Types.ObjectId(),
     };
+    await Organization.create({_id:ids.organizationId,name:'Finance fixture',slug:`finance-${ids.organizationId}`});
     const charges = await RentCharge.create([50, 50].map((amount, index) => ({
       ...ids, periodStart: new Date(`2026-0${index + 8}-01`), periodEnd: new Date(`2026-0${index + 8}-28`),
       dueDate: new Date(`2026-0${index + 8}-05`), rentAmount: amount, totalAmount: amount,

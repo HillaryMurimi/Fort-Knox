@@ -13,7 +13,8 @@
         "verify:cinematic-demo": "node scripts/verify-cinematic-demo.mjs",
         "typecheck": "tsc --noEmit",
         "verify:production": "npm run typecheck && npm run lint && npm test && npm run build",
-        "verify:platform-business": "node scripts/verify-platform-business.mjs"
+        "verify:platform-business": "node scripts/verify-platform-business.mjs",
+        "verify:sales-demo": "node scripts/verify-sales-demo.mjs"
     },
     "dependencies": {
         "@tanstack/react-query": "^5.87.1",

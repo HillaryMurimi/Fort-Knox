@@ -606,3 +606,8 @@ Added immutable PlatformBrief snapshots with unique environment/dataset/idempote
 ## Administrator authentication evidence
 
 AdminAuthFlow stores temporary hashed password-bound workflows; User/OtpChallenge/RefreshSession extend existing security authorities. Platform security Notification/Job rows are transactionally queued without a fabricated organization. Explicit index repair and retention rationale: [SUPER_ADMIN authentication](SUPER_ADMIN_AUTHENTICATION.md).
+
+
+## Pain-first sales demonstration and guided pilot (2026-10-02)
+
+SalesLead adds optional discovery profile/seller/pilot linkage. SalesDemoSession holds SALES_DEMO snapshot/profile/revision/generation. SalesValueEvent holds append-only command/outcome evidence with unique sessionId+commandId. Organization adds guidedPilot owner/lead/demo/plan/duration/expiry/milestone with partial unique demoSessionId and leadId indexes. Additional scenarios for the same prospect reuse the existing owner-bound pilot without extending expiry. MaintenanceRequest uses optimistic concurrency; transitions and business audit commit together. No simulated Payment, RentCharge, SubscriptionInvoice or subscription is created. Pilot imports use existing models. Run sales:create-indexes once.

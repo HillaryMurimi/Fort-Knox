@@ -1,3 +1,4 @@
+import { EntitlementService } from '../../core/billing/entitlement.service.js';
 import { priceSnapshot, type CommercialSnapshot } from '../onboarding/contract-snapshot.js';
 import { startPrepaidCheckout, reconcilePrepaidCheckouts } from './prepaid-billing.service.js';
 import { SubscriptionPlan } from '../../database/models/SubscriptionPlan.js';
@@ -172,5 +173,5 @@ export class BillingService {
     return { expired, cancelled, upgraded, prepaid };
   }
 
-  static async assertFeature(organizationId: string, feature: string) { const sub=await OrganizationSubscription.findOne({organizationId}).populate('planId').lean(); if(!sub || !['ACTIVE','TRIALING'].includes(sub.status) || (sub.provider === 'PAYSTACK' && sub.currentPeriodEnd <= new Date())) throw new AppError(402,'SUBSCRIPTION_REQUIRED','An active subscription is required'); const plan=sub.planId as unknown as {entitlements?:{features?:string[]}}; if(!plan.entitlements?.features?.includes(feature)) throw new AppError(403,'FEATURE_NOT_ENTITLED',`Subscription does not include feature: ${feature}`); }
+  static async assertFeature(organizationId: string, feature: string) { return EntitlementService.assertFeature(organizationId, feature); }
 }

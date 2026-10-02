@@ -1,0 +1,431 @@
+import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import assert from "node:assert/strict";
+import { chromium } from "playwright";
+import { MongoMemoryReplSet } from "../../backend/node_modules/mongodb-memory-server/index.js";
+import { MongoInstance } from "../../backend/node_modules/mongodb-memory-server-core/lib/util/MongoInstance.js";
+const root = fileURLToPath(new URL("../../..", import.meta.url)),
+  backend = fileURLToPath(new URL("../../backend", import.meta.url)),
+  frontend = fileURLToPath(new URL("..", import.meta.url));
+const prepare = MongoInstance.prototype.prepareCommandArgs;
+MongoInstance.prototype.prepareCommandArgs = function () {
+  return [
+    ...prepare.call(this),
+    ...(process.platform === "win32" ? [] : ["--nounixsocket"]),
+  ];
+};
+const temporaryRoot = tmpdir();
+const children = [];
+const deliveredCodes = new Map();
+async function deliveredCode(channel) {
+  const end = Date.now() + 5000;
+  while (Date.now() < end) {
+    if (deliveredCodes.has(channel)) return deliveredCodes.get(channel);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error("Test delivery did not reach the private harness");
+}
+let mongo, browser, page;
+const apiPort = Number(process.env.PCC_SALES_TEST_API_PORT ?? 9016),
+  webPort = Number(process.env.PCC_SALES_TEST_WEB_PORT ?? 3016),
+  origin = "http://127.0.0.1:" + webPort,
+  password = randomBytes(24).toString("hex");
+function start(cwd, args, env) {
+  const child = spawn(process.execPath, args, {
+    cwd,
+    env: { ...process.env, ...env },
+    stdio: [
+      "ignore",
+      "pipe",
+      "pipe",
+      ...(args.includes("scripts/serve-sales-demo-test.ts") ? ["ipc"] : []),
+    ],
+  });
+  children.push(child);
+  child.on("message", (message) => {
+    if (message?.type === "PCC_TEST_MFA_DELIVERY")
+      deliveredCodes.set(message.channel, message.code);
+  });
+  let log = "";
+  child.stdout.on("data", (chunk) => {
+    log += chunk;
+  });
+  child.stderr.on("data", (chunk) => {
+    log += chunk;
+  });
+  child.on("exit", () => {
+    void writeFile(
+      temporaryRoot +
+        "/pcc-sales-browser-" +
+        (cwd.endsWith("backend") ? "api" : "web") +
+        ".log",
+      log,
+    );
+  });
+  return { child, log: () => log };
+}
+async function ready(url, processState) {
+  const deadline = Date.now() + 90000;
+  while (Date.now() < deadline) {
+    if (processState.child.exitCode !== null)
+      throw new Error("Test server exited: " + processState.log().slice(-3000));
+    try {
+      if ((await fetch(url)).ok) return;
+    } catch {
+      /* Wait for local server startup. */
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+  throw new Error(
+    "Server startup timed out: " + processState.log().slice(-3000),
+  );
+}
+try {
+  mongo = await MongoMemoryReplSet.create({
+    replSet: { count: 1 },
+    binary: process.env.MONGOMS_SYSTEM_BINARY
+      ? { systemBinary: process.env.MONGOMS_SYSTEM_BINARY }
+      : {},
+  });
+  const api = start(
+    backend,
+    ["--import", "tsx", "scripts/serve-sales-demo-test.ts"],
+    {
+      NODE_ENV: "test",
+      PORT: String(apiPort),
+      MONGODB_URI: mongo.getUri("sales-browser-test"),
+      JWT_ACCESS_SECRET:
+        "browser-test-access-secret-at-least-thirty-two-characters",
+      JWT_REFRESH_SECRET:
+        "browser-test-refresh-secret-at-least-thirty-two-characters",
+      WEB_ORIGIN: origin,
+      PCC_SALES_TEST_PASSWORD: password,
+      LOG_LEVEL: "fatal",
+    },
+  );
+  await ready("http://127.0.0.1:" + apiPort + "/api/v1/health", api);
+  const web = start(
+    frontend,
+    [
+      "node_modules/next/dist/bin/next",
+      "dev",
+      "--hostname",
+      "127.0.0.1",
+      "--port",
+      String(webPort),
+    ],
+    {
+      NODE_ENV: "development",
+      NEXT_PUBLIC_API_URL: "http://127.0.0.1:" + apiPort + "/api/v1",
+      NEXT_PUBLIC_DEV_AUTH_BYPASS: "false",
+      NEXT_PUBLIC_DEV_DEMO_MODE: "false",
+    },
+  );
+  await ready(origin + "/login", web);
+  browser = await chromium.launch({
+    headless: true,
+    ...(process.env.CHROMIUM_EXECUTABLE_PATH
+      ? { executablePath: process.env.CHROMIUM_EXECUTABLE_PATH }
+      : {}),
+    args: [
+      "--no-sandbox",
+      ...(process.env.PCC_SALES_TEST_SINGLE_PROCESS === "true"
+        ? ["--single-process", "--no-zygote"]
+        : []),
+    ],
+  });
+  const browserContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+  });
+  page = await browserContext.newPage();
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto(origin + "/login");
+  await page
+    .getByRole("tab", { name: "Email + Password", exact: true })
+    .click();
+  await page
+    .getByLabel("Email", { exact: true })
+    .fill("platform-browser@example.test");
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page
+    .getByRole("heading", { name: "Verify your email", exact: true })
+    .waitFor();
+  assert.equal(
+    await page.evaluate(() =>
+      localStorage.getItem("property-command-center.auth.session"),
+    ),
+    null,
+  );
+  const partial = await page.context().newPage();
+  await partial.goto(origin + "/platform");
+  await partial
+    .getByRole("button", { name: "Continue", exact: true })
+    .waitFor();
+  assert.ok(
+    partial.url().includes("/login"),
+    "Password-only navigation must not open platform screens",
+  );
+  await partial.close();
+  await page
+    .getByLabel("Email verification code")
+    .fill(await deliveredCode("EMAIL"));
+  await page.getByRole("button", { name: "Verify email", exact: true }).click();
+  await page
+    .getByRole("heading", { name: "Verify your phone", exact: true })
+    .waitFor();
+  const incomplete = await page.context().newPage();
+  await incomplete.goto(origin + "/platform");
+  await incomplete
+    .getByRole("button", { name: "Continue", exact: true })
+    .waitFor();
+  assert.ok(
+    incomplete.url().includes("/login"),
+    "Email-only navigation must not open platform screens",
+  );
+  await incomplete.close();
+  await page
+    .getByLabel("SMS verification code")
+    .fill(await deliveredCode("SMS"));
+  await page
+    .getByRole("button", { name: "Verify phone and sign in", exact: true })
+    .click();
+  await page.waitForURL((url) => url.pathname !== "/login");
+  await page.goto(origin + "/sales-demo");
+  await page
+    .getByLabel("Prospect / company name")
+    .fill("Acacia Discovery Portfolio");
+  await page.getByRole("button", { name: "Prepare demo", exact: true }).click();
+  await page
+    .getByRole("heading", { name: "Acacia Discovery Portfolio", exact: true })
+    .waitFor();
+  async function action(name) {
+    const done = page.waitForResponse(
+      (r) => r.url().includes("/commands") && r.request().method() === "POST",
+    );
+    await page.getByRole("button", { name, exact: true }).click();
+    const response = await done;
+    assert.equal(response.status(), 200, await response.text());
+    return (await response.json()).data;
+  }
+  await page.getByRole("button", { name: /Outstanding/ }).click();
+  await page
+    .getByRole("button", { name: "Investigate A01", exact: true })
+    .click();
+  await page.getByRole("region", { name: "Tenancy investigation" }).waitFor();
+  const paid = await action("Simulate payment");
+  assert.equal(paid.summary.outstandingMinor, 46400000);
+  assert.equal(paid.summary.overdueTenants, 16);
+  await page
+    .getByRole("button", { name: /Outstanding/ })
+    .filter({ hasText: "464,000" })
+    .waitFor();
+  await page.getByLabel("Investigate a problem").selectOption("MAINTENANCE");
+  await action("Simulate tenant reporting a leak");
+  for (const name of [
+    "Triage request",
+    "Assign caretaker / contractor",
+    "Submit simulated quotation",
+    "Approve maintenance",
+    "Start work",
+    "Complete repair",
+  ])
+    await action(name);
+  await page.getByText("COMPLETED", { exact: true }).first().waitFor();
+  await action("After evidence");
+  await page.getByRole("heading", { name: "Evidence retained" }).waitFor();
+  // Critical view: genuine keyboard focus, named controls, labels and no viewport spill.
+  const sizes = [
+    { width: 1440, height: 1000 },
+    { width: 834, height: 1112 },
+    { width: 390, height: 844 },
+  ];
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((t) => {
+      document.documentElement.classList.remove("light", "dark");
+      document.documentElement.classList.add(t);
+    }, theme);
+    for (const size of sizes) {
+      await page.setViewportSize(size);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({
+        path: temporaryRoot + `/pcc-sales-${theme}-${size.width}.png`,
+        fullPage: true,
+      });
+      assert.ok(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+        ),
+        "Sales cockpit must fit viewport " +
+          JSON.stringify(
+            await page.evaluate(() => ({
+              width: innerWidth,
+              scroll: document.documentElement.scrollWidth,
+              nodes: [...document.querySelectorAll("main *")]
+                .filter((e) => e.getBoundingClientRect().right > innerWidth + 1)
+                .slice(0, 12)
+                .map((e) => ({
+                  tag: e.tagName,
+                  cls: e.className,
+                  width: e.getBoundingClientRect().width,
+                  text: e.textContent.slice(0, 80),
+                })),
+            })),
+          ),
+      );
+      await page.screenshot({
+        path: temporaryRoot + `/pcc-sales-${theme}-${size.width}.png`,
+        fullPage: true,
+      });
+      const unnamed = await page
+        .locator("main button:visible")
+        .evaluateAll(
+          (elements) =>
+            elements.filter(
+              (e) => !e.textContent.trim() && !e.getAttribute("aria-label"),
+            ).length,
+        );
+      assert.equal(unnamed, 0, "Critical controls require accessible names");
+    }
+  }
+  await page.setViewportSize(sizes[0]);
+  await page.getByRole("button", { name: "Reset demo", exact: true }).focus();
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Reset demo", exact: true })
+      .evaluate((e) => e === document.activeElement),
+    true,
+  );
+  await page.keyboard.press("Enter");
+  await page
+    .getByText("Demo restored to its deterministic starting state.", {
+      exact: true,
+    })
+    .waitFor();
+  await page
+    .getByRole("button", { name: /Outstanding/ })
+    .filter({ hasText: "500,000" })
+    .waitFor();
+  await page
+    .getByRole("button", { name: "Investigate A01", exact: true })
+    .click();
+  await action("Simulate payment");
+  await page
+    .getByRole("button", { name: "Start guided pilot", exact: true })
+    .click();
+  await page
+    .getByLabel("Verified owner account email")
+    .fill("pilot-browser@example.test");
+  await page
+    .getByRole("button", {
+      name: "Prepare guided pilot workspace",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByRole("link", { name: "Open prepared pilot workspace" })
+    .click();
+  await page
+    .getByRole("heading", { name: "Acacia Discovery Portfolio", exact: true })
+    .waitFor();
+  const csv =
+    "propertyName,propertyCode,address,city,propertyType,buildingName,buildingCode,floorName,floorLevel,unitCode,unitType,monthlyRentMinor,depositMinor,openingBalanceMinor,tenantFirstName,tenantLastName,tenantPhone,tenancyStart,tenancyEnd\nAcacia Court,ACACIA,Kilimani,Nairobi,APARTMENT,Block A,A,Ground Floor,0,A01,TWO_BEDROOM,2500000,2500000,1200000,Amina,Wambui,+254711009776,2026-01-01,\n";
+  await page.getByLabel("Upload portfolio CSV").setInputFiles({
+    name: "portfolio.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv),
+  });
+  await page
+    .getByRole("button", { name: "Validate and preview", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirm and import 1 units", exact: true })
+    .click();
+  await page.getByText("71% ready", { exact: true }).waitFor();
+  await page
+    .getByText("Investigate your largest outstanding balance", { exact: true })
+    .waitFor();
+  for (const size of sizes) {
+    await page.setViewportSize(size);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    assert.ok(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+      ),
+      "Pilot must fit viewport",
+    );
+  }
+  await page.setViewportSize(sizes[0]);
+  await page.goto(origin + "/sales-demo");
+  await page
+    .getByLabel("Prospect / company name")
+    .fill("Nyota Executive Residences");
+  await page
+    .getByLabel("Primary pain", { exact: true })
+    .selectOption("SECURITY");
+  await page.getByRole("button", { name: "Prepare demo", exact: true }).click();
+  await page
+    .getByRole("heading", { name: "Nyota Executive Residences", exact: true })
+    .waitFor();
+  await page.getByRole("button", { name: /Outstanding/ }).click();
+  await page
+    .getByRole("button", { name: "Investigate A01", exact: true })
+    .click();
+  await action("Simulate payment");
+  await page.getByLabel("Investigate a problem").selectOption("SECURITY");
+  await action("Simulate 02:14 AM security event");
+  await action("Retrieve incident evidence");
+  await action("Investigate incident");
+  await action("Escalate response");
+  await action("Resolve incident");
+  await page.getByText("RESOLVED", { exact: true }).waitFor();
+  await page
+    .getByRole("button", { name: "Start guided pilot", exact: true })
+    .click();
+  await page.getByLabel("Verified owner account email").waitFor();
+  await page.goto(origin + "/sales-intelligence");
+  await page
+    .getByRole("heading", { name: "Which value moments create customers?" })
+    .waitFor();
+  await page
+    .locator("main")
+    .getByText("Acacia Discovery Portfolio", { exact: true })
+    .waitFor();
+  assert.equal(errors.length, 0, errors.join("\n"));
+  console.log(
+    JSON.stringify({
+      status: "PASSED",
+      journeys: [
+        "Control state transitions",
+        "Fort Knox security and evidence",
+        "guided pilot validation and import",
+        "sales conversion intelligence",
+      ],
+      viewports: sizes,
+      themes: ["light", "dark"],
+      keyboard: true,
+      consoleErrors: errors.length,
+    }),
+  );
+} finally {
+  await browser?.close();
+  for (const child of children) child.kill("SIGTERM");
+  await Promise.all(
+    children.map((child) =>
+      child.exitCode !== null
+        ? Promise.resolve()
+        : new Promise((resolve) => {
+            child.once("exit", resolve);
+            setTimeout(() => {
+              child.kill("SIGKILL");
+              resolve();
+            }, 5000);
+          }),
+    ),
+  );
+  await mongo?.stop();
+}
