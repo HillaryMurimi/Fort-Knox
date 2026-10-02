@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { navigationFor } from '@/lib/navigation';
+import { navigationFor, isNavigationItemActive } from '@/lib/navigation';
+import { usePlatformSearch } from '@/hooks/use-platform-search';
 import { useRoleContext } from '@/hooks/use-role-context';
 
 import {
@@ -47,6 +48,7 @@ export function Sidebar({
   const sections = context.role ? navigationFor(context.role, context.permissions, context.isDevMode).map(section => ({ label: section.label, items: section.items.map(item => [item.href, item.label, (I as Record<string, React.ElementType>)[item.icon] ?? I.LayoutDashboard] as NavigationItem) })) : [];
   const pathname =
     usePathname();
+  const search = usePlatformSearch();
 
   const router =
     useRouter();
@@ -131,16 +133,13 @@ export function Sidebar({
       Icon,
     ] = item;
 
-    const active =
-      (!href.includes('#') && pathname === href) ||
-      pathname.startsWith(
-        `${href}/`,
-      );
+    const active = isNavigationItemActive(href, pathname, search);
 
     return (
       <Link
         key={href + label}
         href={href}
+        aria-current={active ? 'page' : undefined}
         onClick={
           onMobileClose
         }

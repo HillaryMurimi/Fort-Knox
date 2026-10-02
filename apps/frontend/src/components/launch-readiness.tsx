@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { launchReadinessShape, platformResponseError } from '@/lib/data/platform-control-shapes';
 import { useLaunchReadinessQuery, useUpdateLaunchReadinessMutation } from '@/hooks/queries/use-platform-queries';
 import { reviewInput, type LaunchReadinessItem, type ReadinessReviewInput } from '@/lib/data/launch-readiness';
 import { Alert, Badge, Button, Card, Dialog, Input, Label, Select, Skeleton, Textarea } from '@/components/ui';
@@ -16,7 +17,7 @@ export function LaunchReadiness() {
   if (query.isPending) return <Skeleton className="h-72 w-full" />;
   if (query.isError) return <Alert tone="destructive">Readiness could not be loaded. <Button variant="outline" onClick={() => void query.refetch()}>Retry</Button></Alert>;
   const data = query.data;
-  if (!data) return null;
+  if (!data || !launchReadinessShape.safeParse(data).success) return <Alert tone="destructive">{platformResponseError} <Button variant="outline" onClick={() => void query.refetch()}>Retry readiness</Button></Alert>;
   const items = data.items.filter(item => !attention || !item.ready);
   return <section className="space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold">Launch readiness</h2><p className="mt-1 text-sm text-muted-foreground">Provider approvals, staging reviews and release blockers.</p></div><div className="flex items-center gap-3"><Badge tone="blue">{data.environment}</Badge><Button variant="outline" loading={query.isFetching} onClick={() => void query.refetch()}><RefreshCw size={15} />Refresh</Button></div></header>

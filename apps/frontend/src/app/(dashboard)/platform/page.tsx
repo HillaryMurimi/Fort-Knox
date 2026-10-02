@@ -9,12 +9,19 @@ import { PlatformControls } from '@/components/platform-controls';
 import { LaunchReadiness } from '@/components/launch-readiness';
 import { LandlordOversight } from '@/components/landlord-oversight';
 import { PlatformMonitoring } from '@/components/platform-monitoring';
+import { PlatformPreviewNotice } from '@/components/platform-preview-notice';
 import { useCreatePlanMutation,useMarkInvoicePaidMutation,usePlatformAuditQuery,usePlatformDiagnosticsQuery,usePlatformEventsQuery,usePlatformIntegrationsHealthQuery,usePlatformInvoicesQuery,usePlatformJobsQuery,usePlatformOrganizationUsersQuery,usePlatformOrganizationsQuery,usePlatformPermissionsQuery,usePlatformPlansQuery,usePlatformRolesQuery,usePlatformSubscriptionQuery,usePlatformUsageQuery,useUpdatePlanMutation } from '@/hooks/queries/use-platform-queries';
 import type { BillingPlan } from '@/lib/data/resource-types';
 const tabs=['plan performance','morning brief','monitoring','overview','organizations','billing','access','operations','security','controls','launch readiness','landlord onboarding'] as const; type Tab=typeof tabs[number];
 const money=(n:number,c='KES')=>new Intl.NumberFormat('en-KE',{style:'currency',currency:c,maximumFractionDigits:0}).format(n); const date=(v?:string)=>v?new Intl.DateTimeFormat('en',{dateStyle:'medium'}).format(new Date(v)):'—';
 function Card({title,value,detail,icon:Icon}:{title:string;value:string;detail?:string;icon:ComponentType<{size?:number}>}){return <div className="rounded-2xl border border-border bg-card p-5 shadow-sm"><div className="flex justify-between"><div><div className="text-[10px] font-semibold uppercase tracking-[.14em] text-muted-foreground">{title}</div><div className="mt-2 text-2xl font-semibold text-foreground">{value}</div>{detail&&<div className="mt-1 text-xs text-muted-foreground">{detail}</div>}</div><div className="rounded-xl bg-muted p-2.5 text-muted-foreground"><Icon size={18}/></div></div></div>}
 export default function PlatformPage(){
+ const { user, isDevMode } = useAuth();
+ const search = usePlatformSearch();
+ if (user?.isPlatformAdmin && isDevMode) return <PlatformPreviewNotice/>;
+ return <PlatformWorkspace key={search}/>;
+}
+function PlatformWorkspace(){
  const {user}=useAuth(); const admin=Boolean(user?.isPlatformAdmin); const search=usePlatformSearch(),params=new URLSearchParams(search); const [tabOverride,setTab]=useState<Tab>(); const tab=tabOverride??((tabs as readonly string[]).includes(params.get('tab')??'')?params.get('tab') as Tab:'plan performance'); const [orgOverride,setOrgId]=useState<string>(); const orgId=orgOverride??(/^[a-fA-F0-9]{24}$/.test(params.get('organizationId')??'')?params.get('organizationId')!: ''); const [edit,setEdit]=useState<BillingPlan|null>(null); const [create,setCreate]=useState(false);
  const orgs=usePlatformOrganizationsQuery(admin&&!(['plan performance','morning brief'] as string[]).includes(tab)),plans=usePlatformPlansQuery(admin),diag=usePlatformDiagnosticsQuery(admin),health=usePlatformIntegrationsHealthQuery(admin); const selected=orgId||orgs.data?.[0]?._id||''; const org=orgs.data?.find(x=>x._id===selected);
  const sub=usePlatformSubscriptionQuery(selected),usage=usePlatformUsageQuery(selected),invoices=usePlatformInvoicesQuery(selected),users=usePlatformOrganizationUsersQuery(selected),roles=usePlatformRolesQuery(selected),permissions=usePlatformPermissionsQuery(selected),jobs=usePlatformJobsQuery(selected),audit=usePlatformAuditQuery(selected),events=usePlatformEventsQuery(selected); const createPlan=useCreatePlanMutation(),updatePlan=useUpdatePlanMutation(),markPaid=useMarkInvoicePaidMutation(selected);

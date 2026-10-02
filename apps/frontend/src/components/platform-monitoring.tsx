@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import { RefreshCw, ShieldCheck, Activity, Bell, ListChecks } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { monitoringOverviewShape, platformResponseError } from '@/lib/data/platform-control-shapes';
 import { useMonitoringOverview, useMonitoringAlerts, useMonitoringHistory, useMonitoringAction, useMaintenanceWindows } from '@/hooks/queries/use-platform-monitoring';
 import { monitorValue, type MonitorAreaKey, type MonitoringAlert, type AlertReview } from '@/lib/data/platform-monitoring';
 import { Alert, Badge, Button, Card, Dialog, Input, Label, Select, Skeleton, Textarea } from '@/components/ui';
@@ -28,6 +29,7 @@ export function PlatformMonitoring({ organizations = [], onScope }: { organizati
   if (overview.isPending) return <Skeleton className="h-80 w-full" />;
   if (overview.isError || !overview.data) return <Alert tone="destructive">Monitoring data unavailable. <Button variant="outline" onClick={() => void overview.refetch()}>Retry</Button></Alert>;
   const data = overview.data;
+  if (!monitoringOverviewShape.safeParse(data).success) return <Alert tone="destructive">{platformResponseError} <Button variant="outline" onClick={() => void overview.refetch()}>Retry monitoring</Button></Alert>;
   const refresh = () => { void overview.refetch(); void alerts.refetch(); void windows.refetch(); };
   return <section className="space-y-6">
     <header className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="flex items-center gap-2 text-xl font-semibold"><Activity size={22} />Platform monitoring</h2><p className="mt-1 text-sm text-muted-foreground">Health, blockers, affected organizations and action ownership.</p></div><div className="flex items-center gap-3"><Badge tone="blue">{data.environment}</Badge><Button variant="outline" loading={overview.isFetching} onClick={refresh}><RefreshCw size={15} />Refresh</Button></div></header>

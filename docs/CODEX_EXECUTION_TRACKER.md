@@ -927,3 +927,36 @@ Modified:
 2026-10-02: Fixed local Plan Performance `revenue.map` crash caused by unsupported platform business requests reaching the development preview provider's generic `{}` fallback. These routes now use authenticated backend data; simulated administrator access receives explicit guidance. Runtime response validation and cached-data guards protect overview and brief views without inventing totals. Added routing, response/render regression tests and browser malformed-response recovery coverage. Existing authentication and supported landlord previews remain in use.
 
 Validation: 41 focused tests passed; full frontend suite 26 files / 146 tests passed; frontend lint 0 errors / 27 existing warnings; backend and frontend typechecks passed; backend and frontend production builds passed. Real SUPER_ADMIN browser E2E passed with local demo interception both disabled and enabled, including malformed-response recovery, MFA, brief generation, drill-down and mobile width. Static release certification passed (36 route files, 155 permissions, 10 critical paths). No backend source, database/model/index, production API contract or production environment configuration changed. Full diff and whitespace reviewed; generated Next declarations and browser artifacts excluded.
+
+
+## SUPER_ADMIN sidebar recovery on the existing laptop checkout (2026-10-03)
+
+Located the authorized Windows checkout through Remote Desktop Commander and fast-forwarded existing main from cfb82a6 to fceafae; prior fixes had not reached the laptop. Preserved local editor configuration and generated declarations. Confirmed both local preview flags were enabled. Extended the authenticated backend boundary to all platform-control/sales/diagnostic routes and every real SUPER_ADMIN request. Removed the generic unsupported platform `{}` payload. Added explicit preview connection guidance before privileged queries, corrected fourteen dead/ambiguous sidebar destinations to existing control-plane tabs, added query-aware active navigation and render validation for monitoring, controls and readiness. No database, backend authorization, production integration, commercial control or production API changes. Existing landlord/organization previews remain supported. Added regression coverage for shared routing, preview token suppression, sidebar destinations, malformed cached data and complete browser sidebar navigation.
+
+Laptop quality results: backend and frontend typechecks PASS; full frontend suite 28 files / 188 tests PASS; frontend lint PASS (0 errors, 27 existing warnings); root backend/frontend production build PASS; static release certification CERTIFIED_STATIC (36 route files, 155 permissions, 10 critical paths); Git whitespace review PASS. Backend source and API contracts are unchanged, so backend unit/HTTP suites were not repeated for this frontend-only repair. Real SUPER_ADMIN browser E2E passed on Windows with local demo interception enabled (165.45 seconds) and disabled (151.22 seconds): password/email OTP/SMS OTP, partial-flow denial, every actual sidebar destination, three malformed control-plane responses followed by successful Retry recovery, plan/brief/drill-down, mobile width, privileged-token storage denial and logout. The enabled journey additionally visited every development-preview sidebar destination, verified explicit authenticated-session guidance on platform/sales pages, no platform-control requests and mobile fit. Both journeys had zero uncaught browser errors. Initial browser attempts exposed harness hydration timing and expected sales-preview access notices; assertions were corrected to wait for and verify those states, with security and no-error checks retained.
+
+Added files:
+- `apps/frontend/src/components/platform-preview-notice.tsx`
+- `apps/frontend/src/lib/data/platform-control-shapes.ts`
+- `apps/frontend/src/lib/data/platform-control-ui.test.ts`
+- `apps/frontend/src/lib/super-admin-navigation.test.ts`
+
+Modified files:
+- `apps/frontend/scripts/verify-platform-business.mjs`
+- `apps/frontend/src/app/(dashboard)/platform/page.tsx`
+- `apps/frontend/src/components/launch-readiness.tsx`
+- `apps/frontend/src/components/platform-controls.tsx`
+- `apps/frontend/src/components/platform-monitoring.tsx`
+- `apps/frontend/src/components/sidebar.tsx`
+- `apps/frontend/src/lib/api-platform-business.test.ts`
+- `apps/frontend/src/lib/api.ts`
+- `apps/frontend/src/lib/demo/demo-config.ts`
+- `apps/frontend/src/lib/demo/demo-platform-business.test.ts`
+- `apps/frontend/src/lib/demo/demo-provider.ts`
+- `apps/frontend/src/lib/navigation.ts`
+- `docs/CODEX_EXECUTION_TRACKER.md`
+- `docs/SUPER_ADMIN_BUSINESS_INTELLIGENCE.md`
+
+Scope: no new dependencies, environment variables, database/model/index changes or backend API changes. Real platform access continues through existing backend authorization and dual-channel MFA. Dedicated raw webhook-history and session-administration views are not introduced; those sidebar labels lead to existing integration-health/security capability. Production provider certification, full load testing and independent penetration testing are outside this frontend repair.
+
+Final root backend/frontend production build passed again against the final source (112.33 seconds), with development demo/bypass flags disabled in the build process and an HTTPS example API URL. Local `.env.local` was not edited. Full staged manifest/whitespace and changed-file secret-pattern reviews passed; only the eighteen listed files are included. Existing `.continue/` editor files and generated Next declarations are excluded. The pushed commit hash and exact post-push laptop Git status are supplied in the delivery message.

@@ -12,6 +12,12 @@ describe("local preview analytics boundary", () => {
         "/platform-control/business-intelligence?dataset=LIVE",
         "/platform-control/morning-briefs",
         "/platform-control/morning-briefs/brief-1",
+        "/platform-control/monitoring",
+        "/platform-control/switches",
+        "/platform-control/launch-readiness",
+        "/platform-control/sales-intelligence",
+        "/sales/demos",
+        "/operations/diagnostics",
       ])
         await expect(demoApi(path, { method })).rejects.toThrow(
           "authenticated backend",

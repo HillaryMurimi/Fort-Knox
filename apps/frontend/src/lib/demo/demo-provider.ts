@@ -1,4 +1,4 @@
-import { getDemoRole, DEV_DEMO_MODE, isPlatformBusinessRequest } from "./demo-config";
+import { getDemoRole, DEV_DEMO_MODE, isPlatformBackendRequest } from "./demo-config";
 import {
   commandCenter,
   demoArrears,
@@ -504,7 +504,7 @@ function get(path: string): unknown {
     clean.includes("/model-serving/incidents")
   )
     return [];
-  if (clean.includes("/platform")) return {};
+  // Unsupported routes fail explicitly below; never invent an empty payload.
 
   const collection = collectionFor(parts);
   if (collection) {
@@ -954,8 +954,8 @@ export async function demoApi<T>(
 ): Promise<T> {
   if (!DEV_DEMO_MODE)
     throw new Error("Development demo data mode is disabled.");
-  if (isPlatformBusinessRequest(path))
-    throw new Error("Platform business analytics require the authenticated backend; local preview data is unavailable for this endpoint.");
+  if (isPlatformBackendRequest(path))
+    throw new Error("Platform administration requires the authenticated backend; local preview data is unavailable for this endpoint.");
   const method = (init.method ?? "GET").toUpperCase();
   let value: unknown;
   if (method === "GET") value = get(path);

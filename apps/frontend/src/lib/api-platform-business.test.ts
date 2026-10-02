@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "./api";
 import { demoApi } from "./demo/demo-provider";
-const state = vi.hoisted(() => ({ bypass: false }));
+const state = vi.hoisted(() => ({ bypass: false, admin: false }));
 vi.mock("./demo/demo-config", async (original) => ({
   ...(await original<typeof import("./demo/demo-config")>()),
   DEV_DEMO_MODE: true,
@@ -10,7 +10,10 @@ vi.mock("./auth/dev-auth", () => ({
   isDevAuthBypassEnabled: () => state.bypass,
 }));
 vi.mock("./auth/auth-storage", () => ({
-  getStoredAuthSession: () => ({ accessToken: "private-test-session" }),
+  getStoredAuthSession: () => ({
+    accessToken: "private-test-session",
+    user: { isPlatformAdmin: state.admin },
+  }),
   clearStoredAuthSession: vi.fn(),
   updateStoredAccessToken: vi.fn(),
 }));
@@ -33,6 +36,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   state.bypass = false;
+  state.admin = false;
   vi.clearAllMocks();
   vi.unstubAllGlobals();
 });
@@ -42,6 +46,13 @@ describe("platform analytics in development demo mode", () => {
     "/platform-control/business-intelligence/drill-down?kind=OVERDUE",
     "/platform-control/morning-briefs?dataset=DEMO",
     "/platform-control/morning-briefs/retained-brief?dataset=DEMO",
+    "/platform-control/monitoring",
+    "/platform-control/monitoring/alerts?page=1",
+    "/platform-control/switches",
+    "/platform-control/launch-readiness",
+    "/platform-control/sales-intelligence",
+    "/operations/diagnostics",
+    "/sales/demos",
   ])("uses authenticated backend data for %s", async (path) => {
     expect(await api(path)).toEqual({ source: "BACKEND" });
     expect(demoApi).not.toHaveBeenCalled();
@@ -74,6 +85,42 @@ describe("platform analytics in development demo mode", () => {
     });
     expect(fetch).not.toHaveBeenCalled();
     expect(demoApi).not.toHaveBeenCalled();
+  });
+  it.each([
+    "/organizations",
+    "/billing/plans",
+    "/users/organization/org-1",
+    "/roles/organization/org-1",
+    "/audit-logs",
+    "/organizations/org-1/jobs",
+  ])(
+    "never substitutes local data for a real administrator: %s",
+    async (path) => {
+      state.admin = true;
+      expect(await api(path)).toEqual({ source: "BACKEND" });
+      expect(fetch).toHaveBeenCalled();
+      expect(demoApi).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    "/platform-control/monitoring",
+    "/platform-control/switches",
+    "/platform-control/launch-readiness",
+    "/sales/demos",
+  ])("blocks preview tokens for %s", async (path) => {
+    state.bypass = true;
+    state.admin = true;
+    await expect(api(path)).rejects.toMatchObject({ status: 503 });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(demoApi).not.toHaveBeenCalled();
+  });
+  it("preserves supported organization previews for a simulated administrator", async () => {
+    state.bypass = true;
+    state.admin = true;
+    expect(await api("/organizations/demo-org-dapini/properties")).toEqual({
+      source: "LOCAL_PREVIEW",
+    });
+    expect(fetch).not.toHaveBeenCalled();
   });
   it("preserves working local landlord demo routes", async () => {
     state.bypass = true;

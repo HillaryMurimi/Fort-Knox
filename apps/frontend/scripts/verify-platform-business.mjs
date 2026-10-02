@@ -214,6 +214,32 @@ try {
     path: output + "/organization-drill.png",
     fullPage: true,
   });
+  const malformedControl = route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: {} }) });
+  for (const [endpoint, tab, retry, heading] of [
+    ["monitoring", "monitoring", "Retry monitoring", "Platform monitoring"],
+    ["switches", "controls", "Retry controls", "Service and feature controls"],
+    ["launch-readiness", "launch readiness", "Retry readiness", "Launch readiness"],
+  ]) {
+    const pattern = "**/api/v1/platform-control/" + endpoint;
+    await page.route(pattern, malformedControl);
+    await page.goto(origin + "/platform?tab=" + encodeURIComponent(tab));
+    await page.getByRole("button", { name: retry, exact: true }).waitFor();
+    await page.unroute(pattern, malformedControl);
+    await page.getByRole("button", { name: retry, exact: true }).click();
+    await page.getByRole("heading", { name: heading, exact: true }).waitFor();
+  }
+  const sidebarLinks = await page.locator("aside nav a").evaluateAll(links => links.map(link => ({ label: link.textContent.trim(), href: link.getAttribute("href") })));
+  const headings = { organizations: "Organizations", billing: "Platform Billing", access: "Users & Memberships", operations: "Durable jobs", security: "Integration health", controls: "Service and feature controls", monitoring: "Platform monitoring", "plan performance": "Plan Performance" };
+  for (const link of sidebarLinks) {
+    await page.locator("aside nav a").filter({ hasText: link.label }).first().click();
+    const destination = new URL(link.href, origin);
+    await page.waitForURL(url => url.pathname === destination.pathname && url.search === destination.search);
+    const tab = destination.searchParams.get("tab");
+    if (tab && headings[tab]) await page.getByRole("heading", { name: headings[tab], exact: true }).first().waitFor();
+    else await page.locator("main h1").first().waitFor();
+  }
+  await page.goto(origin + "/platform");
+  await page.getByRole("heading", { name: "Plan Performance", exact: true }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(350);
@@ -230,13 +256,43 @@ try {
   await page.reload();
   await page.getByRole('button', { name: 'Continue', exact: true }).waitFor();
   assert.ok(page.url().includes('/login'), 'Logout must revoke platform access');
+  if (devDemoMode) {
+    const previewContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    await previewContext.addInitScript(() => {
+      localStorage.setItem("property-command-center.dev.preview-role", "SUPER_ADMIN");
+      localStorage.setItem("property-command-center.dev-auth-role", "SUPER_ADMIN");
+    });
+    const preview = await previewContext.newPage();
+    preview.on("pageerror", error => errors.push(error.message));
+    const privilegedRequests = [];
+    preview.on("request", request => { if (request.url().includes("/api/v1/platform-control/")) privilegedRequests.push(request.url()); });
+    await preview.goto(origin + "/admin");
+    await preview.locator("aside nav a").first().waitFor();
+    const links = await preview.locator("aside nav a").evaluateAll(elements => elements.map(link => ({ label: link.textContent.trim(), href: link.getAttribute("href") })));
+    assert.ok(links.length > 10, "The preview must expose the actual SUPER_ADMIN sidebar");
+    for (const link of links) {
+      await preview.locator("aside nav a").filter({ hasText: link.label }).first().click();
+      const destination = new URL(link.href, origin);
+      await preview.waitForURL(url => url.pathname === destination.pathname && url.search === destination.search);
+      if (destination.pathname === "/platform") await preview.getByText("Real SUPER_ADMIN sign-in required", { exact: true }).waitFor();
+      else if (destination.pathname === "/sales-demo") await preview.getByText("Sales demonstrations require a real authenticated sales or SUPER_ADMIN session. Sign out of development preview and sign in normally.", { exact: true }).waitFor();
+      else if (destination.pathname === "/sales-intelligence") await preview.getByText("Sales intelligence requires a real SUPER_ADMIN session.", { exact: true }).waitFor();
+      else await preview.locator("main h1").first().waitFor();
+    }
+    assert.deepEqual(privilegedRequests, [], "Preview tokens must never reach platform-control endpoints");
+    await preview.setViewportSize({ width: 390, height: 844 });
+    await preview.goto(origin + "/platform?tab=controls");
+    await preview.getByText("Real SUPER_ADMIN sign-in required", { exact: true }).waitFor();
+    assert.ok(await preview.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "Preview guidance must fit mobile width");
+    await previewContext.close();
+  }
   assert.deepEqual(
     errors,
     [],
     "The browser journey must have no uncaught runtime errors",
   );
   process.stdout.write(
-    `PASS browser E2E: SUPER_ADMIN password/email OTP/SMS OTP, bypass denial and logout → malformed analytics recovery → plan comparison/filter → retained Morning Brief → critical action → organization drill-down; desktop/mobile; local demo interception ${devDemoMode ? "enabled" : "disabled"}\n`,
+    `PASS browser E2E: SUPER_ADMIN password/email OTP/SMS OTP, bypass denial and logout → all sidebar destinations and malformed control-plane recovery → plan comparison/filter → retained Morning Brief → critical action → organization drill-down; desktop/mobile; local demo interception ${devDemoMode ? "enabled" : "disabled"}\n`,
   );
 } catch (error) {
   if (page) {

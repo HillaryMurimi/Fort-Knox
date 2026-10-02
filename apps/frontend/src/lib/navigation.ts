@@ -168,26 +168,26 @@ export const ROLE_NAVIGATION: Record<SystemRoleKey, NavSection[]> = {
         item("Platform Overview", "/admin", "Globe2"),
         item("Sales demonstration", "/sales-demo", "Workflow"),
         item("Sales intelligence", "/sales-intelligence", "LineChart"),
-        item("Organizations", "/platform", "Building2"),
-        item("Users & Access", "/admin#users", "Users"),
-        item("Roles & Permissions", "/admin#roles", "KeyRound"),
-        item("Plans & Subscriptions", "/platform", "CreditCard"),
-        item("Entitlements", "/admin#entitlements", "ShieldCheck"),
+        item("Organizations", "/platform?tab=organizations", "Building2"),
+        item("Users & Access", "/platform?tab=access", "Users"),
+        item("Roles & Permissions", "/platform?tab=access", "KeyRound"),
+        item("Plans & Subscriptions", "/platform?tab=billing", "CreditCard"),
+        item("Entitlements", "/platform?tab=billing", "ShieldCheck"),
       ],
     },
 
     {
       label: "Control plane",
       items: [
-        item("Integrations & Health", "/admin#health", "CloudCog"),
-        item("Webhooks", "/admin#webhooks", "Workflow"),
-        item("Security & Sessions", "/admin#security", "Shield"),
-        item("Audit Explorer", "/admin#audit", "History"),
-        item("Feature Flags", "/admin#features", "ListChecks"),
-        item("Notifications", "/admin#notifications", "Bell"),
-        item("Jobs & Queues", "/admin#jobs", "Activity"),
-        item("Support & Diagnostics", "/admin#support", "LifeBuoy"),
-        item("Analytics", "/admin#analytics", "LineChart"),
+        item("Integrations & Health", "/platform?tab=security", "CloudCog"),
+        item("Webhooks", "/platform?tab=security", "Workflow"),
+        item("Security & Sessions", "/platform?tab=security", "Shield"),
+        item("Audit Explorer", "/platform?tab=operations", "History"),
+        item("Feature Flags", "/platform?tab=controls", "ListChecks"),
+        item("Notifications", "/platform?tab=monitoring", "Bell"),
+        item("Jobs & Queues", "/platform?tab=operations", "Activity"),
+        item("Support & Diagnostics", "/platform?tab=security", "LifeBuoy"),
+        item("Analytics", "/platform?tab=plan%20performance", "LineChart"),
       ],
     },
 
@@ -349,10 +349,17 @@ export function canPresentRoute(
   );
 }
 
-/**
- * Removes query/hash fragments and normalizes trailing slashes for reliable
- * route comparison.
- */
+/** Match sidebar destinations, including their selected control-plane tab. */
+export function isNavigationItemActive(href: string, path: string, search = ""): boolean {
+  if (href.includes("#")) return false;
+  const root = normalizePath(href), current = normalizePath(path);
+  if (current !== root && !current.startsWith(root + "/")) return false;
+  const expected = new URLSearchParams(href.split("?")[1] ?? "");
+  const actual = new URLSearchParams(search);
+  return [...expected].every(([key, value]) => value === (actual.get(key) ?? (key === "tab" && root === "/platform" ? "plan performance" : null)));
+}
+
+/** Remove query/hash fragments and normalize trailing slashes. */
 function normalizePath(path: string): string {
   const withoutHash = path.split("#")[0] ?? "/";
   const withoutQuery = withoutHash.split("?")[0] ?? "/";

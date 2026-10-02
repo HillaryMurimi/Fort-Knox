@@ -10,7 +10,7 @@ import {
 
 import {
   DEV_DEMO_MODE,
-  isPlatformBusinessRequest,
+  isPlatformBackendRequest,
 } from './demo/demo-config';
 
 import {
@@ -362,9 +362,10 @@ export async function api<T>(
     authenticated = true,
   } = init;
 
-  const platformBusiness = isPlatformBusinessRequest(path);
-  if (authenticated && platformBusiness && isDevAuthBypassEnabled())
-    throw new ApiError('Plan Performance and platform Morning Brief require a real SUPER_ADMIN session and a running backend. Disable NEXT_PUBLIC_DEV_AUTH_BYPASS and NEXT_PUBLIC_DEV_DEMO_MODE, restart the frontend, and sign in.', 503, null);
+  const platformBackend = isPlatformBackendRequest(path);
+  const session = authenticated ? getStoredAuthSession() : null;
+  if (authenticated && platformBackend && isDevAuthBypassEnabled())
+    throw new ApiError('Platform administration requires a real SUPER_ADMIN session and a running backend. Disable NEXT_PUBLIC_DEV_AUTH_BYPASS and NEXT_PUBLIC_DEV_DEMO_MODE, restart the frontend, leave the development role preview, and sign in.', 503, null);
 
   /**
    * Demo data mode intercepts authenticated requests
@@ -376,9 +377,8 @@ export async function api<T>(
    */
   if (
     DEV_DEMO_MODE &&
-    !path.startsWith('/sales/') &&
-    !path.startsWith('/platform-control/sales-intelligence') &&
-    !platformBusiness &&
+    !platformBackend &&
+    !(session?.user?.isPlatformAdmin && !isDevAuthBypassEnabled()) &&
     authenticated &&
     typeof window !== 'undefined'
   ) {
@@ -392,10 +392,6 @@ export async function api<T>(
    * Only authenticated requests read the stored access token.
    */
   if (authenticated && isDevAuthBypassEnabled()) throw new ApiError('Preview data is not enabled. Enable development demo mode to explore this workspace.', 503, null);
-
-  const session = authenticated
-    ? getStoredAuthSession()
-    : null;
 
   let {
     response,

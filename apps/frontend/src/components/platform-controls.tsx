@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { usePlatformSwitchesQuery, usePlatformSwitchMutation } from '@/hooks/queries/use-platform-queries';
 import type { PlatformSwitch, PlatformSwitchMode } from '@/lib/data/platform';
+import { platformSwitchesShape, platformResponseError } from '@/lib/data/platform-control-shapes';
 
 export function PlatformControls() {
   const query = usePlatformSwitchesQuery();
@@ -18,6 +19,7 @@ export function PlatformControls() {
     await mutation.mutateAsync({ key: selected.key, mode, reason });
     setSelected(null);
   }
+  if (query.data !== undefined && !platformSwitchesShape.safeParse(query.data).success) return <section role="alert" className="space-y-3"><p>{platformResponseError}</p><button className="rounded border px-3 py-2" onClick={() => void query.refetch()}>Retry controls</button></section>;
   return <section className="space-y-4"><h2 className="text-xl font-semibold">Service and feature controls</h2><p className="text-sm text-muted-foreground">New controls default OFF. Changes apply platform-wide. Existing records, administrator access and payment callbacks are preserved.</p>
     {query.isLoading && <p>Loading controls...</p>}
     {query.error && <p role="alert">{query.error.message}</p>}
