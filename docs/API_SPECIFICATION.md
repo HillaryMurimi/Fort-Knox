@@ -574,3 +574,7 @@ Monitoring environment follows LAUNCH_READINESS_ENV, falling back to NODE_ENV. I
 ## Versioned landlord contracts and prepaid activation
 
 See [LANDLORD_CONTRACT_WORKFLOW.md](LANDLORD_CONTRACT_WORKFLOW.md) for request fields, lifecycle and deployment prerequisites. Generated OpenAPI includes GET progress/quote, PUT details and POST contract/replacement/signature/checkout/reconcile under `/organizations/:organizationId/landlord-onboarding`; `/documents/:documentId/pdf` retains exact historical bytes. SUPER_ADMIN oversight and append-only template commands use `/platform-control/landlord-onboarding` and `/platform-control/contract-templates`. Current reviewed contract hash, owner scope and verified invoice payment are backend prerequisites; there is no frontend activation endpoint.
+
+## SUPER_ADMIN business and Morning Brief API
+
+Added authenticated, platform-admin-only business-intelligence overview/drill-down and morning-brief generation/history/read routes under `/api/v1/platform-control`. Reads are audited and noncacheable; financial/entity projections are bounded. Scope, schemas and error semantics are documented in [SUPER_ADMIN business intelligence](SUPER_ADMIN_BUSINESS_INTELLIGENCE.md) and OpenAPI.

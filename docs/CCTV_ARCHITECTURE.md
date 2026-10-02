@@ -205,3 +205,7 @@ lawful deployment and policy configuration.
 ### Registration availability
 
 New camera records default to OFFLINE. Registration alone does not prove provider connectivity. The landlord setup form accepts a gateway camera identifier, not camera credentials or a raw RTSP URL.
+
+## Fort Knox platform reporting
+
+SUPER_ADMIN intelligence aggregates existing camera registry observations, incidents, evidence and CCTV integration attempts by Fort Knox organization. Missing/future timestamps are UNKNOWN; five-minute freshness identifies stale observations. No active probe or gateway history is implied. Demo telemetry is explicitly simulated and excluded from live reporting; no stream references are included in analytics responses.

@@ -46,7 +46,7 @@ export async function startPrepaidCheckout(auth: AuthenticatedUser, organization
     const session = await mongoose.startSession();
     try { await session.withTransaction(async () => {
       await OrganizationSubscription.updateOne({ _id: subscription._id }, { $set: { providerCheckoutUrl: checkout.checkoutUrl, updatedBy: auth.userId } }, { session });
-      await Organization.updateOne({ _id: organizationId, 'onboarding.state': 'INVOICE_ISSUED' }, { $set: { 'onboarding.state': 'PAYMENT_PENDING' }, $inc: { 'onboarding.revision': 1 } }, { session });
+      await Organization.updateOne({ _id: organizationId, 'onboarding.state': 'INVOICE_ISSUED' }, { $set: { 'onboarding.state': 'PAYMENT_PENDING', 'onboarding.stateChangedAt':new Date() }, $inc: { 'onboarding.revision': 1 } }, { session });
       await AuditService.record({ organizationId: contract.organizationId, actorUserId: auth.userId, action: 'landlord.payment.pending', resourceType: 'SubscriptionInvoice', resourceId: invoice._id, metadata: { state: 'PAYMENT_PENDING', reference: subscription.providerCheckoutReference } }, session);
     }); } finally { await session.endSession(); }
   } catch (error) {
@@ -80,7 +80,7 @@ export async function settlePrepaidInvoice(subscriptionId: Types.ObjectId, data:
     const authorization = data.authorization as Record<string, unknown> | undefined, customer = data.customer as Record<string, unknown> | undefined;
     if (authorization?.reusable === true && typeof authorization.authorization_code === 'string' && customer?.customer_code === subscription.providerCustomerId) subscription.renewalAuthorizationCode = authorization.authorization_code;
     await subscription.save({ session });
-    organization.onboarding!.state = 'ACTIVE'; organization.onboarding!.paymentVerifiedAt = paidAt; organization.onboarding!.activatedAt = new Date(); organization.onboarding!.attentionCode = undefined; organization.onboarding!.revision += 1;
+    organization.onboarding!.state = 'ACTIVE'; organization.set('onboarding.stateChangedAt',new Date()); organization.onboarding!.paymentVerifiedAt = paidAt; organization.onboarding!.activatedAt = new Date(); organization.onboarding!.attentionCode = undefined; organization.onboarding!.revision += 1;
     await organization.save({ session });
     await BillingEvent.create([{ eventId: `paystack:${reference}`, organizationId: organization._id, provider: 'PAYSTACK', type: 'INVOICE_PAID', externalReference: reference, status: 'PROCESSED', processedAt: new Date(), payload: { invoiceId: String(invoice._id), contractId: String(contract._id), totalMinor: invoice.totalMinor, currency: invoice.currency } }], { session });
     for (const state of ['PAYMENT_VERIFIED', 'ACTIVE']) await AuditService.record({ organizationId: organization._id, action: 'landlord.onboarding.transition', resourceType: 'SubscriptionInvoice', resourceId: invoice._id, metadata: { state, reference, contractHash: contract.sha256 } }, session);

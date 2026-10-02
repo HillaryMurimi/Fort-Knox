@@ -814,3 +814,22 @@ Modified:
 - `docs/ROLES_PERMISSIONS.md`
 - `docs/SECURITY.md`
 - `docs/TESTING_STRATEGY.md`
+
+## 2026-10-02 — SUPER_ADMIN Business Intelligence and Platform Morning Brief
+
+Audited and pulled existing main at b932baf; existing Quality jobs were green and no tracked laptop changes existed. Extended the existing control plane with authoritative Control/Fort Knox analytics, immutable audited brief snapshots, prospective atomic subscription movements, exact payment cohorts, safe drill-downs and isolated demo fixtures. Full file manifest, metric definitions, deployment implications and limitations: [SUPER_ADMIN business intelligence](SUPER_ADMIN_BUSINESS_INTELLIGENCE.md). Certification results will be recorded below before commit. Pre-existing laptop `.continue/` remains excluded.
+
+### Certification — 2026-10-02
+
+- Backend typecheck and frontend typecheck: pass.
+- Lint: pass, zero errors; 366 existing backend warnings and 25 existing frontend warnings. New implementation/tests introduce no lint warnings.
+- Backend default suites: 306 passed (63 files); the four opt-in E2E files are run separately, rather than treated as certified skips.
+- Backend Mongo/HTTP/finance/onboarding/platform E2E: 79 passed (4 files), including 20 new platform tests.
+- Frontend: 94 passed (21 files), including 16 new API/rendering tests.
+- Real browser: one complete SUPER_ADMIN password/OTP journey passed; plan filtering, retained brief, critical action, organization drill-down, no uncaught runtime errors, desktop/mobile screenshots and mobile width assertion.
+- Total: 480 passed executions (385 backend + 94 frontend + 1 browser). Added: 62 tests/journeys (13 backend unit, 12 backend authorization/schema, 20 backend E2E, 16 frontend, 1 browser). No existing tests removed, skipped anew or weakened.
+- Backend and frontend production builds: pass using documented build settings; static release: CERTIFIED_STATIC, 36 route files, 154 permissions, 6 critical paths.
+- Authorization: all five endpoints deny anonymous users; landlord, property manager, caretaker, contractor, tenant and an organization-only SUPER_ADMIN are denied before aggregation. Existing cross-organization landlord onboarding access remains denied. Dataset separation, safe financial/security projections, immutable snapshots, idempotency and audit rollback pass.
+- Reviewed manifest: 22 added + 23 modified files. No new dependencies, production environment variables, secrets, generated artifacts or unrelated `.continue/` files. Deployment configuration is unchanged; additive reporting indexes are documented.
+
+Laptop certification: all typecheck/lint/test/build/static gates passed again. The same isolated browser journey also passed on Windows using the installed MongoDB test binary and Chrome. Browser diagnostic paths use the OS temporary directory; production application behavior is unchanged.

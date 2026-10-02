@@ -51,3 +51,9 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - name: Install backend browser-fixture dependencies
+        run: npm --prefix ../backend ci
+      - name: SUPER_ADMIN business browser journey
+        env:
+          CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
+        run: npm run verify:platform-business

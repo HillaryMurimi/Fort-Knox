@@ -401,3 +401,7 @@ Platform monitoring shows seven areas sourced from persisted records or telemetr
 ## Versioned landlord agreements and prepaid activation
 
 Landlord onboarding now restores backend progress through organization details, server-calculated Control/Fort Knox pricing, organization-specific contract and invoice PDFs, typed electronic signature, verified upfront payment and property access. Super Admin can inspect progress/evidence and draft/publish/retire immutable template versions without signing or payment bypass. Historical signed agreements and PDFs retain their exact snapshots and bytes. See [LANDLORD_CONTRACT_WORKFLOW.md](LANDLORD_CONTRACT_WORKFLOW.md) for operator/legal review, index migration and provider launch prerequisites.
+
+## SUPER_ADMIN Business Intelligence and Platform Morning Brief
+
+Plan Performance independently compares Control/Fort Knox organizations, actual inventory, normalized recurring value, verified cash, onboarding cohorts, applied movements and Fort Knox observed security health. Morning Brief retains five sections and Critical→High→Medium→Informational priorities, with audited entity drill-downs and honest unavailable states. Landlord Morning Brief is outside this release.

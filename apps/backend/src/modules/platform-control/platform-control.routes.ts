@@ -2,9 +2,15 @@ import { Router } from 'express';
 import { requireAuth } from '../../middleware/auth.middleware.js';
 import { asyncHandler } from '../../core/http/asyncHandler.js';
 import * as controller from './platform-control.controller.js';
+import * as business from './platform-business.controller.js';
 
 export const platformControlRouter = Router();
 platformControlRouter.use(requireAuth);
+platformControlRouter.get('/business-intelligence',asyncHandler(business.businessOverview));
+platformControlRouter.get('/business-intelligence/drill-down',asyncHandler(business.businessDrill));
+platformControlRouter.post('/morning-briefs',asyncHandler(business.generateBrief));
+platformControlRouter.get('/morning-briefs',asyncHandler(business.briefHistory));
+platformControlRouter.get('/morning-briefs/:id',asyncHandler(business.getBrief));
 platformControlRouter.get('/switches', asyncHandler(controller.list));
 platformControlRouter.patch('/switches/:key', asyncHandler(controller.update));
 platformControlRouter.get('/launch-readiness', asyncHandler(controller.launchReadiness));

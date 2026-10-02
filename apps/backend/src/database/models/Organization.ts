@@ -18,11 +18,14 @@ const organizationSchema = new Schema({
     revision: { type: Number, default: 0 },
     contractId: { type: Schema.Types.ObjectId, ref: 'OrganizationContract' },
     invoiceId: { type: Schema.Types.ObjectId, ref: 'SubscriptionInvoice' },
-    activatedAt: Date, paymentVerifiedAt: Date, attentionCode: String,
+    activatedAt: Date, paymentVerifiedAt: Date, attentionCode: String, stateChangedAt:Date,
   }, { _id: false }) },
   settings: { type: Schema.Types.Mixed, default: {} },
   regionalProfile: { type: regionalProfileSchema, default: () => ({}) },
 }, { timestamps: true });
 
+organizationSchema.pre('save',function(){if(this.isNew&&this.onboarding&&!this.onboarding.stateChangedAt)this.onboarding.stateChangedAt=new Date();});
+organizationSchema.index({createdAt:1},{name:'platform_bi_signups_at'});
+organizationSchema.index({'onboarding.activatedAt':1},{name:'platform_bi_activations_at'});
 export type OrganizationDocument = InferSchemaType<typeof organizationSchema>;
 export const Organization = model('Organization', organizationSchema);

@@ -233,3 +233,7 @@ scan. - Backup/restore test. - Incident-response procedure.
 ## Contract and activation evidence
 
 Signed organization contract snapshots and retained PDF bytes are immutable through normal model/service paths. Signing requires the reviewed hash, explicit authority/terms acceptance and the authenticated organization-wide landlord; evidence retains actor/time/request metadata. Payment settlement, receipt, activation, audit and activation event share a database transaction. Unknown/ambiguous provider results require reconciliation and never imply activation or authorize duplicate debit schedules. Template publication is audited. See [LANDLORD_CONTRACT_WORKFLOW.md](LANDLORD_CONTRACT_WORKFLOW.md) for retention and deployment limits.
+
+## SUPER_ADMIN analytics and immutable briefs
+
+All platform intelligence endpoints independently enforce platform administrator authorization and audit sensitive reads. Safe projections exclude stream/provider/signature credentials. Strict query schemas bound scope/date/page input. Brief generation and audit are transactional; snapshot hashes and immutable normal workflows protect retained evidence. Demo datasets are excluded from live queries and blocked in production. See [architecture and security tests](SUPER_ADMIN_BUSINESS_INTELLIGENCE.md).

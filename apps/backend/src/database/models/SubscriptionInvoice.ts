@@ -36,5 +36,9 @@ subscriptionInvoiceSchema.pre('save', function () {
 subscriptionInvoiceSchema.pre(['updateOne', 'updateMany', 'findOneAndUpdate', 'replaceOne', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete'], async function () {
   if (await model('SubscriptionInvoice').exists({ $and: [this.getFilter(), { commercialSnapshot: { $exists: true } }] }).session(this.getOptions().session ?? null)) throw new Error('INVOICE_SNAPSHOT_IMMUTABLE');
 });
+subscriptionInvoiceSchema.index({createdAt:1},{name:'platform_bi_invoice_created'});
+subscriptionInvoiceSchema.index({issuedAt:1},{name:'platform_bi_invoice_issued'});
+subscriptionInvoiceSchema.index({paidAt:1},{name:'platform_bi_invoice_paid'});
+subscriptionInvoiceSchema.index({status:1,dueDate:1},{name:'platform_bi_invoice_due'});
 export type SubscriptionInvoiceDocument = InferSchemaType<typeof subscriptionInvoiceSchema>;
 export const SubscriptionInvoice = model('SubscriptionInvoice', subscriptionInvoiceSchema);

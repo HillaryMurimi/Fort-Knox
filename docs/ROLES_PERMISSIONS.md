@@ -366,3 +366,7 @@ authorization.
 ## Landlord contract authority
 
 Configuration, generation/replacement, signature and checkout require an active organization-wide LANDLORD with billing.subscription.manage. A platform administrator must independently hold that landlord membership to sign; SUPER_ADMIN itself grants oversight/template control, never signatory impersonation. Existing billing invoice/document permissions and document PRIVATE ownership govern reads/PDFs. Payment settlement remains signed-webhook/server-verification only.
+
+## Platform-wide analytics boundary
+
+Business analytics, brief snapshots and financial/security drill-downs require authenticated `isPlatformAdmin`, not an organization SUPER_ADMIN membership. Landlords, managers, caretakers, contractors, tenants and anonymous users are denied. Existing organization permissions and isolation are unchanged.

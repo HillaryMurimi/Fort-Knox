@@ -196,3 +196,7 @@ For every implementation task:
 Implement **Phase 0 + Phase 1 only**. Do not jump directly into all
 business modules. A stable backend foundation will make the subsequent
 generated modules substantially safer and easier to review.
+
+## SUPER_ADMIN operating intelligence release
+
+Implemented Plan Performance and retained platform Morning Brief without a parallel billing/monitoring system. Follow-ups require authoritative data: legacy commercial snapshot evidence, reliable gateway probes, complete historical churn cohorts, scheduled delivery and production-scale benchmarks. Provider production approval and deployment remain intentionally on hold.

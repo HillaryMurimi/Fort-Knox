@@ -60,7 +60,7 @@ export class LandlordOnboardingService {
       const organization = await Organization.findById(organizationId).session(session);
       if (!organization) throw new AppError(404, 'ORGANIZATION_NOT_FOUND', 'Organization not found');
       if (organization.onboarding?.contractId || await OrganizationSubscription.exists({ organizationId, status: { $in: ['ACTIVE', 'TRIALING'] } }).session(session)) throw new AppError(409, 'ONBOARDING_DETAILS_LOCKED', 'Use the audited replacement workflow after contract generation');
-      organization.set('onboarding', { ...organization.toObject().onboarding, ...input, state: 'ORGANIZATION_CONFIGURED', revision: (organization.onboarding?.revision ?? 0) + 1 });
+      organization.set('onboarding', { ...organization.toObject().onboarding, ...input, state: 'ORGANIZATION_CONFIGURED', stateChangedAt:new Date(), revision: (organization.onboarding?.revision ?? 0) + 1 });
       await organization.save({ session });
       await AuditService.record({ organizationId: organization._id, actorUserId: auth.userId, action: 'landlord.organization.configured', resourceType: 'Organization', resourceId: organization._id, metadata: { state: 'ORGANIZATION_CONFIGURED', unitCount: input.unitCount } }, session);
     }); } finally { await session.endSession(); }
@@ -111,7 +111,7 @@ export class LandlordOnboardingService {
       const invoice = new SubscriptionInvoice({ organizationId, subscriptionId: subscription._id, contractId, invoiceNumber: `INV-${organization._id}-${generation}`, periodStart: now, periodEnd: addMonths(now, input.prepaidMonths), dueDate: now, issuedAt: now, subtotal: snapshot.subtotalMinor / 100, tax: 0, total: snapshot.totalMinor / 100, subtotalMinor: snapshot.subtotalMinor, taxMinor: 0, totalMinor: snapshot.totalMinor, currency: snapshot.currency, provider: 'PAYSTACK', commercialSnapshot: snapshot, lineItems: snapshot.lineItems.map(line => ({ ...line, unitAmount: line.unitAmountMinor / 100, total: line.totalMinor / 100 })), createdBy: auth.userId, updatedBy: auth.userId });
       const invoiceDocument = await retainArtifact({ organizationId: organization._id, actorUserId: auth.userId, resourceId: invoice._id, kind: 'SUBSCRIPTION_INVOICE', title: `Activation invoice ${invoice.invoiceNumber}`, text: invoiceText(invoice, snapshot), issuedAt: now, contentHash: hash(JSON.stringify(snapshot)) }, session);
       invoice.documentId = invoiceDocument._id; await invoice.save({ session });
-      organization.onboarding.contractId = contract!._id; organization.onboarding.invoiceId = invoice._id; organization.onboarding.state = 'CONTRACT_PENDING_SIGNATURE'; organization.onboarding.revision += 1; organization.onboarding.attentionCode = undefined;
+      organization.onboarding.contractId = contract!._id; organization.onboarding.invoiceId = invoice._id; organization.onboarding.state = 'CONTRACT_PENDING_SIGNATURE'; organization.onboarding.stateChangedAt=new Date(); organization.onboarding.revision += 1; organization.onboarding.attentionCode = undefined;
       await organization.save({ session });
       for (const state of ['PLAN_SELECTED', 'CONTRACT_GENERATED', 'CONTRACT_PENDING_SIGNATURE']) await AuditService.record({ organizationId: organization._id, actorUserId: auth.userId, action: 'landlord.onboarding.transition', resourceType: 'OrganizationContract', resourceId: contractId, metadata: { state, generation, sha256, ...(current ? { replacesContractId: String(current._id), reason: 'reason' in input ? input.reason : '' } : {}) } }, session);
     }); } finally { await session.endSession(); }
@@ -136,7 +136,7 @@ export class LandlordOnboardingService {
       contract.set('signature', { ...evidence, evidenceHash }); contract.status = 'SIGNED';
       const document = await retainArtifact({ organizationId: contract.organizationId, actorUserId: auth.userId, resourceId: contract._id, kind: 'SIGNED_CONTRACT', title: `${contract.templateName} — signed`, text: `${contract.body}\n\nELECTRONIC SIGNATURE\nSignatory: ${input.signatoryName}\nUser: ${auth.userId}\nSigned at: ${signedAt.toISOString()}\nAuthority confirmed: yes\nTerms accepted: yes\nTemplate: ${contract.templateId} version ${contract.templateVersion}\nAgreement hash: ${contract.sha256}\nSignature evidence hash: ${evidenceHash}`, issuedAt: signedAt, contentHash: evidenceHash }, session);
       contract.signedDocumentId = document._id; await contract.save({ session });
-      organization!.onboarding!.state = 'INVOICE_ISSUED'; organization!.onboarding!.revision += 1;
+      organization!.onboarding!.state = 'INVOICE_ISSUED'; organization?.set('onboarding.stateChangedAt',new Date()); organization!.onboarding!.revision += 1;
       await organization!.save({ session });
       for (const state of ['CONTRACT_SIGNED', 'INVOICE_ISSUED']) await AuditService.record({ organizationId: contract.organizationId, actorUserId: auth.userId, action: 'landlord.onboarding.transition', resourceType: 'OrganizationContract', resourceId: contract._id, ...meta, metadata: { state, documentHash: contract.sha256, evidenceHash, templateVersion: contract.templateVersion } }, session);
     }); } finally { await session.endSession(); }

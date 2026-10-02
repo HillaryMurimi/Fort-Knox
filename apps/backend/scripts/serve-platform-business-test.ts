@@ -1,0 +1,50 @@
+// Test-only HTTP fixture server used by the real browser verification script.
+import { env } from "../src/config/env.js";
+import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
+import { createApp } from "../src/app.js";
+import { User } from "../src/database/models/User.js";
+import { SubscriptionPlan } from "../src/database/models/SubscriptionPlan.js";
+import { PlatformBrief } from "../src/database/models/PlatformBrief.js";
+import { seedPlatformBusinessDemo } from "../src/modules/platform-control/platform-business.demo.js";
+if (env.NODE_ENV !== "test" || !process.env.PCC_BI_TEST_PASSWORD)
+  throw new Error("This server is strictly for isolated browser tests");
+await mongoose.connect(env.MONGODB_URI, { autoIndex: false });
+if (!mongoose.connection.name.endsWith("-test"))
+  throw new Error("Browser fixtures require an isolated -test database");
+for (const model of Object.values(mongoose.models))
+  await model.createCollection();
+await PlatformBrief.createIndexes();
+const admin = await User.create({
+  phone: "+254700009130",
+  email: "platform-browser@example.test",
+  firstName: "Browser",
+  lastName: "Admin",
+  isPlatformAdmin: true,
+  passwordHash: await bcrypt.hash(process.env.PCC_BI_TEST_PASSWORD, 10),
+  verifiedAt: new Date(),
+});
+for (const key of ["CONTROL", "FORT_KNOX"])
+  await SubscriptionPlan.create({
+    key,
+    name: key === "CONTROL" ? "Control" : "Fort Knox",
+    amount: key === "CONTROL" ? 10000 : 30000,
+    currency: "KES",
+    billingInterval: "MONTH",
+    metadata: {
+      pricingModel: "BASE_PLUS_ACTIVE_UNITS",
+      includedUnits: 50,
+      additionalUnitAmount: 200,
+    },
+  });
+await seedPlatformBusinessDemo(admin._id);
+const server = createApp().listen(env.PORT, "127.0.0.1", () =>
+  process.stdout.write("PLATFORM_BI_TEST_SERVER_READY\n"),
+);
+const stop = () => {
+  server.close(() => {
+    void mongoose.disconnect().finally(() => process.exit(0));
+  });
+};
+process.on("SIGTERM", stop);
+process.on("SIGINT", stop);

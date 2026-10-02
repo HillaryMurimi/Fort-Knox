@@ -418,3 +418,7 @@ Use health/readiness endpoints and graceful shutdown.
 ## Contract-based landlord activation
 
 The landlord workflow extends Organization, OrganizationSubscription, SubscriptionInvoice, Document/Evidence, Paystack provider/reconciliation and transactional audit/event infrastructure. Contracts add append-only template versions and rendered organization snapshots. Signature and paid activation transactions retain immutable evidence. The one-off prepaid charge is distinct from a deferred recurring subscription, preserving later plan billing cycles. See [LANDLORD_CONTRACT_WORKFLOW.md](LANDLORD_CONTRACT_WORKFLOW.md).
+
+## SUPER_ADMIN platform intelligence
+
+The existing control plane now includes backend Mongo aggregation and retained PlatformBrief snapshots. It reuses organization/subscription/invoice/payment/monitoring authorities; the landlord Command Center remains organization scoped. See [SUPER_ADMIN business intelligence](SUPER_ADMIN_BUSINESS_INTELLIGENCE.md) for boundaries, queries and generation architecture.

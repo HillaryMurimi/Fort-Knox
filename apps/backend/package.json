@@ -27,7 +27,9 @@
     "verify:production": "npm run typecheck && npm run lint && npm test && npm run build && npm run certify:release",
     "test:e2e": "node scripts/run-e2e.mjs",
     "seed:super-admin": "tsx src/database/seeds/super-admin.seed.ts",
-    "contracts:migrate-indexes": "tsx scripts/migrate-contract-indexes.ts"
+    "contracts:migrate-indexes": "tsx scripts/migrate-contract-indexes.ts",
+    "business:create-indexes": "tsx scripts/create-business-indexes.ts",
+    "seed:platform-business-demo": "tsx scripts/seed-platform-business-demo.ts"
   },
   "keywords": [],
   "author": "",

@@ -575,3 +575,7 @@ implementation reflects an explicitly approved newer decision. 2. If
 yes, update documentation in the same change. 3. If no, treat the
 documented product/security requirement as authoritative and raise the
 discrepancy.
+
+## Platform operating intelligence
+
+SUPER_ADMIN operates across the SaaS platform; landlords retain their own organizations/property portfolios. The existing main control plane now has Plan Performance and retained Platform Morning Brief, with separate Control/Fort Knox and verified billing metrics. [Metric definitions and limitations](SUPER_ADMIN_BUSINESS_INTELLIGENCE.md) are authoritative for this capability.
