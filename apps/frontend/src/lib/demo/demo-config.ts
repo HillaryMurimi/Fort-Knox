@@ -1,5 +1,11 @@
 export const DEV_DEMO_MODE = process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_DEV_DEMO_MODE === 'true';
 
+export function isPlatformBusinessRequest(path: string): boolean {
+  const pathname = path.split('?')[0];
+  return ['/platform-control/business-intelligence', '/platform-control/morning-briefs']
+    .some(prefix => pathname === prefix || pathname?.startsWith(prefix + '/'));
+}
+
 export const DEMO_ORGANIZATION_ID = 'demo-org-dapini';
 
 export const DEMO_ROLE_STORAGE_KEY = 'property-command-center.dev-auth-role';

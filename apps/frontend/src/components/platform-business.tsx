@@ -30,6 +30,11 @@ import {
 import { usePlatformSearch } from "@/hooks/use-platform-search";
 import { useAuth } from "@/hooks/use-auth";
 import {
+  businessOverviewSchema,
+  platformBriefSchema,
+  platformAnalyticsResponseError,
+} from "@/lib/data/platform-business.contract";
+import {
   usePlatformBusiness,
   useBusinessDrill,
   useBriefHistory,
@@ -262,6 +267,18 @@ export function PriorityActions({
   );
 }
 export function PlanPerformanceView({
+  data,
+  onDrill,
+}: {
+  data: BusinessOverview;
+  onDrill: (kind: DrillKind, plan?: BusinessFilters["plan"]) => void;
+}) {
+  const result = businessOverviewSchema.safeParse(data);
+  if (!result.success)
+    return <Alert tone="destructive">{platformAnalyticsResponseError}</Alert>;
+  return <ValidPlanPerformanceView data={result.data} onDrill={onDrill} />;
+}
+function ValidPlanPerformanceView({
   data,
   onDrill,
 }: {
@@ -807,6 +824,12 @@ export function PlanPerformanceView({
   );
 }
 export function MorningBriefView({ brief }: { brief: PlatformBrief }) {
+  const result = platformBriefSchema.safeParse(brief);
+  if (!result.success)
+    return <Alert tone="destructive">{platformAnalyticsResponseError}</Alert>;
+  return <ValidMorningBriefView brief={result.data} />;
+}
+function ValidMorningBriefView({ brief }: { brief: PlatformBrief }) {
   return (
     <div className="space-y-4">
       <Card className="p-5">

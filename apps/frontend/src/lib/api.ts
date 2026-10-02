@@ -10,6 +10,7 @@ import {
 
 import {
   DEV_DEMO_MODE,
+  isPlatformBusinessRequest,
 } from './demo/demo-config';
 
 import {
@@ -361,6 +362,10 @@ export async function api<T>(
     authenticated = true,
   } = init;
 
+  const platformBusiness = isPlatformBusinessRequest(path);
+  if (authenticated && platformBusiness && isDevAuthBypassEnabled())
+    throw new ApiError('Plan Performance and platform Morning Brief require a real SUPER_ADMIN session and a running backend. Disable NEXT_PUBLIC_DEV_AUTH_BYPASS and NEXT_PUBLIC_DEV_DEMO_MODE, restart the frontend, and sign in.', 503, null);
+
   /**
    * Demo data mode intercepts authenticated requests
    * and serves them from the local demo dataset.
@@ -373,6 +378,7 @@ export async function api<T>(
     DEV_DEMO_MODE &&
     !path.startsWith('/sales/') &&
     !path.startsWith('/platform-control/sales-intelligence') &&
+    !platformBusiness &&
     authenticated &&
     typeof window !== 'undefined'
   ) {

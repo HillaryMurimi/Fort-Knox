@@ -139,6 +139,32 @@ describe("SUPER_ADMIN plan performance rendering", () => {
     expect(page()).toContain("Retry analytics");
     expect(page()).toContain("Network unavailable");
   });
+  it.each([
+    {},
+    { revenue: [] },
+    { ...overview(), revenue: undefined },
+    { ...overview(), growth: {} },
+  ])("keeps an incompatible cached response recoverable: %j", (value) => {
+    state.data = value;
+    const html = page();
+    expect(html).toContain(
+      "Platform analytics response is incomplete or incompatible",
+    );
+    expect(html).toContain("Refresh");
+    expect(html).not.toContain("Known contracted MRR");
+    expect(html).not.toContain("No organizations in this dataset");
+  });
+  it("does not crash or show financial totals for an incomplete retained brief", () => {
+    const html = renderToStaticMarkup(
+      createElement(MorningBriefView, {
+        brief: { snapshot: {} } as PlatformBrief,
+      }),
+    );
+    expect(html).toContain(
+      "Platform analytics response is incomplete or incompatible",
+    );
+    expect(html).not.toContain("Business and revenue at generation");
+  });
   it("shows explicit empty platform and unknown gateway states", () => {
     state.data = overview();
     const html = page();

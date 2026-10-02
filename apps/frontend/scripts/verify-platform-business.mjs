@@ -18,6 +18,7 @@ MongoInstance.prototype.prepareCommandArgs = function () {
   ];
 };
 const temporaryRoot = tmpdir();
+const devDemoMode = process.env.PCC_BI_TEST_DEV_DEMO_MODE === "true";
 const children = [];
 const deliveredCodes = new Map();
 async function deliveredCode(channel) { const end = Date.now() + 5000; while (Date.now() < end) { if (deliveredCodes.has(channel)) return deliveredCodes.get(channel); await new Promise(resolve => setTimeout(resolve, 50)); } throw new Error('Test delivery did not reach the private harness'); }
@@ -106,7 +107,7 @@ try {
       NODE_ENV: "development",
       NEXT_PUBLIC_API_URL: "http://127.0.0.1:" + apiPort + "/api/v1",
       NEXT_PUBLIC_DEV_AUTH_BYPASS: "false",
-      NEXT_PUBLIC_DEV_DEMO_MODE: "false",
+      NEXT_PUBLIC_DEV_DEMO_MODE: String(devDemoMode),
     },
   );
   await ready(origin + "/login", web);
@@ -153,10 +154,16 @@ try {
   await page.getByLabel('SMS verification code').fill(await deliveredCode('SMS'));
   await page.getByRole('button', { name: 'Verify phone and sign in', exact: true }).click();
   await page.waitForURL(url => url.pathname !== '/login');
+  const malformedAnalytics = route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: {} }) });
+  await page.route("**/api/v1/platform-control/business-intelligence?*", malformedAnalytics);
   await page.goto(origin + "/platform");
   await page
     .getByRole("heading", { name: "Plan Performance", exact: true })
     .waitFor();
+  await page.getByText(/Analytics unavailable: Platform analytics response is incomplete or incompatible/).waitFor();
+  assert.equal(await page.getByText("Known contracted MRR", { exact: true }).count(), 0, "Malformed analytics must not render financial totals");
+  await page.unroute("**/api/v1/platform-control/business-intelligence?*", malformedAnalytics);
+  await page.getByRole("button", { name: "Retry analytics", exact: true }).click();
   await page.getByLabel("Record dataset").selectOption("DEMO");
   await page.getByLabel("Operating period").selectOption("LAST_30_DAYS");
   await page
@@ -229,7 +236,7 @@ try {
     "The browser journey must have no uncaught runtime errors",
   );
   process.stdout.write(
-    "PASS browser E2E: SUPER_ADMIN password/email OTP/SMS OTP, bypass denial and logout → plan comparison/filter → retained Morning Brief → critical action → organization drill-down; desktop and mobile screenshots\n",
+    `PASS browser E2E: SUPER_ADMIN password/email OTP/SMS OTP, bypass denial and logout → malformed analytics recovery → plan comparison/filter → retained Morning Brief → critical action → organization drill-down; desktop/mobile; local demo interception ${devDemoMode ? "enabled" : "disabled"}\n`,
   );
 } catch (error) {
   if (page) {

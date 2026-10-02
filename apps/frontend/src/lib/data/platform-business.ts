@@ -1,4 +1,9 @@
 import { api } from "@/lib/api";
+import {
+  businessOverviewSchema,
+  platformBriefSchema,
+  parsePlatformAnalytics,
+} from "./platform-business.contract";
 export interface PlanMetrics {
   plan: string;
   organizations: number;
@@ -214,9 +219,12 @@ export function businessSearch(
   return params.toString();
 }
 export const platformBusinessClient = {
-  overview: (filters: BusinessFilters) =>
-    api<BusinessOverview>(
-      "/platform-control/business-intelligence?" + businessSearch(filters),
+  overview: async (filters: BusinessFilters) =>
+    parsePlatformAnalytics(
+      businessOverviewSchema,
+      await api<unknown>(
+        "/platform-control/business-intelligence?" + businessSearch(filters),
+      ),
     ),
   drill: (
     filters: BusinessFilters,
@@ -228,22 +236,28 @@ export const platformBusinessClient = {
       "/platform-control/business-intelligence/drill-down?" +
         businessSearch(filters, { kind, page, pageSize: 20, organizationId }),
     ),
-  generate: (filters: BusinessFilters, idempotencyKey: string) =>
-    api<PlatformBrief>("/platform-control/morning-briefs", {
-      method: "POST",
-      body: JSON.stringify({ ...filters, idempotencyKey }),
-    }),
+  generate: async (filters: BusinessFilters, idempotencyKey: string) =>
+    parsePlatformAnalytics(
+      platformBriefSchema,
+      await api<unknown>("/platform-control/morning-briefs", {
+        method: "POST",
+        body: JSON.stringify({ ...filters, idempotencyKey }),
+      }),
+    ),
   history: (filters: BusinessFilters, page = 1) =>
     api<PaginatedBusiness<BriefMetadata>>(
       "/platform-control/morning-briefs?" +
         businessSearch(filters, { page, pageSize: 10 }),
     ),
-  brief: (filters: BusinessFilters, id: string) =>
-    api<PlatformBrief>(
-      "/platform-control/morning-briefs/" +
-        encodeURIComponent(id) +
-        "?" +
-        businessSearch(filters),
+  brief: async (filters: BusinessFilters, id: string) =>
+    parsePlatformAnalytics(
+      platformBriefSchema,
+      await api<unknown>(
+        "/platform-control/morning-briefs/" +
+          encodeURIComponent(id) +
+          "?" +
+          businessSearch(filters),
+      ),
     ),
 };
 export const businessMoney = (minor: number, currency = "KES") =>
