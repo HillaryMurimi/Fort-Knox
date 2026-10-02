@@ -17,6 +17,7 @@ import {
   logoutRequest,
   refreshAuth,
   verifyLoginOtp,
+  verifyAdminMfa,
   verifyStepUp,
 } from '../lib/auth/auth-api';
 
@@ -36,6 +37,8 @@ import {
 
 import type {
   AuthUser,
+  AdminMfaResponse,
+  LoginResult,
   LoginChallengeResponse,
   LoginPayload,
   LoginResponse,
@@ -52,9 +55,8 @@ interface AuthContextValue {
   isLoading: boolean;
   isDevMode: boolean;
 
-  login: (
-    payload: LoginPayload,
-  ) => Promise<LoginChallengeResponse | LoginResponse>;
+  login: (payload: LoginPayload) => Promise<LoginResult>;
+  verifyAdmin: (flowToken: string, channel: 'EMAIL' | 'SMS', code: string) => Promise<AdminMfaResponse | LoginResponse>;
 
   verifyOtp: (
     phone: string,
@@ -79,6 +81,8 @@ interface AuthContextValue {
   refresh: () => Promise<LoginResponse>;
 }
 
+import { AdminStepUp } from '../components/auth/admin-step-up';
+
 const AuthContext =
   createContext<AuthContextValue | undefined>(
     undefined,
@@ -87,6 +91,7 @@ const AuthContext =
 function isLoginResponse(
   value:
     | LoginChallengeResponse
+    | AdminMfaResponse
     | LoginResponse,
 ): value is LoginResponse {
   return (
@@ -111,6 +116,8 @@ function persist(
     memberships: response.memberships,
     authenticatedAt:
       new Date().toISOString(),
+    expiresAt: response.expiresAt,
+    ...(response.securityPolicy ? { idleTimeoutSeconds: response.securityPolicy.idleTimeoutSeconds } : {}),
   };
 
   setStoredAuthSession(session);
@@ -151,7 +158,7 @@ export function AuthProvider({
   const [
     isLoading,
     setIsLoading,
-  ] = useState(false);
+  ] = useState(() => !isDevAuthBypassEnabled() && !getStoredAuthSession());
 
   const [
     isDevMode,
@@ -237,6 +244,7 @@ export function AuthProvider({
       payload: LoginPayload,
     ): Promise<
       | LoginChallengeResponse
+      | AdminMfaResponse
       | LoginResponse
     > => {
       setIsLoading(true);
@@ -263,6 +271,12 @@ export function AuthProvider({
     },
     [],
   );
+
+  const doVerifyAdmin = useCallback(async (flowToken: string, channel: 'EMAIL' | 'SMS', code: string) => {
+    const result = await verifyAdminMfa(flowToken, channel, code);
+    if (isLoginResponse(result)) { persist(result); setSession(getStoredAuthSession()); }
+    return result;
+  }, []);
 
   const doVerifyOtp = useCallback(
     async (
@@ -392,6 +406,30 @@ export function AuthProvider({
     [],
   );
 
+  useEffect(() => {
+    if (isDevAuthBypassEnabled() || getStoredAuthSession()) return;
+    let active = true;
+    void refreshAuth().then(result => {
+      if (active) { persist(result); setSession(getStoredAuthSession()); }
+    }).catch(() => { /* No valid refresh cookie: normal signed-out state. */ })
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!session?.user.isPlatformAdmin || isDevMode) return;
+    let lastInteraction = Date.now();
+    const activity = () => { lastInteraction = Date.now(); };
+    const events = ['pointerdown', 'keydown', 'touchstart', 'scroll'] as const;
+    for (const event of events) window.addEventListener(event, activity, { passive: true });
+    const timer = setInterval(() => {
+      const idle = Date.now() - lastInteraction >= (session.idleTimeoutSeconds ?? 300) * 1000;
+      const expired = !!session.expiresAt && Date.parse(session.expiresAt) <= Date.now();
+      if (idle || expired) { clearInterval(timer); void doLogout().catch(() => {}).finally(() => window.location.replace('/login')); }
+    }, 5000);
+    return () => { clearInterval(timer); for (const event of events) window.removeEventListener(event, activity); };
+  }, [session, isDevMode, doLogout]);
+
   const value =
     useMemo<AuthContextValue>(
       () => ({
@@ -416,6 +454,7 @@ export function AuthProvider({
         isDevMode,
 
         login: doLogin,
+        verifyAdmin: doVerifyAdmin,
 
         verifyOtp:
           doVerifyOtp,
@@ -436,6 +475,7 @@ export function AuthProvider({
         isLoading,
         isDevMode,
         doLogin,
+        doVerifyAdmin,
         doVerifyOtp,
         doVerifyStepUp,
         doLogout,
@@ -448,6 +488,7 @@ export function AuthProvider({
       value={value}
     >
       {children}
+      <AdminStepUp enabled={!!session?.user.isPlatformAdmin && !isDevMode} verify={doVerifyAdmin} />
     </AuthContext.Provider>
   );
 }

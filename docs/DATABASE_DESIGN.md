@@ -602,3 +602,7 @@ ContractTemplate adds append-only commercial versions and audited availability s
 ## Platform business snapshots and transition evidence
 
 Added immutable PlatformBrief snapshots with unique environment/dataset/idempotency keys and history indexes. OrganizationSubscription stores prospective atomic plan/status transitions; onboarding stores stateChangedAt. Reporting indexes are additive through `business:create-indexes`; no legacy metrics are invented. See [index rationale and metric authorities](SUPER_ADMIN_BUSINESS_INTELLIGENCE.md).
+
+## Administrator authentication evidence
+
+AdminAuthFlow stores temporary hashed password-bound workflows; User/OtpChallenge/RefreshSession extend existing security authorities. Platform security Notification/Job rows are transactionally queued without a fabricated organization. Explicit index repair and retention rationale: [SUPER_ADMIN authentication](SUPER_ADMIN_AUTHENTICATION.md).

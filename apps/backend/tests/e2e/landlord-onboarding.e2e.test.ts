@@ -1,3 +1,5 @@
+import { completedAdminFixture } from '../helpers/admin-assurance.js';
+import { RefreshSession } from '../../src/database/models/RefreshSession.js';
 import { beforeAll, beforeEach, afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose, { Types } from 'mongoose';
@@ -43,7 +45,7 @@ describe.skipIf(!process.env.RUN_E2E)('landlord onboarding replica-set / HTTP en
   beforeAll(async () => {
     mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 }, binary: process.env.MONGOMS_SYSTEM_BINARY ? { systemBinary: process.env.MONGOMS_SYSTEM_BINARY } : {} });
     await mongoose.connect(mongo.getUri(), {autoIndex:false});
-    for (const model of [Organization, ContractTemplate, OrganizationContract, OrganizationSubscription, SubscriptionInvoice, Document, Evidence, BillingEvent, Role, User, OrganizationMembership, AuditLog, mongoose.models.DomainEvent!, mongoose.models.EventCounter!, mongoose.models.EventOutbox!].filter(Boolean)) { await model.createCollection(); await model.createIndexes(); }
+    for (const model of [RefreshSession, Organization, ContractTemplate, OrganizationContract, OrganizationSubscription, SubscriptionInvoice, Document, Evidence, BillingEvent, Role, User, OrganizationMembership, AuditLog, mongoose.models.DomainEvent!, mongoose.models.EventCounter!, mongoose.models.EventOutbox!].filter(Boolean)) { await model.createCollection(); await model.createIndexes(); }
   }, 180000);
   beforeEach(async () => {
     for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({});
@@ -56,7 +58,7 @@ describe.skipIf(!process.env.RUN_E2E)('landlord onboarding replica-set / HTTP en
     token = jwt.sign({ sub: String(userId), type: 'access' }, env.JWT_ACCESS_SECRET);
     const administrator = await User.create({ phone: '+254700009002', email: 'admin@example.com', firstName: 'Platform', lastName: 'Admin', isPlatformAdmin: true });
     admin = { userId: administrator._id, isPlatformAdmin: true, memberships: [] };
-    adminToken = jwt.sign({ sub: String(admin.userId), type: 'access' }, env.JWT_ACCESS_SECRET);
+    adminToken = await completedAdminFixture(admin.userId);
     await SubscriptionPlan.create({ key: 'CONTROL', name: 'Control', currency: 'KES', amount: 10000, billingInterval: 'MONTH', trialDays: 14, metadata: { pricingModel: 'BASE_PLUS_ACTIVE_UNITS', includedUnits: 50, additionalUnitAmount: 200 }, entitlements: { maxProperties: -1, maxUnits: -1, maxUsers: -1, maxTenants: -1, features: ['documents'] } });
     for (const key of ['LANDLORD_ONBOARDING', 'PAYSTACK_PAYMENTS', 'DOCUMENT_STORAGE']) await PlatformSwitch.create({ key, name: key, description: 'Test fixture', kind: 'SERVICE', enabled: true, mode: 'ON' });
     const template = await ContractTemplateService.create(admin, { ...defaultContractDraft, variables: [...contractVariables], effectiveAt: new Date('2026-01-01') });

@@ -237,3 +237,7 @@ Signed organization contract snapshots and retained PDF bytes are immutable thro
 ## SUPER_ADMIN analytics and immutable briefs
 
 All platform intelligence endpoints independently enforce platform administrator authorization and audit sensitive reads. Safe projections exclude stream/provider/signature credentials. Strict query schemas bound scope/date/page input. Brief generation and audit are transactional; snapshot hashes and immutable normal workflows protect retained evidence. Demo datasets are excluded from live queries and blocked in production. See [architecture and security tests](SUPER_ADMIN_BUSINESS_INTELLIGENCE.md).
+
+## SUPER_ADMIN privileged assurance
+
+Every platform-admin request requires a live, unrevoked, contact/version-bound session with password/email/SMS proof. Generic/legacy/social session paths cannot bypass it. Admin OTPs are purpose-bound HMAC/bcrypt hashes, atomic and rate-limited. Privileged tokens are memory-only; server idle/absolute expiry and sensitive step-up remain authoritative. See [security controls and audited recovery](SUPER_ADMIN_AUTHENTICATION.md).

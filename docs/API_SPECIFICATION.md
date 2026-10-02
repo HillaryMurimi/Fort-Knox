@@ -578,3 +578,7 @@ See [LANDLORD_CONTRACT_WORKFLOW.md](LANDLORD_CONTRACT_WORKFLOW.md) for request f
 ## SUPER_ADMIN business and Morning Brief API
 
 Added authenticated, platform-admin-only business-intelligence overview/drill-down and morning-brief generation/history/read routes under `/api/v1/platform-control`. Reads are audited and noncacheable; financial/entity projections are bounded. Scope, schemas and error semantics are documented in [SUPER_ADMIN business intelligence](SUPER_ADMIN_BUSINESS_INTELLIGENCE.md) and OpenAPI.
+
+## SUPER_ADMIN dual-channel MFA
+
+Normal /auth/login starts administrator EMAIL then SMS verification. New /auth/admin-mfa/{verify,resend,step-up}, /auth/sessions, /auth/sessions/:sessionId/revoke, /auth/logout-all and /auth/platform-admins extend existing auth. Privileged cookie operations require configured Origin and X-PCC-Auth: 1. Old single-code admin access is rejected. See [complete endpoint and security contract](SUPER_ADMIN_AUTHENTICATION.md).

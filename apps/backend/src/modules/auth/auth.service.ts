@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { randomUUID, createHash, randomInt } from 'node:crypto';
-import { Types } from 'mongoose';
+import mongoose, { Types, type ClientSession } from 'mongoose';
 import { User } from '../../database/models/User.js';
 import { OrganizationMembership } from '../../database/models/OrganizationMembership.js';
 import { OtpChallenge } from '../../database/models/OtpChallenge.js';
@@ -11,13 +11,18 @@ import { Organization } from '../../database/models/Organization.js';
 import { AppError } from '../../core/errors/AppError.js';
 import { env } from '../../config/env.js';
 import type { SystemRoleKey } from '../../core/types/auth.js';
+import { AdminAuthFlow } from '../../database/models/AdminAuthFlow.js';
+import { NotificationService } from '../notifications/notification.service.js';
+import { AuditService } from '../audit/audit.service.js';
+import { startAdminMfa, registerAdminFailure } from './admin-mfa.service.js';
+import { auditAdminSessionDenial, describeClient, authEvidence, contactsHash, securityAudit, type AuthMetadata } from './admin-security.js';
 import { getSmsProvider } from '../../core/integrations/messaging-providers.js';
 
 export const normalizePhone = (phone: string): string => phone.replace(/[\s()-]/g, '');
 const hashToken = (token: string): string => createHash('sha256').update(token).digest('hex');
 
-function signAccessToken(userId: string, activeOrganizationId?: string) {
-  return jwt.sign({ sub: userId, activeOrganizationId, type: 'access' }, env.JWT_ACCESS_SECRET, { expiresIn: env.JWT_ACCESS_EXPIRES_IN as jwt.SignOptions['expiresIn'] });
+function signAccessToken(userId: string, activeOrganizationId?: string, sessionId?: string, privileged = false) {
+  return jwt.sign({ sub: userId, activeOrganizationId, sid: sessionId, privileged, type: 'access' }, env.JWT_ACCESS_SECRET, { expiresIn: (privileged ? '5m' : env.JWT_ACCESS_EXPIRES_IN) as jwt.SignOptions['expiresIn'] });
 }
 
 function signRefreshToken(userId: string, sessionId: string) {
@@ -46,17 +51,78 @@ async function getIdentity(userId: Types.ObjectId) {
 
 export async function issueSession(userId: Types.ObjectId, meta?: { userAgent?: string; ipAddress?: string }) {
   const identity = await getIdentity(userId);
-  if (!identity.user.isPlatformAdmin && identity.memberships.length === 0) throw new AppError(403, 'NO_ORGANIZATION_ACCESS', 'User has no active organization membership');
+  if (identity.user.isPlatformAdmin) throw new AppError(401, 'ADMIN_MFA_REQUIRED', 'Administrator password, email and SMS verification are required.');
+  if (identity.memberships.length === 0) throw new AppError(403, 'NO_ORGANIZATION_ACCESS', 'User has no active organization membership');
   const activeOrganizationId = identity.memberships[0]?.organizationId?.toString();
   const sessionId = new Types.ObjectId();
   const refreshToken = signRefreshToken(userId.toString(), sessionId.toString());
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   await RefreshSession.create({ _id: sessionId, userId, tokenHash: hashToken(refreshToken), expiresAt, ...(meta?.userAgent ? { userAgent: meta.userAgent } : {}), ...(meta?.ipAddress ? { ipAddress: meta.ipAddress } : {}) });
-  return { accessToken: signAccessToken(userId.toString(), activeOrganizationId), refreshToken, user: identity.user, roles: identity.roles, memberships: identity.memberships, expiresAt };
+  return { accessToken: signAccessToken(userId.toString(), activeOrganizationId, sessionId.toString()), refreshToken, user: identity.user, roles: identity.roles, memberships: identity.memberships, expiresAt };
+}
+
+
+async function mintAdminSession(userId: Types.ObjectId, proof: { contactsHash: string; authVersion: number; passwordVerifiedAt: Date; emailVerifiedAt: Date; smsVerifiedAt: Date; absoluteExpiresAt?: Date | null }, meta: AuthMetadata, session: ClientSession) {
+  const identity = await getIdentity(userId), sessionId = new Types.ObjectId();
+  if (!identity.user.isPlatformAdmin || !identity.user.email || contactsHash(identity.user.email, identity.user.phone) !== proof.contactsHash || (identity.user.authVersion ?? 0) !== proof.authVersion)
+    throw new AppError(401, 'ADMIN_MFA_REQUIRED', 'Administrator authentication evidence no longer matches the account.');
+  const now = new Date(), expiresAt = proof.absoluteExpiresAt ?? new Date(Date.now() + env.ADMIN_SESSION_SECONDS * 1000);
+  if (expiresAt <= now) throw new AppError(401, 'ADMIN_SESSION_EXPIRED', 'Administrator session has expired.');
+  const refreshToken = jwt.sign({ sub: String(userId), sid: String(sessionId), type: 'refresh', privileged: true }, env.JWT_REFRESH_SECRET, { expiresIn: Math.max(1, Math.floor((expiresAt.getTime() - Date.now()) / 1000)) });
+  await RefreshSession.create([{ _id: sessionId, userId, tokenHash: hashToken(refreshToken), expiresAt, absoluteExpiresAt: expiresAt,
+    privileged: true, contactsHash: proof.contactsHash, authVersion: proof.authVersion, passwordVerifiedAt: proof.passwordVerifiedAt,
+    emailVerifiedAt: proof.emailVerifiedAt, smsVerifiedAt: proof.smsVerifiedAt, mfaVerifiedAt: now, lastActivityAt: now,
+    ...(meta.userAgent ? { userAgent: describeClient(meta.userAgent) } : {}), ...(meta.ipAddress ? { ipAddress: meta.ipAddress.slice(0, 100) } : {}) }], { session });
+  return { accessToken: signAccessToken(String(userId), identity.memberships[0]?.organizationId?.toString(), String(sessionId), true), refreshToken,
+    user: identity.user, roles: identity.roles, memberships: identity.memberships, expiresAt, sessionId,
+    securityPolicy: { idleTimeoutSeconds: env.ADMIN_IDLE_SECONDS, absoluteTimeoutSeconds: env.ADMIN_SESSION_SECONDS } };
+}
+export async function finishAdminLogin(flowId: Types.ObjectId, meta: AuthMetadata = {}) {
+  let result: Awaited<ReturnType<typeof mintAdminSession>> | undefined;
+  await mongoose.connection.transaction(async session => {
+    const flow = await AdminAuthFlow.findOneAndUpdate({ _id: flowId, purpose: { $in: ['LOGIN', 'STEP_UP'] }, stage: 'VERIFIED',
+      emailVerifiedAt: { $exists: true }, smsVerifiedAt: { $exists: true }, expiresAt: { $gt: new Date() } }, { $set: { stage: 'COMPLETED' } }, { new: true, session });
+    if (!flow) throw new AppError(401, 'ADMIN_MFA_REQUIRED', 'Completed password, email and SMS verification is required.');
+    const user = await User.findOne({ _id: flow.userId, status: 'ACTIVE', isPlatformAdmin: true }).select('+mfaContactsHash').session(session);
+    if (!user || user.authFlowGeneration !== flow.userFlowGeneration || user.mfaContactsHash !== flow.contactsHash ||
+      !user.emailVerifiedAt || !user.phoneVerifiedAt || (user.authLockedUntil && user.authLockedUntil > new Date()))
+      throw new AppError(401, 'ADMIN_MFA_REQUIRED', 'Authentication is no longer valid.');
+    let absoluteExpiresAt: Date | undefined;
+    if (flow.purpose === 'STEP_UP') {
+      const parent = await RefreshSession.findOneAndUpdate({ _id: flow.sessionId, userId: user._id, privileged: true, revokedAt: { $exists: false },
+        expiresAt: { $gt: new Date() }, lastActivityAt: { $gt: new Date(Date.now() - env.ADMIN_IDLE_SECONDS * 1000) } }, { $set: { revokedAt: new Date() } }, { new: true, session });
+      if (!parent?.absoluteExpiresAt) throw new AppError(401, 'ADMIN_SESSION_EXPIRED', 'The original session is no longer active.');
+      absoluteExpiresAt = parent.absoluteExpiresAt;
+    }
+    result = await mintAdminSession(flow.userId, { contactsHash: flow.contactsHash, authVersion: flow.authVersion,
+      passwordVerifiedAt: flow.passwordVerifiedAt, emailVerifiedAt: authEvidence(flow.emailVerifiedAt), smsVerifiedAt: authEvidence(flow.smsVerifiedAt),
+      ...(absoluteExpiresAt ? { absoluteExpiresAt } : {}) }, meta, session);
+    await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date(), authFailureCount: 0 }, $unset: { authLockedUntil: 1, authFailureWindowAt: 1 } }, { session });
+    for (const action of ['mfa_completed', flow.purpose === 'STEP_UP' ? 'step_up_completed' : 'login_completed'])
+      await AuditService.record({ actorUserId: user._id, actorRole: 'SUPER_ADMIN', action: 'auth.super_admin.' + action, resourceType: 'RefreshSession', resourceId: result.sessionId, ...meta, userAgent: describeClient(meta.userAgent), metadata: { channels: ['EMAIL', 'SMS'] } }, session);
+    const body = 'Administrator authentication completed at ' + new Date().toISOString() +
+      '. Password, email and SMS verification succeeded. Browser/device report (unverified): ' + (describeClient(meta.userAgent)) +
+      '. Network address observed by the platform (may be a proxy): ' + (meta.ipAddress ?? 'Unavailable') +
+      '. If this was unexpected, revoke your sessions and contact the authorized platform security operator immediately.';
+    await NotificationService.enqueuePlatformSecurityLogin(user._id, result.sessionId, body, session);
+  });
+  if (!result) throw new AppError(401, 'ADMIN_MFA_REQUIRED', 'Administrator authentication was not completed.');
+  return result;
+}
+export async function startAdminStepUp(userId: Types.ObjectId, sessionId: Types.ObjectId, password: string, meta: AuthMetadata) {
+  const user = await User.findById(userId).select('+passwordHash');
+  if (!user?.isPlatformAdmin || !user.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
+    if (user?.isPlatformAdmin) await registerAdminFailure(user._id, meta, 'PASSWORD');
+    throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid credentials.');
+  }
+  await securityAudit('step_up_initiated', userId, meta);
+  await securityAudit('password_succeeded', userId, meta, { purpose: 'STEP_UP' });
+  return startAdminMfa(userId, meta, { purpose: 'STEP_UP', sessionId });
 }
 
 export async function requestOtp(phoneInput: string, purpose: 'LOGIN' | 'ONBOARDING' | 'STEP_UP') {
   const phone = normalizePhone(phoneInput);
+  if (await User.exists({ phone, isPlatformAdmin: true })) throw new AppError(403, 'ADMIN_MFA_REQUIRED', 'This account must use password, email and SMS verification.');
   const code = env.NODE_ENV === 'development' || env.NODE_ENV === 'test' ? '123456' : String(randomInt(100000, 1_000_000));
   const codeHash = await bcrypt.hash(code, 10);
   await OtpChallenge.deleteMany({ phone, purpose, consumedAt: { $exists: false } });
@@ -76,16 +142,21 @@ export async function loginByPhone(phoneInput: string) {
   if (!user) throw new AppError(403, 'USER_NOT_PROVISIONED', 'This phone number is not provisioned for access');
   const identity = await getIdentity(user._id);
   const fieldRoles: SystemRoleKey[] = ['PROPERTY_MANAGER', 'CARETAKER', 'CONTRACTOR', 'TENANT'];
-  if (!identity.roles.some((role) => fieldRoles.includes(role))) throw new AppError(400, 'WRONG_LOGIN_METHOD', 'This account must use email and password');
+  if (user.isPlatformAdmin || !identity.roles.some((role) => fieldRoles.includes(role))) throw new AppError(400, 'WRONG_LOGIN_METHOD', 'This account must use email and password');
   return requestOtp(phone, 'LOGIN');
 }
 
-export async function loginByEmail(emailInput: string, password: string) {
+export async function loginByEmail(emailInput: string, password: string, meta: AuthMetadata = {}) {
   const email = emailInput.trim().toLowerCase();
   const user = await User.findOne({ email, status: 'ACTIVE' }).select('+passwordHash').exec();
   if (!user?.passwordHash) throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+  if (user.isPlatformAdmin) {
+    await securityAudit('login_initiated', user._id, meta);
+    if (user.authLockedUntil && user.authLockedUntil > new Date()) { await securityAudit('lockout_attempt', user._id, meta); throw new AppError(429, 'ADMIN_LOCKED', 'Administrator temporarily locked. Try again later.'); }
+  }
   const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+  if (!valid) { if (user.isPlatformAdmin) await registerAdminFailure(user._id, meta, 'PASSWORD'); throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password'); }
+  if (user.isPlatformAdmin) { await securityAudit('password_succeeded', user._id, meta); return startAdminMfa(user._id, meta); }
   const identity = await getIdentity(user._id);
   const adminRoles: SystemRoleKey[] = ['SUPER_ADMIN', 'LANDLORD'];
   if (!identity.roles.some((role) => adminRoles.includes(role)) && !user.isPlatformAdmin) throw new AppError(400, 'WRONG_LOGIN_METHOD', 'This account must use phone OTP');
@@ -103,6 +174,7 @@ export async function verifyLoginOtp(phoneInput: string, code: string, meta?: { 
   challenge.consumedAt = new Date(); await challenge.save();
   const user = await User.findOne({ phone, status: 'ACTIVE' });
   if (!user) throw new AppError(403, 'USER_NOT_PROVISIONED', 'This phone number is not provisioned for access');
+  if (user.isPlatformAdmin) throw new AppError(403, 'ADMIN_MFA_REQUIRED', 'Administrator dual-channel verification is required.');
   user.lastLoginAt = new Date(); user.verifiedAt ??= new Date(); await user.save();
   return issueSession(user._id, meta);
 }
@@ -111,6 +183,7 @@ export async function verifyStepUp(emailInput: string, code: string, meta?: { us
   const email = emailInput.trim().toLowerCase();
   const user = await User.findOne({ email, status: 'ACTIVE' });
   if (!user) throw new AppError(401, 'OTP_INVALID', 'The OTP is invalid or expired');
+  if (user.isPlatformAdmin) throw new AppError(403, 'ADMIN_MFA_REQUIRED', 'Administrator dual-channel verification is required.');
   const challenge = await OtpChallenge.findOne({ phone: user.phone, purpose: 'STEP_UP', consumedAt: { $exists: false }, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 });
   if (!challenge) throw new AppError(401, 'OTP_INVALID', 'The OTP is invalid or expired');
   if (challenge.attempts >= env.OTP_MAX_ATTEMPTS) throw new AppError(429, 'OTP_LOCKED', 'Too many OTP attempts');
@@ -121,22 +194,61 @@ export async function verifyStepUp(emailInput: string, code: string, meta?: { us
   return issueSession(user._id, meta);
 }
 
-export async function refreshSession(refreshToken: string, meta?: { userAgent?: string; ipAddress?: string }) {
+export async function refreshSession(refreshToken: string, meta: AuthMetadata = {}) {
   let payload: jwt.JwtPayload;
-  try { payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as jwt.JwtPayload; } catch { throw new AppError(401, 'REFRESH_TOKEN_INVALID', 'Refresh token is invalid or expired'); }
-  if (payload.type !== 'refresh' || typeof payload.sub !== 'string' || typeof payload.sid !== 'string') throw new AppError(401, 'REFRESH_TOKEN_INVALID', 'Refresh token is invalid');
-  const session = await RefreshSession.findOne({ _id: payload.sid, tokenHash: hashToken(refreshToken), revokedAt: { $exists: false }, expiresAt: { $gt: new Date() } });
-  if (!session) throw new AppError(401, 'REFRESH_TOKEN_REVOKED', 'Refresh session is no longer valid');
+  try { payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as jwt.JwtPayload; } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      const expired = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET, { ignoreExpiration: true }) as jwt.JwtPayload;
+      if (expired.privileged && expired.type === 'refresh' && typeof expired.sub === 'string' && Types.ObjectId.isValid(expired.sub) && typeof expired.sid === 'string')
+        await auditAdminSessionDenial(new Types.ObjectId(expired.sub), expired.sid, meta, true);
+    }
+    throw new AppError(401, 'REFRESH_TOKEN_INVALID', 'Refresh token is invalid or expired');
+  }
+  if (payload.type !== 'refresh' || typeof payload.sub !== 'string' || typeof payload.sid !== 'string' || !Types.ObjectId.isValid(payload.sid))
+    throw new AppError(401, 'REFRESH_TOKEN_INVALID', 'Refresh token is invalid');
+  const current = await RefreshSession.findOne({ _id: payload.sid, userId: payload.sub, tokenHash: hashToken(refreshToken), revokedAt: { $exists: false }, expiresAt: { $gt: new Date() } });
+  if (!current) {
+    const replayed = await RefreshSession.findOne({ _id: payload.sid, userId: payload.sub, tokenHash: hashToken(refreshToken), privileged: true, replacedBySessionId: { $exists: true } }).lean();
+    if (replayed) {
+      await RefreshSession.updateMany({ userId: replayed.userId, privileged: true, revokedAt: { $exists: false } }, { $set: { revokedAt: new Date() } });
+      await securityAudit('refresh_replay_sessions_revoked', replayed.userId, meta);
+    }
+    throw new AppError(401, 'REFRESH_TOKEN_REVOKED', 'Refresh session is no longer valid');
+  }
+  const user = await User.findById(payload.sub).select('+mfaContactsHash').lean();
+  if (!user || user.status !== 'ACTIVE') throw new AppError(401, 'ACCOUNT_INACTIVE', 'Account is inactive');
+  if (user.isPlatformAdmin) {
+    if (!current.privileged || !current.passwordVerifiedAt || !current.emailVerifiedAt || !current.smsVerifiedAt || !current.mfaVerifiedAt ||
+        !user.emailVerifiedAt || !user.phoneVerifiedAt || current.authVersion !== (user.authVersion ?? 0) ||
+        !user.email || current.contactsHash !== contactsHash(user.email, user.phone) || current.contactsHash !== user.mfaContactsHash ||
+        !current.lastActivityAt || current.lastActivityAt.getTime() <= Date.now() - env.ADMIN_IDLE_SECONDS * 1000 ||
+        !current.absoluteExpiresAt || current.absoluteExpiresAt <= new Date())
+    {
+      await auditAdminSessionDenial(user._id, String(current._id), meta);
+      throw new AppError(401, 'ADMIN_SESSION_EXPIRED', 'Administrator session requires full authentication.');
+    }
+    let result: Awaited<ReturnType<typeof mintAdminSession>> | undefined;
+    await mongoose.connection.transaction(async session => {
+      const parent = await RefreshSession.findOneAndUpdate({ _id: current._id, revokedAt: { $exists: false } }, { $set: { revokedAt: new Date() } }, { new: true, session });
+      if (!parent) throw new AppError(401, 'REFRESH_TOKEN_REVOKED', 'Refresh session is no longer valid');
+      result = await mintAdminSession(user._id, { contactsHash: authEvidence(current.contactsHash), authVersion: authEvidence(current.authVersion),
+        passwordVerifiedAt: authEvidence(current.passwordVerifiedAt), emailVerifiedAt: authEvidence(current.emailVerifiedAt), smsVerifiedAt: authEvidence(current.smsVerifiedAt),
+        absoluteExpiresAt: authEvidence(current.absoluteExpiresAt) }, meta, session);
+      await RefreshSession.updateOne({ _id: result.sessionId }, { $set: { mfaVerifiedAt: current.mfaVerifiedAt, lastActivityAt: current.lastActivityAt } }, { session });
+      await RefreshSession.updateOne({ _id: current._id }, { $set: { replacedBySessionId: result.sessionId } }, { session });
+    });
+    if (!result) throw new AppError(401, 'REFRESH_TOKEN_REVOKED', 'Refresh session is no longer valid');
+    return result;
+  }
   const next = await issueSession(new Types.ObjectId(payload.sub), meta);
-  const nextPayload = jwt.decode(next.refreshToken) as jwt.JwtPayload;
-  session.revokedAt = new Date();
-  if (typeof nextPayload?.sid === 'string' && Types.ObjectId.isValid(nextPayload.sid)) session.replacedBySessionId = new Types.ObjectId(nextPayload.sid);
-  await session.save();
+  const claimed = await RefreshSession.findOneAndUpdate({ _id: current._id, revokedAt: { $exists: false } }, { $set: { revokedAt: new Date(), replacedBySessionId: (jwt.decode(next.refreshToken) as jwt.JwtPayload).sid } });
+  if (!claimed) { await revokeRefreshSession(next.refreshToken); throw new AppError(401, 'REFRESH_TOKEN_REVOKED', 'Refresh session is no longer valid'); }
   return next;
 }
 
-export async function revokeRefreshSession(refreshToken: string) {
-  await RefreshSession.updateOne({ tokenHash: hashToken(refreshToken), revokedAt: { $exists: false } }, { $set: { revokedAt: new Date() } });
+export async function revokeRefreshSession(refreshToken: string, meta: AuthMetadata = {}, action = 'logout') {
+  const session = await RefreshSession.findOneAndUpdate({ tokenHash: hashToken(refreshToken), revokedAt: { $exists: false } }, { $set: { revokedAt: new Date() } });
+  if (session?.privileged) await securityAudit(action, session.userId, meta);
 }
 
 export async function bootstrapLandlord(data: { firstName: string; lastName: string; email: string; phone: string; password: string; organization: { name: string; slug?: string } }) {

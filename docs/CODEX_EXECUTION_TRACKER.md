@@ -833,3 +833,88 @@ Audited and pulled existing main at b932baf; existing Quality jobs were green an
 - Reviewed manifest: 22 added + 23 modified files. No new dependencies, production environment variables, secrets, generated artifacts or unrelated `.continue/` files. Deployment configuration is unchanged; additive reporting indexes are documented.
 
 Laptop certification: all typecheck/lint/test/build/static gates passed again. The same isolated browser journey also passed on Windows using the installed MongoDB test binary and Chrome. Browser diagnostic paths use the OS temporary directory; production application behavior is unchanged.
+
+## 2026-10-02 — SUPER_ADMIN dual-channel authentication
+
+Continued the existing laptop checkout on main at 2039e51, linked to the existing GitHub remote. Audited auth, provisioning, OTP, sessions, providers/service switches, notification jobs, authorization and audit. Extended those authorities with password/email/SMS proof, temporary AdminAuthFlow, atomic privilege issuance, server session binding/expiry/revocation, protected future promotion, audited host enrollment/recovery, normal-login MFA and native step-up UI. No working ordinary-role system was replaced. Full design/configuration/index/recovery notes: [SUPER_ADMIN_AUTHENTICATION.md](SUPER_ADMIN_AUTHENTICATION.md). Final certification and file manifest follow after gate review; .continue/ remains excluded.
+
+
+### Certification and reviewed file manifest
+
+- Backend typecheck, frontend typecheck and strict operator-script typecheck: pass.
+- Backend lint: zero errors, 364 existing warnings; frontend lint: zero errors, 25 existing warnings. New files introduce no lint warnings.
+- Backend default suites: 312 passed in 64 files. The 128 opt-in cases are executed separately in the full E2E command, rather than counted as certified skips.
+- Backend Mongo replica-set/HTTP E2E: 128 passed in five files, including 49 new administrator authentication cases.
+- Frontend: 110 passed in 23 files, including 16 new MFA rendering and storage cases.
+- Real Chrome browser: one complete password/email OTP/SMS OTP/dashboard/logout journey passed, including password-only and email-only direct-navigation denial, memory-only privileged token checks, Control/Fort Knox comparison, Morning Brief, priority action and organization drill-down, desktop/mobile and no uncaught runtime errors.
+- Total: 551 passing executions (440 backend, 110 frontend, one browser). Added 71 test cases: six backend primitive tests, 49 backend E2E cases and 16 frontend cases. The existing browser journey was extended. Existing domain assertions were preserved; only valid administrator assurance fixtures changed.
+- Backend/frontend production builds: pass. Static release: CERTIFIED_STATIC, 36 route files, 154 permissions and six critical paths.
+- Anonymous, all five ordinary roles, organization-only SUPER_ADMIN and partially authenticated administrator platform access are denied. Existing cross-organization tests pass; session ownership, OTP replay, refresh replay, expiry, lockout, audit rollback and provider failure checks pass.
+- Secret-pattern scan, explicit file review and whitespace review passed. No non-example environment files, dependencies, generated artifacts, personal credentials or unrelated .continue/ files are included. Generated Next.js type-file changes from verification were restored.
+- No live provider acceptance, production migration, account enrollment, second administrator, Coolify deployment or payment certification was performed. Existing-account secure enrollment, reviewed indexes, provider/service-switch configuration and worker delivery acceptance remain operator prerequisites.
+
+Reviewed release manifest: 15 added and 43 modified files.
+
+Added:
+
+- `apps/backend/scripts/create-admin-auth-indexes.ts`
+- `apps/backend/scripts/enroll-admin-mfa.ts`
+- `apps/backend/scripts/recover-admin-channels.ts`
+- `apps/backend/src/database/models/AdminAuthFlow.ts`
+- `apps/backend/src/modules/auth/admin-auth.controller.ts`
+- `apps/backend/src/modules/auth/admin-mfa.service.ts`
+- `apps/backend/src/modules/auth/admin-security.ts`
+- `apps/backend/tests/e2e/admin-auth.e2e.test.ts`
+- `apps/backend/tests/helpers/admin-assurance.ts`
+- `apps/backend/tests/unit/admin-security.test.ts`
+- `apps/frontend/src/components/auth/admin-mfa-panel.tsx`
+- `apps/frontend/src/components/auth/admin-step-up.tsx`
+- `apps/frontend/src/lib/auth/admin-mfa-ui.test.ts`
+- `apps/frontend/src/lib/auth/auth-storage.test.ts`
+- `docs/SUPER_ADMIN_AUTHENTICATION.md`
+
+Modified:
+
+- `README.md`
+- `apps/backend/.env.example`
+- `apps/backend/package.json`
+- `apps/backend/scripts/run-e2e.mjs`
+- `apps/backend/scripts/serve-platform-business-test.ts`
+- `apps/backend/src/app.ts`
+- `apps/backend/src/config/env.ts`
+- `apps/backend/src/core/api/openapi.ts`
+- `apps/backend/src/core/logging/logger.ts`
+- `apps/backend/src/core/types/auth.ts`
+- `apps/backend/src/database/models/Notification.ts`
+- `apps/backend/src/database/models/OtpChallenge.ts`
+- `apps/backend/src/database/models/RefreshSession.ts`
+- `apps/backend/src/database/models/User.ts`
+- `apps/backend/src/database/seeds/super-admin.seed.ts`
+- `apps/backend/src/middleware/auth.middleware.ts`
+- `apps/backend/src/middleware/error.middleware.ts`
+- `apps/backend/src/modules/auth/auth.controller.ts`
+- `apps/backend/src/modules/auth/auth.service.ts`
+- `apps/backend/src/modules/notifications/notification.service.ts`
+- `apps/backend/src/modules/users/user.service.ts`
+- `apps/backend/src/routes/auth.routes.ts`
+- `apps/backend/tests/e2e/landlord-onboarding.e2e.test.ts`
+- `apps/backend/tests/e2e/platform-business.e2e.test.ts`
+- `apps/backend/tests/security/launch-readiness.api.test.ts`
+- `apps/backend/tests/security/platform-business.api.test.ts`
+- `apps/backend/tests/security/platform-monitoring.api.test.ts`
+- `apps/frontend/scripts/verify-platform-business.mjs`
+- `apps/frontend/src/app/login/page.tsx`
+- `apps/frontend/src/context/auth-context.tsx`
+- `apps/frontend/src/lib/api.ts`
+- `apps/frontend/src/lib/auth/auth-api.ts`
+- `apps/frontend/src/lib/auth/auth-storage.ts`
+- `apps/frontend/src/types/auth.ts`
+- `docs/API_SPECIFICATION.md`
+- `docs/ARCHITECTURE.md`
+- `docs/CODEX_EXECUTION_TRACKER.md`
+- `docs/DATABASE_DESIGN.md`
+- `docs/FEATURES.md`
+- `docs/PRODUCTION_READINESS.md`
+- `docs/ROLES_PERMISSIONS.md`
+- `docs/SECURITY.md`
+- `docs/TESTING_STRATEGY.md`

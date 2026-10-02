@@ -422,3 +422,7 @@ The landlord workflow extends Organization, OrganizationSubscription, Subscripti
 ## SUPER_ADMIN platform intelligence
 
 The existing control plane now includes backend Mongo aggregation and retained PlatformBrief snapshots. It reuses organization/subscription/invoice/payment/monitoring authorities; the landlord Command Center remains organization scoped. See [SUPER_ADMIN business intelligence](SUPER_ADMIN_BUSINESS_INTELLIGENCE.md) for boundaries, queries and generation architecture.
+
+## SUPER_ADMIN dual-channel authentication
+
+The existing auth/provider/session/notification architecture now enforces password, independently verified email and SMS, live server-bound privileged sessions and sensitive step-up. See [architecture, threat boundaries and operator runbook](SUPER_ADMIN_AUTHENTICATION.md).

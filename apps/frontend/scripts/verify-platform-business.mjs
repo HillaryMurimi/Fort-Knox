@@ -19,6 +19,8 @@ MongoInstance.prototype.prepareCommandArgs = function () {
 };
 const temporaryRoot = tmpdir();
 const children = [];
+const deliveredCodes = new Map();
+async function deliveredCode(channel) { const end = Date.now() + 5000; while (Date.now() < end) { if (deliveredCodes.has(channel)) return deliveredCodes.get(channel); await new Promise(resolve => setTimeout(resolve, 50)); } throw new Error('Test delivery did not reach the private harness'); }
 let mongo, browser, page;
 const apiPort = Number(process.env.PCC_BI_TEST_API_PORT ?? 9015),
   webPort = Number(process.env.PCC_BI_TEST_WEB_PORT ?? 3015),
@@ -28,9 +30,10 @@ function start(cwd, args, env) {
   const child = spawn(process.execPath, args, {
     cwd,
     env: { ...process.env, ...env },
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["ignore", "pipe", "pipe", ...(args.includes("scripts/serve-platform-business-test.ts") ? ["ipc"] : [])],
   });
   children.push(child);
+  child.on('message', message => { if (message?.type === 'PCC_TEST_MFA_DELIVERY') deliveredCodes.set(message.channel, message.code); });
   let log = "";
   child.stdout.on("data", (chunk) => {
     log += chunk;
@@ -119,7 +122,8 @@ try {
         : []),
     ],
   });
-  page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const browserContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  page = await browserContext.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(origin + "/login");
@@ -131,10 +135,24 @@ try {
     .fill("platform-browser@example.test");
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.locator('input[autocomplete="one-time-code"]').fill("123456");
-  await page
-    .getByRole("button", { name: "Enter Command Center", exact: true })
-    .click();
+  await page.getByRole('heading', { name: 'Verify your email', exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem('property-command-center.auth.session')), null);
+  const partial = await page.context().newPage();
+  await partial.goto(origin + '/platform');
+  await partial.getByRole('button', { name: 'Continue', exact: true }).waitFor();
+  assert.ok(partial.url().includes('/login'), 'Password-only navigation must not open platform screens');
+  await partial.close();
+  await page.getByLabel('Email verification code').fill(await deliveredCode('EMAIL'));
+  await page.getByRole('button', { name: 'Verify email', exact: true }).click();
+  await page.getByRole('heading', { name: 'Verify your phone', exact: true }).waitFor();
+  const incomplete = await page.context().newPage();
+  await incomplete.goto(origin + '/platform');
+  await incomplete.getByRole('button', { name: 'Continue', exact: true }).waitFor();
+  assert.ok(incomplete.url().includes('/login'), 'Email-only navigation must not open platform screens');
+  await incomplete.close();
+  await page.getByLabel('SMS verification code').fill(await deliveredCode('SMS'));
+  await page.getByRole('button', { name: 'Verify phone and sign in', exact: true }).click();
+  await page.waitForURL(url => url.pathname !== '/login');
   await page.goto(origin + "/platform");
   await page
     .getByRole("heading", { name: "Plan Performance", exact: true })
@@ -199,19 +217,26 @@ try {
     "Mobile layout must fit the viewport",
   );
   await page.screenshot({ path: output + "/mobile.png", fullPage: true });
+  assert.equal(await page.evaluate(() => localStorage.getItem('property-command-center.auth.session')), null, 'Privileged tokens must never enter persistent browser storage');
+  const logout = await page.context().request.post('http://127.0.0.1:' + apiPort + '/api/v1/auth/logout', { headers: { Origin: origin, 'X-PCC-Auth': '1' } });
+  assert.equal(logout.status(), 200);
+  await page.reload();
+  await page.getByRole('button', { name: 'Continue', exact: true }).waitFor();
+  assert.ok(page.url().includes('/login'), 'Logout must revoke platform access');
   assert.deepEqual(
     errors,
     [],
     "The browser journey must have no uncaught runtime errors",
   );
   process.stdout.write(
-    "PASS browser E2E: SUPER_ADMIN password/OTP → plan comparison/filter → retained Morning Brief → critical action → organization drill-down; desktop and mobile screenshots\n",
+    "PASS browser E2E: SUPER_ADMIN password/email OTP/SMS OTP, bypass denial and logout → plan comparison/filter → retained Morning Brief → critical action → organization drill-down; desktop and mobile screenshots\n",
   );
 } catch (error) {
   if (page) {
     await page
       .screenshot({
         path: temporaryRoot + "/pcc-bi-browser-failure.png",
+        mask: [page.locator('input[type="password"], input[autocomplete="one-time-code"]')],
         fullPage: true,
       })
       .catch(() => {});

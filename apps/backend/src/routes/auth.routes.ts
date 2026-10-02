@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import * as admin from '../modules/auth/admin-auth.controller.js';
+import { requireAuth } from '../middleware/auth.middleware.js';
 
 import { asyncHandler } from '../core/http/asyncHandler.js';
 import * as social from '../modules/auth/social.controller.js';
@@ -15,6 +17,13 @@ import {
 } from '../modules/auth/auth.controller.js';
 
 export const authRouter = Router();
+authRouter.post('/admin-mfa/verify', admin.adminOrigin, asyncHandler(admin.verify));
+authRouter.post('/admin-mfa/resend', admin.adminOrigin, asyncHandler(admin.resend));
+authRouter.post('/admin-mfa/step-up', admin.adminOrigin, requireAuth, asyncHandler(admin.stepUp));
+authRouter.get('/sessions', requireAuth, asyncHandler(admin.sessions));
+authRouter.post('/sessions/:sessionId/revoke', admin.adminOrigin, requireAuth, asyncHandler(admin.revoke));
+authRouter.post('/logout-all', admin.adminOrigin, requireAuth, asyncHandler(admin.revokeAll));
+authRouter.post('/platform-admins', admin.adminOrigin, requireAuth, asyncHandler(admin.promote));
 
 authRouter.get('/social/providers', asyncHandler(social.providers));
 authRouter.get('/social/session', asyncHandler(social.status));

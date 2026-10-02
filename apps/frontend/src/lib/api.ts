@@ -247,7 +247,7 @@ function extractApiErrorMessage(
  *
  * It does NOT perform refresh-token recovery.
  */
-async function rawRequest<T>(
+async function sendRawRequest<T>(
   path: string,
   init: ApiRequestOptions,
   accessToken?: string,
@@ -265,6 +265,7 @@ async function rawRequest<T>(
 
   void _responseType;
   const headers = new Headers(providedHeaders);
+  headers.set('X-PCC-Auth', '1');
 
   /**
    * JSON is the default for this API.
@@ -345,6 +346,13 @@ async function rawRequest<T>(
  * session and redirecting to /login loops forever against
  * AuthProvider's dev-session regeneration.
  */
+let privilegedRefreshInFlight: Promise<{ response: Response; body: ApiResponseBody | null }> | null = null;
+function rawRequest<T>(path: string, init: ApiRequestOptions, accessToken?: string): Promise<{ value?: T; response: Response; body: ApiResponseBody | null }> {
+  if (path !== '/auth/refresh') return sendRawRequest<T>(path, init, accessToken);
+  if (!privilegedRefreshInFlight) privilegedRefreshInFlight = sendRawRequest<T>(path, init, accessToken).finally(() => { privilegedRefreshInFlight = null; });
+  return privilegedRefreshInFlight;
+}
+
 export async function api<T>(
   path: string,
   init: ApiRequestOptions = {},
@@ -520,6 +528,8 @@ export async function api<T>(
    *   [object Object]
    */
   if (!response.ok) {
+    if (typeof window !== 'undefined' && response.status === 403 && typeof body?.error === 'object' && body.error && 'code' in body.error && body.error.code === 'FRESH_AUTH_REQUIRED')
+      window.dispatchEvent(new Event('pcc:admin-step-up'));
     const message = extractApiErrorMessage(
       body,
       `Request failed (${response.status})`,

@@ -2,11 +2,13 @@ import type { ErrorRequestHandler } from 'express';
 import mongoose from 'mongoose';
 import { ZodError } from 'zod';
 import { AppError } from '../core/errors/AppError.js';
+import { env } from '../config/env.js';
 import { logger } from '../core/logging/logger.js';
 
 export const errorMiddleware: ErrorRequestHandler = (error, req, res, _next) => {
   const requestId = req.requestId;
-  logger.error({ err: error, requestId }, 'Unhandled request error');
+  if (req.path.startsWith('/auth') || req.originalUrl.startsWith(env.API_PREFIX + '/auth')) logger.warn({ requestId, code: error instanceof AppError ? error.code : 'AUTH_REQUEST_FAILED' }, 'Authentication request failed');
+  else logger.error({ err: error, requestId }, 'Unhandled request error');
 
   if (error instanceof AppError) {
     res.locals.monitorErrorCode = error.code;

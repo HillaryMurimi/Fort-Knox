@@ -118,3 +118,7 @@ These views cover current records and instrumented processes. They do not establ
 ## Contract workflow release prerequisites
 
 Before real landlord enrollment, complete the explicit contract/provider-reference index migration, publish operator-approved template terms, verify MongoDB transactions/backups, ship the font/PDF runtime asset in the backend image, schedule billing.reconcile and complete Paystack test-mode collection/delayed-renewal/webhook/cancellation acceptance. No new environment variables or Coolify services are needed. API/worker versions must match. See [LANDLORD_CONTRACT_WORKFLOW.md](LANDLORD_CONTRACT_WORKFLOW.md). Automated fixtures do not certify live payments or the legal sufficiency of the starting draft.
+
+## SUPER_ADMIN MFA release preparation
+
+Configure and verify existing email/SMS providers and switches, review the auth index migration, and explicitly enroll the existing administrator through the trusted-host runbook before live rollout. Old privileged sessions fail closed. The default runtime image remains unchanged; host-only TS enrollment/recovery commands run from an authorized secure checkout with its existing tsx development tooling, never a public API. See [SUPER_ADMIN_AUTHENTICATION.md](SUPER_ADMIN_AUTHENTICATION.md). No production provider enrollment, migration or deployment was executed by this development.

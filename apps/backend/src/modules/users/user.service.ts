@@ -26,6 +26,7 @@ export class UserService {
   static async updateInOrganization(auth: NonNullable<Express.Request['auth']>, organizationId: string, userId: string, data: {firstName?:string;lastName?:string;email?:string|null;status?:'ACTIVE'|'SUSPENDED'|'DEACTIVATED'}) {
     AuthorizationService.assertCan(auth,'user.update',{organizationId});
     const membership=await OrganizationMembership.findOne({userId,organizationId,status:{$ne:'REMOVED'}}); if(!membership) throw new AppError(404,'NOT_FOUND','Organization membership not found');
+    if (await User.exists({ _id: userId, isPlatformAdmin: true })) throw new AppError(403, 'PROTECTED_ADMIN_ACCOUNT', 'Platform administrator accounts cannot be changed through organization user management.');
     const user=await User.findByIdAndUpdate(userId,data,{new:true,runValidators:true}).select('-__v'); if(!user) throw new AppError(404,'NOT_FOUND','User not found'); return user;
   }
 }

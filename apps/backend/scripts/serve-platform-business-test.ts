@@ -1,4 +1,6 @@
 // Test-only HTTP fixture server used by the real browser verification script.
+import { setAdminMfaTestDelivery } from '../src/modules/auth/admin-mfa.service.js';
+import { contactsHash } from '../src/modules/auth/admin-security.js';
 import { env } from "../src/config/env.js";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
@@ -22,7 +24,8 @@ const admin = await User.create({
   lastName: "Admin",
   isPlatformAdmin: true,
   passwordHash: await bcrypt.hash(process.env.PCC_BI_TEST_PASSWORD, 10),
-  verifiedAt: new Date(),
+  verifiedAt: new Date(), emailVerifiedAt: new Date(), phoneVerifiedAt: new Date(),
+  mfaContactsHash: contactsHash('platform-browser@example.test', '+254700009130'),
 });
 for (const key of ["CONTROL", "FORT_KNOX"])
   await SubscriptionPlan.create({
@@ -37,6 +40,10 @@ for (const key of ["CONTROL", "FORT_KNOX"])
       additionalUnitAmount: 200,
     },
   });
+setAdminMfaTestDelivery(async (channel, _destination, code) => {
+  if (!process.send) throw new Error('Private test IPC is required');
+  process.send({ type: 'PCC_TEST_MFA_DELIVERY', channel, code });
+});
 await seedPlatformBusinessDemo(admin._id);
 const server = createApp().listen(env.PORT, "127.0.0.1", () =>
   process.stdout.write("PLATFORM_BI_TEST_SERVER_READY\n"),

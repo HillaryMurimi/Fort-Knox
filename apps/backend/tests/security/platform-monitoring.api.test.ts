@@ -1,3 +1,4 @@
+import { mockAdminAssurance } from '../helpers/admin-assurance.js';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import mongoose, { Types } from 'mongoose';
@@ -14,7 +15,7 @@ function identity(role: string, admin = false) {
   vi.spyOn(User, 'findById').mockReturnValue({ lean: async () => ({ _id: userId, status: 'ACTIVE', isPlatformAdmin: admin }) } as never);
   vi.spyOn(OrganizationMembership, 'find').mockReturnValue({ lean: async () => [{ organizationId, roleIds: [roleId], scope: { allProperties: true } }] } as never);
   vi.spyOn(Role, 'find').mockReturnValue({ lean: async () => [{ _id: roleId, key: role, permissions: ['platform.manage'] }] } as never);
-  return jwt.sign({ sub: String(userId), type: 'access' }, env.JWT_ACCESS_SECRET);
+  return admin ? mockAdminAssurance(userId) : jwt.sign({ sub: String(userId), type: 'access' }, env.JWT_ACCESS_SECRET);
 }
 const id = new Types.ObjectId().toString();
 const routes = [['GET', ''], ['GET', '/alerts'], ['GET', '/alerts/' + id + '/history'], ['PATCH', '/alerts/' + id], ['GET', '/maintenance-windows'], ['POST', '/maintenance-windows'], ['POST', '/maintenance-windows/' + id + '/end']] as const;

@@ -370,3 +370,7 @@ Configuration, generation/replacement, signature and checkout require an active 
 ## Platform-wide analytics boundary
 
 Business analytics, brief snapshots and financial/security drill-downs require authenticated `isPlatformAdmin`, not an organization SUPER_ADMIN membership. Landlords, managers, caretakers, contractors, tenants and anonymous users are denied. Existing organization permissions and isolation are unchanged.
+
+## SUPER_ADMIN authentication assurance
+
+The existing platform security role (User.isPlatformAdmin) requires password, verified email OTP and verified SMS OTP before session issuance and on every privileged request. Organization role labels grant no platform authority. Sensitive changes require recent assurance; destination recovery cannot disable MFA. [Policy and recovery](SUPER_ADMIN_AUTHENTICATION.md).

@@ -1,3 +1,4 @@
+import { mockAdminAssurance } from "../helpers/admin-assurance.js";
 import request from "supertest";
 import jwt from "jsonwebtoken";
 import { Types } from "mongoose";
@@ -37,6 +38,7 @@ function identity(role: string, admin = false) {
       { _id: roleId, key: role, permissions: ["platform.manage"] },
     ],
   } as never);
+  if (admin) return mockAdminAssurance(userId);
   return jwt.sign(
     { sub: String(userId), type: "access" },
     env.JWT_ACCESS_SECRET,

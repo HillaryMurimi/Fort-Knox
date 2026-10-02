@@ -9,7 +9,17 @@ const userSchema = new Schema({
   status: { type: String, enum: ['ACTIVE', 'SUSPENDED', 'DEACTIVATED'], default: 'ACTIVE', index: true },
   isPlatformAdmin: { type: Boolean, default: false, index: true },
   lastLoginAt: Date,
-  verifiedAt: Date
+  verifiedAt: Date,
+  emailVerifiedAt: Date,
+  phoneVerifiedAt: Date,
+  mfaContactsHash: { type: String, select: false },
+  authFlowGeneration: { type: Number, default: 0 },
+  authVersion: { type: Number, default: 0 },
+  authFailureCount: { type: Number, default: 0, select: false },
+  authFailureWindowAt: { type: Date, select: false },
+  authLockedUntil: Date,
+  authSendCount: { type: Number, default: 0, select: false },
+  authSendWindowAt: { type: Date, select: false }
 }, { timestamps: true });
 
 export type UserDocument = InferSchemaType<typeof userSchema>;

@@ -1,3 +1,5 @@
+import jwt from 'jsonwebtoken';
+import { assertAuthOrigin } from './admin-security.js';
 import type { RequestHandler, Response } from 'express';
 import { acceptInvitationSchema, bootstrapLandlordSchema, loginSchema, requestOtpSchema, verifyOtpSchema, verifyStepUpSchema } from './auth.schemas.js';
 import { bootstrapLandlord, loginByEmail, loginByPhone, refreshSession, requestOtp, revokeRefreshSession, verifyLoginOtp, verifyStepUp } from './auth.service.js';
@@ -7,13 +9,16 @@ import { InvitationService } from '../invitations/invitation.service.js';
 import { env } from '../../config/env.js';
 
 const cookieOptions = { httpOnly: true, secure: env.REFRESH_COOKIE_SECURE, sameSite: 'lax' as const, path: `${env.API_PREFIX}/auth`, maxAge: 30 * 24 * 60 * 60 * 1000 };
-export const setRefreshCookie = (res: Response, token: string) => res.cookie(env.REFRESH_COOKIE_NAME, token, cookieOptions);
+export const setRefreshCookie = (res: Response, token: string) => {
+  const payload = jwt.decode(token) as jwt.JwtPayload | null;
+  return res.cookie(env.REFRESH_COOKIE_NAME, token, { ...cookieOptions, ...(payload?.privileged ? { sameSite: 'strict' as const, maxAge: Math.max(0, ((payload.exp ?? 0) * 1000) - Date.now()) } : {}) });
+};
 const clearRefreshCookie = (res: Response) => res.clearCookie(env.REFRESH_COOKIE_NAME, { httpOnly: true, secure: env.REFRESH_COOKIE_SECURE, sameSite: 'lax' as const, path: `${env.API_PREFIX}/auth` });
 
 export const login: RequestHandler = async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) throw new AppError(400, 'VALIDATION_ERROR', 'Invalid login payload', parsed.error.flatten());
-  if (parsed.data.method === 'email') return sendSuccess(res, await loginByEmail(parsed.data.email, parsed.data.password));
+  if (parsed.data.method === 'email') return sendSuccess(res, await loginByEmail(parsed.data.email, parsed.data.password, { userAgent: req.get('user-agent'), ipAddress: req.ip, requestId: req.requestId }));
   return sendSuccess(res, await loginByPhone(parsed.data.phone));
 };
 
@@ -44,6 +49,7 @@ export const verifyStepUpOtp: RequestHandler = async (req, res) => {
 export const refresh: RequestHandler = async (req, res) => {
   const token = req.cookies?.[env.REFRESH_COOKIE_NAME];
   if (typeof token !== 'string') throw new AppError(401, 'REFRESH_TOKEN_MISSING', 'Refresh session is required');
+  if ((jwt.decode(token) as jwt.JwtPayload | null)?.privileged) assertAuthOrigin(req.get('origin'), req.get('x-pcc-auth'));
   const result = await refreshSession(token, { userAgent: req.get('user-agent'), ipAddress: req.ip });
   setRefreshCookie(res, result.refreshToken);
   const { refreshToken: _refreshToken, ...safe } = result;
@@ -52,7 +58,10 @@ export const refresh: RequestHandler = async (req, res) => {
 
 export const logout: RequestHandler = async (req, res) => {
   const token = req.cookies?.[env.REFRESH_COOKIE_NAME];
-  if (typeof token === 'string') await revokeRefreshSession(token);
+  if (typeof token === 'string') {
+    if ((jwt.decode(token) as jwt.JwtPayload | null)?.privileged) assertAuthOrigin(req.get('origin'), req.get('x-pcc-auth'));
+    await revokeRefreshSession(token, { userAgent: req.get('user-agent'), ipAddress: req.ip, requestId: req.requestId });
+  }
   clearRefreshCookie(res);
   sendSuccess(res, { loggedOut: true });
 };

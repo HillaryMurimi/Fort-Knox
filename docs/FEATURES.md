@@ -405,3 +405,7 @@ Landlord onboarding now restores backend progress through organization details, 
 ## SUPER_ADMIN Business Intelligence and Platform Morning Brief
 
 Plan Performance independently compares Control/Fort Knox organizations, actual inventory, normalized recurring value, verified cash, onboarding cohorts, applied movements and Fort Knox observed security health. Morning Brief retains five sections and Critical→High→Medium→Informational priorities, with audited entity drill-downs and honest unavailable states. Landlord Morning Brief is outside this release.
+
+## SUPER_ADMIN secure login
+
+The normal login entry point guides administrators through password, masked email verification and masked SMS verification, with countdown, expiry, delivery/retry, error and lockout states. Ordinary-role policies are preserved. Platform security changes invoke accessible dual-channel step-up; sessions can be revoked through owned-session APIs. [Operator details](SUPER_ADMIN_AUTHENTICATION.md).

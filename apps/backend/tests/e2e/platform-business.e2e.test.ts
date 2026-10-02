@@ -1,3 +1,5 @@
+import { completedAdminFixture } from '../helpers/admin-assurance.js';
+import { setAdminMfaTestDelivery } from '../../src/modules/auth/admin-mfa.service.js';
 import {
   beforeAll,
   beforeEach,
@@ -107,10 +109,7 @@ describe.skipIf(!process.env.RUN_E2E)(
         verifiedAt: new Date(),
       });
       auth = { userId: user._id, isPlatformAdmin: true, memberships: [] };
-      token = jwt.sign(
-        { sub: String(user._id), type: "access" },
-        env.JWT_ACCESS_SECRET,
-      );
+      token = await completedAdminFixture(user._id);
       for (const key of ["CONTROL", "FORT_KNOX"])
         await SubscriptionPlan.create({
           key,
@@ -126,21 +125,25 @@ describe.skipIf(!process.env.RUN_E2E)(
         });
       await seedPlatformBusinessDemo(user._id, new Date(Date.now() - 60000));
     });
-    afterEach(() => vi.restoreAllMocks());
+    afterEach(() => { vi.restoreAllMocks(); setAdminMfaTestDelivery(); });
     afterAll(async () => {
       await mongoose.disconnect();
       await mongo?.stop();
     });
     it("completes SUPER_ADMIN password/OTP login, dashboard, comparison, brief, priority action and organization drill-down", async () => {
+      const delivered: Record<string, string> = {};
+      setAdminMfaTestDelivery(async (channel, _destination, code) => { delivered[channel] = code; });
       const login = await request(app).post("/api/v1/auth/login").send({
         method: "email",
         email: "platform-bi-admin@example.test",
         password: "SecurePlatformDemo-2026!",
       });
-      expect(login.body.data.stepUpRequired).toBe(true);
+      expect(login.body.data.mfaRequired).toBe(true);
+      const emailVerified = await request(app).post('/api/v1/auth/admin-mfa/verify').set('Origin', env.WEB_ORIGIN).set('X-PCC-Auth', '1').send({ flowToken: login.body.data.flowToken, channel: 'EMAIL', code: delivered.EMAIL });
+      expect(emailVerified.status).toBe(200);
       const verified = await request(app)
-        .post("/api/v1/auth/verify-step-up")
-        .send({ email: "platform-bi-admin@example.test", code: "123456" });
+        .post('/api/v1/auth/admin-mfa/verify').set('Origin', env.WEB_ORIGIN).set('X-PCC-Auth', '1')
+        .send({ flowToken: login.body.data.flowToken, channel: 'SMS', code: delivered.SMS });
       expect(verified.status, JSON.stringify(verified.body)).toBe(200);
       token = verified.body.data.accessToken;
       const data = await overview();

@@ -1,3 +1,4 @@
+import { mockAdminAssurance } from '../helpers/admin-assurance.js';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { Types } from 'mongoose';
@@ -15,7 +16,7 @@ function identity(role: string, platformAdmin = false) {
   vi.spyOn(User, 'findById').mockReturnValue({ lean: async () => ({ _id: userId, status: 'ACTIVE', isPlatformAdmin: platformAdmin }) } as never);
   vi.spyOn(OrganizationMembership, 'find').mockReturnValue({ lean: async () => [{ organizationId, roleIds: [roleId], scope: { allProperties: true } }] } as never);
   vi.spyOn(Role, 'find').mockReturnValue({ lean: async () => [{ _id: roleId, key: role, permissions: ['platform.manage'] }] } as never);
-  return jwt.sign({ sub: String(userId), type: 'access' }, env.JWT_ACCESS_SECRET);
+  return platformAdmin ? mockAdminAssurance(userId) : jwt.sign({ sub: String(userId), type: 'access' }, env.JWT_ACCESS_SECRET);
 }
 describe('launch readiness API security', () => {
   it.each(['GET', 'PATCH'])('requires authentication for %s', async method => {

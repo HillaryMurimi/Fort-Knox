@@ -1,7 +1,8 @@
 import { api } from '../api';
 
 import type {
-  LoginChallengeResponse,
+  AdminMfaResponse,
+  LoginResult,
   LoginPayload,
   LoginResponse,
   OtpRequestPayload,
@@ -47,10 +48,13 @@ import type {
  *   ↓
  * LOGIN OTP
  */
+export function verifyAdminMfa(flowToken: string, channel: 'EMAIL' | 'SMS', code: string) { return api<AdminMfaResponse | LoginResponse>('/auth/admin-mfa/verify', { method: 'POST', authenticated: false, body: JSON.stringify({ flowToken, channel, code }) }); }
+export function resendAdminMfa(flowToken: string) { return api<AdminMfaResponse>('/auth/admin-mfa/resend', { method: 'POST', authenticated: false, body: JSON.stringify({ flowToken }) }); }
+
 export async function login(
   payload: LoginPayload,
-): Promise<LoginChallengeResponse | LoginResponse> {
-  return api<LoginChallengeResponse | LoginResponse>(
+): Promise<LoginResult> {
+  return api<LoginResult>(
     '/auth/login',
     {
       method: 'POST',

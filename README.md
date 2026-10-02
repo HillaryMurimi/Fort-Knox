@@ -223,3 +223,7 @@ For product feedback or technical discussion, [open an issue](https://github.com
 Connect the people, money, work and evidence behind it.
 
 Landlord contract and prepaid activation lifecycle, API, tests and deployment prerequisites: [docs/LANDLORD_CONTRACT_WORKFLOW.md](docs/LANDLORD_CONTRACT_WORKFLOW.md).
+
+### SUPER_ADMIN MFA preparation
+
+Platform administrators now require password plus independently verified email and SMS. Read [the enrollment, index and recovery runbook](docs/SUPER_ADMIN_AUTHENTICATION.md) before enabling this release. Existing bootstrap no longer overwrites an administrator; live provider/worker acceptance remains an operator prerequisite.

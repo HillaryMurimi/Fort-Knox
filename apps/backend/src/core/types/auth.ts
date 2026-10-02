@@ -19,6 +19,8 @@ export interface AuthenticatedMembership {
 export interface AuthenticatedUser {
   userId: Types.ObjectId;
   isPlatformAdmin: boolean;
+  sessionId?: Types.ObjectId;
+  mfaVerifiedAt?: Date;
   memberships: AuthenticatedMembership[];
   activeOrganizationId?: Types.ObjectId;
 }
