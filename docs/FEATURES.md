@@ -379,7 +379,7 @@ The public cinematic demo system at `/demo`, `/demo/live`, `/demo/explore`, and 
 
 The public `/` route presents a full-bleed, interactive Three.js digital twin of an illustrative residential portfolio. It shows apartment interiors, helmeted stick-figure contractors, residents, movers and a truck, staff consultation and camera coverage. The scene offers portfolio, unit, maintenance, move-in and security camera views. The page also presents responsive portfolio indicators, an animated collections chart, an attention queue and concise role/operations explanations. All figures and activity are labeled illustrative and do not call protected APIs. WebGL failure falls back to a generated portfolio image; reduced motion disables continuous scene animation. Camera resources are released when the page unmounts.
 
-Demo-request CTAs open an accessible client-side form behind a typed `DemoRequestService` boundary. Until a production lead API or CRM is connected, submission only prepares a local reference and explicitly states that contact data was not delivered externally. Marketing interactions emit vendor-neutral `pmcc:marketing` browser events; no third-party analytics provider is installed.
+Demo-request CTAs open a client-side form behind the typed `DemoRequestService` boundary. Browser submissions now call the sales API and persist a lead/reference in MongoDB. The stored CRM metadata does not send Gmail, synchronize Google Sheets or create Drive documents; those adapters remain unimplemented. The server/non-browser demo service path still returns a prepared local reference and must not be mistaken for delivery. Marketing interactions emit vendor-neutral `pmcc:marketing` browser events; no third-party analytics provider is installed.
 
 ## Owner social onboarding
 
@@ -388,3 +388,12 @@ Landlords can start Google, Facebook or Apple authorization when that provider i
 ## Workspace 3D illustrations
 
 The tenant workspace includes an animated, roof-open furnished home inspired by the supplied video, with residents walking through the rooms. Landlord, manager, caretaker and contractor workspaces show the existing property digital twin with portfolio, unit, security and maintenance camera framing respectively. These scenes are illustrative backgrounds, not a rendering of the authenticated user's actual unit, property inventory, CCTV, occupancy or job state. They do not affect backend authorization or operational data. Rendering pauses when offscreen, respects reduced-motion preferences, and remains separate from actionable controls.
+
+### Super Admin launch readiness
+
+The Platform control plane now includes Launch Readiness: environment-scoped provider onboarding/approval, credential configuration presence, manual staging verification, unresolved blockers/severity, responsible owners, target dates and next actions. Unsaved checks start unreviewed. Updates require server-side platform administration, optimistic revision checks and atomic audit. No provider secrets are displayed, uploaded or copied from configuration. Reviews cannot enable services; live acceptance and feature switches remain separate.
+
+
+### Super Admin monitoring
+
+Platform monitoring shows seven areas sourced from persisted records or telemetry: launch readiness, service switches, system health, landlord onboarding, queues/workers, notifications/OTP and security/access. Metrics include their source and measurement window, with explicit unavailable states. The action queue provides environment-scoped, deduplicated alerts, affected organization filters, owners, acknowledgement/resolution history and maintenance windows. API/worker heartbeats and instrumented denial counters feed the view; the worker collects conditions approximately every minute. Bounded or unavailable sources never imply that an alert has cleared. Service enforcement coverage remains explicitly partial; MRR/ARR, wider integration probes, backup/restore evidence and live-provider certification are not added by this slice.

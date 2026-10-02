@@ -579,3 +579,18 @@ Notifications. - Logs.
 Retention must be configurable to applicable law, contract, and customer
 policy. Deletion/archival workflows must respect legal holds and
 referential integrity.
+
+
+## 16. Platform Readiness and Monitoring Records
+
+LaunchReadiness stores one review per environment/key with a unique compound index, optimistic revision, onboarding/staging status, responsible owner, next action, blocker/severity, verification note/time and last actor. Configuration presence is derived from server configuration; credential values are not copied into reviews. Review and audit commit together.
+
+PlatformMonitoring.ts declares five models:
+
+- PlatformMonitorSignal: environment, minute bucket, kind, organization/platform scope, optional switch subject, counts and first/last timestamps; a unique bucket/kind/scope/subject index deduplicates updates. expiresAt has a TTL index, with seven-day retention assigned by the recorder.
+- PlatformHeartbeat: environment/instance uniqueness, API/WORKER/COLLECTOR kind, first/last/stopped timestamps and three-day TTL. Collector lease token/expiry and last success/error timestamps support collection ownership.
+- PlatformMonitorAlert: unique environment/fingerprint, area/scope/code, severity, OPEN/ACKNOWLEDGED/RESOLVED status, owner, observed value, first/last timestamps and optimistic revision. Acknowledgement/resolution retain actor/time.
+- PlatformMonitorHistory: alert/environment, action, actor/time, bounded note, before/after status and owner. History commits with alert changes and audit.
+- PlatformMaintenanceWindow: environment, area, organization or PLATFORM scope, start/end, reason, owner and creator. Active/pending windows are bounded to 100; writes serialize capacity checks and share an audit transaction.
+
+Initialize declared indexes through readiness:create-index and monitoring:create-indexes. Neither command drops existing indexes or changes review/alert records. Revision and full unique-index prerequisites fail closed. Use a replica set or sharded MongoDB for transactional writes. These platform records are restricted to platform administrators, and alert/history retention requires a separate operational policy.

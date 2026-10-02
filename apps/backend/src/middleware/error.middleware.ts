@@ -9,6 +9,7 @@ export const errorMiddleware: ErrorRequestHandler = (error, req, res, _next) => 
   logger.error({ err: error, requestId }, 'Unhandled request error');
 
   if (error instanceof AppError) {
+    res.locals.monitorErrorCode = error.code;
     res.status(error.statusCode).json({ success: false, error: { code: error.code, message: error.message, details: error.details }, requestId });
     return;
   }

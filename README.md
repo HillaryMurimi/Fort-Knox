@@ -117,7 +117,7 @@ It is especially useful when visiting every building no longer scales, staff upd
 
 Real adapters exist for M-Pesa, Paystack, Twilio, SendGrid, S3-compatible storage and an HTTPS CCTV gateway. Paystack hosts rent and recurring subscription checkout; billing access starts only after a verified payment event. They require provider accounts, credentials and deployment testing. Per-landlord M-Pesa merchant settlement needs further implementation; current Daraja merchant configuration is deployment-wide.
 
-Crypto checkout/reconciliation, Cloudinary delivery, push notifications, generic SMTP, malware scanning and a complete announcements workflow remain incomplete. Some secondary workspace actions still require service integration. The landing-page demo form currently prepares a request locally; it does not deliver leads to a CRM.
+Crypto checkout/reconciliation, Cloudinary delivery, push notifications, generic SMTP, malware scanning and a complete announcements workflow remain incomplete. Some secondary workspace actions still require service integration. The landing-page demo form now saves leads through the sales API. Gmail follow-up, Google Sheets synchronization and Drive document storage are not implemented by the CRM metadata on those records. The landlord onboarding agreement checkbox is not yet a persisted signed contract; prepaid checkout and delayed provider renewal still require staging acceptance.
 
 See the [production readiness runbook](docs/PRODUCTION_READINESS.md) for integration gaps and owner setup tasks, and the [execution tracker](docs/CODEX_EXECUTION_TRACKER.md) for implementation and verification history.
 

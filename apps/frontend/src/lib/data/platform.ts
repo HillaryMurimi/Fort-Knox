@@ -1,4 +1,5 @@
 import { api } from '../api';
+import type { LaunchReadinessResponse, ReadinessReviewInput } from './launch-readiness';
 import type { Organization } from '../../types/organization';
 import type { BillingPlan, BillingSubscription, BillingUsageSnapshot, PaginatedInvoices, SubscriptionInvoice } from './resource-types';
 
@@ -33,6 +34,8 @@ export const platformClient = {
   domainEvents: (organizationId: string) => api<PlatformAuditLog[]>(`/domain-events?organizationId=${organizationId}&limit=50`),
   diagnostics: () => api<PlatformDiagnostics>('/operations/diagnostics'),
   integrationsHealth: () => api<Record<string, boolean>>('/integrations/integrations/health'),
+  launchReadiness: () => api<LaunchReadinessResponse>('/platform-control/launch-readiness'),
+  updateLaunchReadiness: (key: string, input: ReadinessReviewInput) => api<LaunchReadinessResponse>(`/platform-control/launch-readiness/${encodeURIComponent(key)}`, { method: 'PATCH', body: JSON.stringify(input) }),
   switches: () => api<PlatformSwitch[]>('/platform-control/switches'),
   updateSwitch: (key: string, input: { mode: PlatformSwitchMode; reason: string; confirm: true }) => api<PlatformSwitch>(`/platform-control/switches/${key}`, { method: 'PATCH', body: JSON.stringify(input) }),
   plans: (includeInactive = true) => api<BillingPlan[]>(`/billing/plans?activeOnly=${includeInactive ? 'false' : 'true'}`),

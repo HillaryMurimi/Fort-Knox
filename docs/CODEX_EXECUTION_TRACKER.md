@@ -1,5 +1,56 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Repository reconstruction and platform-control repair (2026-10-01)
+
+Repository checkpoint: main at 6d0cfb2 before this change, following 49f1406 (sales lead capture) and 068e31a (landlord prepaid onboarding). The only pre-existing untracked directory was .continue/; it is preserved. No restart or parallel application was created.
+
+### Current implementation state
+
+- Completed foundations: modular Express/TypeScript/Mongoose backend, Next.js role-specific workspaces, server authorization/scope infrastructure, rent confirmation/reversal transactions, payment event outbox/worker, quality scripts and container definitions. These are implemented foundations, not acceptance certification of every feature.
+- Partially completed: operational domain journeys, authoritative minor-unit storage migration, billing/provider acceptance, service-switch enforcement, Super Admin operations, optional property hierarchy and comprehensive browser E2E coverage.
+- Broken at takeover: switch state persisted before audit (audit failure could leave a changed switch); NVR used CCTV endpoint/credential; the blanket camera route gate required CCTV_GATEWAY even for NVR cameras.
+- Missing in inspected onboarding path: durable versioned contract acceptance/signature; real Gmail, Google Sheets and Drive synchronization. SalesService stores database leads/requests and CRM metadata only; gmailFollowUp=true is not an email delivery.
+- Tests failing at takeover: none in the configured baseline after supplying CI-equivalent test environment variables (176 backend and 59 frontend passed, 36 database tests skipped). Database and live-provider acceptance remained unverified.
+- Previous stopping point: initial platform switch catalog/dashboard and selected enforcement paths in 6d0cfb2. TENANT_OTP_LOGIN, DECISION_INTELLIGENCE and DECISION_AUTOMATION had no enforcement references.
+- Recommended bounded next task: restore trustworthy audit atomicity and independent camera gateway controls before expanding the remaining switch coverage.
+
+Required repository docs and configs were inspected before edits. BILLING_ARCHITECTURE.md, PRICING_MODEL.md, SUBSCRIPTIONS.md and pnpm-workspace.yaml are absent. This repository uses npm prefix scripts and generated OpenAPI in apps/backend/src/core/api/openapi.ts, not the documented docs/api/openapi.yaml.
+
+### Implemented in this slice
+
+- PlatformControlService.update now checks platform administration at the service boundary, reads/writes in a MongoDB transaction, records before/after audit in that same session, and always closes the session.
+- Camera live/playback service calls retain entitlement and resource authorization and then check only the resolved gateway switch (NVR_GATEWAY for NVR, CCTV_GATEWAY otherwise). Direct service calls are covered, not merely frontend visibility.
+- NVR live/playback/health use NVR_BASE_URL/NVR_API_KEY, without falling back to CCTV configuration. Health remains available with streaming OFF.
+- Added switch schema, authorization, session/audit propagation, fail-closed guard, provider isolation, camera-service scope/entitlement and isolated replica-set rollback regression tests.
+- Updated generated OpenAPI, API specification and README to reflect actual boundaries and outstanding integrations. No new database collection, destructive migration or production configuration write.
+
+### Remaining MVP acceptance gaps
+
+| Area | Existing implementation / gap |
+| --- | --- |
+| Sales CRM | Demo and assistance records persist through the backend. Gmail/Sheets/Drive adapter, durable synchronization, retries and operational acceptance are missing. |
+| Landlord contract | The onboarding UI has a client-only checkbox; no signed/versioned acceptance is enforced by subscription creation. |
+| Prepaid billing | API restricts initial prepayment to 3-24 months. Paystack checkout passes both a plan code and multiplied amount; provider amount handling and delayed renewal are not certified. No explicit prepaid-term renewal start is configured in that request. Do not claim successful three-month advance collection/renewal yet. |
+| Tenant onboarding/auth | Hash/expiry/attempt controls and assigned unit binding exist. Completion is multi-record, non-transactional and returns a unit binding followed by separate login, not the full automatic active-tenancy journey. Concurrent OTP consumption/resend and assignment safety need dedicated tests/review. |
+| Property hierarchy/passport | Hierarchy/setup/history modules exist. Standalone presentation creates Site/Ground Floor; truly optional intermediate references remain unfinished. |
+| Maintenance/contractors | Workflow/policy and assigned-job modules/tests exist; full quote-to-evidence-to-closure staging/browser acceptance remains required. |
+| Finance/payments | Transactional rent allocation/reversal and event delivery exist; canonical minor-unit cutover, other money collections/report readers, settlement acceptance and additional rails remain open. |
+| CCTV/security | Camera APIs currently return stored gateway references. Fresh short-lived browser stream sessions, surveillance view/playback access audit, step-up/export and hardware acceptance are not completed by this repair. |
+| Evidence/notifications | Storage/messaging provider boundaries exist. Malware quarantine, unsupported channels/providers and delivery/retry acceptance remain open. |
+| Intelligence/automation/Action Queue | Existing modules are foundations. Feature switches, worker/service entry-point enforcement and complete explainable operational acceptance remain unfinished. |
+| Admin/deployment | Control plane and Coolify configs exist. Provider readiness, full switch coverage, recovery guarantees, image/staging acceptance and monitoring remain release gates. |
+
+Switch catalog defaults remain OFF; no live switch was changed. Missing records fail closed. This does not prove all catalog features are OFF end-to-end: payment and billing internal calls, storage uploads, tenant OTP, intelligence and automation workers still need boundary enforcement. SMS_NOTIFICATIONS also gates production OTP transport, including privileged step-up, so admin recovery cannot be assumed unaffected. Existing external streaming sessions are not revoked by these switches.
+
+### Verification
+
+- Configured root npm test: 208 backend passed, 38 opt-in database tests skipped; 59 frontend passed. The final focused suite passed all 33 new non-database assertions, including the subsequently added generated-OpenAPI regression.
+- Root npm run typecheck passed after correcting a new test's overloaded Mongoose mock typing.
+- Root npm run lint passed with 289 backend / 25 frontend warnings and zero errors.
+- Two replica-set switch commit/rollback tests were added to the existing opt-in E2E suite but not executed. Only an Ubuntu binary and an incomplete Windows download were found in the remote test cache; no usable Windows mongod was available.
+- Root npm run build passed (backend compiler and Next.js production build, 39 static pages). Final generated OpenAPI was subsequently tested and backend rebuild passed. npm run certify:release passed with CERTIFIED_STATIC (35 route files, 154 permissions, 6 critical paths); static certification is not live-provider acceptance. Final git diff --check and focused authorization/provider diff review passed.
+- No GitHub push, deployment, external CRM write or live provider operation performed in this slice.
+
 ## Phase A-F Delivery Map
 
 This is the dependency order for the attached platform expansion brief. Existing related modules are foundations, not evidence that a phase is complete.
@@ -638,3 +689,50 @@ Remaining external integration: connect `DemoRequestService` to a protected lead
 - Studio uses a narrow capture rail and exact 9:16, 16:9, 1:1 and 4:5 canvases; vertical scenes focus on one idea. Live presenter controls are hidden until opened; clean view, theme selection, seek, speed, loop, captions and keyboard controls remain available.
 - Demo UI never calls payment, approval, CCTV or other production mutation APIs. Simulated decisions are explicitly marked as such. Remaining: editorial review, licensed audio/brand assets, and an optional automated recording/export pipeline.
 - Verification: root typecheck, lint, tests and build passed (backend 134 passed/6 skipped; frontend 55 passed). Browser QA passed across light/dark 375, 430, 1024, 1440 and 1920px viewports; four Studio ratios, scenario navigation, scoped role changes, simulated approval, theme switch, clean mode, demo home and no production mutation requests also passed. Existing lint warnings remain outside this slice.
+
+## Super Admin launch readiness (2026-10-01)
+
+Continued the existing platform-control module after reconstructing the repository. No application restart, parallel admin module or live provider operation.
+
+Implemented a bounded 12-item catalog covering business registration, payment/messaging/storage/security providers and database/security/deployment acceptance. The dashboard records onboarding/approval, manual staging review, owner, target date, next action, blocker/severity and verification summary. Configuration checks return presence status only; credentials are not copied into review records or responses. Common credential-shaped text is rejected and audit excludes free-text notes. This is not a general secret scanner.
+
+Server-side platform administration guards reads/writes; organization roles (including a membership named SUPER_ADMIN without platform-admin status) cannot access them. Records use LAUNCH_READINESS_ENV, defaulting to NODE_ENV; explicit staging scope separates staging reviews even with production runtime mode. Coolify passes the selected review scope to API/worker.
+
+Review mutations enforce expectedRevision, valid staging applicability and owner/verification requirements. Review and audit share a transaction. Writes fail closed if the full unique environment/key index is absent. The additive readiness:create-index command initializes that prerequisite without dropping indexes. No production index command was executed.
+
+Readiness does not enable services, call providers or certify a release. Optional services are labelled and included in item counts. Existing production provider validation and the process/database health probes remain separate.
+
+Verification: full configured suite passed 224 backend tests and 63 frontend tests, with 40 opt-in database tests skipped. Subsequent readiness prerequisite/environment tests passed (19 unit tests), and new authenticated HTTP security tests passed (9 tests). Frontend rendering/loading/error/access/write-projection tests passed (4). Root typecheck and full lint passed; focused lint passed with only the pre-existing env console warning. Static release certification returned CERTIFIED_STATIC. A production build succeeded before the index/environment follow-up; final build verification is recorded below.
+
+Limitations: no usable Windows MongoDB binary was available, so the added real replica-set commit/rollback/stale-review tests remain unexecuted. No browser interaction, live provider acceptance, Docker image build, deployment, Git commit or GitHub push was performed in this slice. Earlier switch/CCTV repair changes and .continue/ were preserved.
+
+Added:
+- apps/backend/src/database/models/LaunchReadiness.ts
+- apps/backend/src/modules/platform-control/launch-readiness.{catalog,schemas,service}.ts
+- apps/backend/scripts/create-readiness-index.ts
+- apps/backend/tests/unit/launch-readiness.test.ts
+- apps/backend/tests/security/launch-readiness.api.test.ts
+- apps/frontend/src/components/launch-readiness.tsx
+- apps/frontend/src/lib/data/launch-readiness.ts and launch-readiness.test.ts
+
+Modified for this slice:
+- apps/backend/.env.example, package.json, src/config/env.ts
+- apps/backend/src/modules/platform-control/platform-control.controller.ts and platform-control.routes.ts
+- apps/backend/src/core/api/openapi.ts
+- apps/backend/tests/e2e/finance.transaction.e2e.test.ts (preserved preceding switch regressions)
+- apps/frontend/src/app/(dashboard)/platform/page.tsx
+- apps/frontend/src/hooks/queries/use-platform-queries.ts
+- apps/frontend/src/lib/data/platform.ts and query-keys.ts
+- docker-compose.coolify.yml
+- docs/API_SPECIFICATION.md, FEATURES.md, PRODUCTION_READINESS.md and this tracker
+
+Final verification: root production build passed for backend/frontend with NEXT_PUBLIC_API_URL=/api/v1 supplied to the verification process. The preceding rerun without that variable correctly failed the existing frontend production configuration guard. No deployment setting was changed. Final focused HTTP-test lint and git diff --check passed. The added database index command and replica-set acceptance still require execution against a suitable target database before review writes can be certified.
+
+
+## GitHub checkpoint verification (2026-10-02)
+
+Prepared the requested existing laptop work for publication: Super Admin monitoring, launch readiness, service-switch audit atomicity, independent CCTV/NVR gates, regression tests and documentation. The unrelated .continue directory is excluded. Added environment-isolated frontend API configuration tests so a CI-supplied NEXT_PUBLIC_API_URL cannot invalidate the missing-configuration assertion; production resolver behavior is unchanged.
+
+Verification on the laptop passed root typecheck, lint (existing warnings, no errors), tests (268 backend passed / 44 opt-in skipped; 67 frontend passed), both builds and static certification (35 route files, 154 permissions, 6 critical paths). The same requested source changes passed all 44 isolated MongoDB replica-set E2E regressions in Linux. The temporary test harness disabled MongoDB Unix sockets because this execution environment restricts them; database transactions and assertions were unchanged. That harness is not included in the commit.
+
+Reviewed the requested diff and scanned the changed files for common credential patterns; the only match was a private-key header string in a rejection test, with no key material. No non-example environment file is included. Documented the monitoring API, records, index prerequisites, worker collection and known source limitations. This checkpoint does not approve live payments/CCTV or execute production indexes, provider calls or deployment.

@@ -11,6 +11,7 @@ import { AuthorizationService } from "../../core/authorization/authorization.ser
 import { AppError } from "../../core/errors/AppError.js";
 import { AuditService } from "../audit/audit.service.js";
 import { BillingService } from "../billing/billing.service.js";
+import { assertSwitchEnabled } from "../platform-control/platform-control.guard.js";
 import type { AuthenticatedUser } from "../../core/types/auth.js";
 import type { z } from "zod";
 import type * as S from "./security.schemas.js";
@@ -264,6 +265,7 @@ export class SecurityService {
     if (!c) throw new AppError(404, "CAMERA_NOT_FOUND", "Camera not found");
     await BillingService.assertFeature(String(c.organizationId), "security");
     await authorizeStored(auth, c, "cctv.view");
+    await assertSwitchEnabled(c.provider === "NVR" ? "NVR_GATEWAY" : "CCTV_GATEWAY");
     if (!c.streamRef)
       throw new AppError(
         409,
@@ -277,6 +279,7 @@ export class SecurityService {
     if (!c) throw new AppError(404, "CAMERA_NOT_FOUND", "Camera not found");
     await BillingService.assertFeature(String(c.organizationId), "security");
     await authorizeStored(auth, c, "cctv.playback");
+    await assertSwitchEnabled(c.provider === "NVR" ? "NVR_GATEWAY" : "CCTV_GATEWAY");
     if (!c.playbackRef)
       throw new AppError(
         409,

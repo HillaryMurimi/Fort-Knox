@@ -14,6 +14,12 @@ const booleanValue = (defaultValue: boolean) =>
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  LAUNCH_READINESS_ENV: z.preprocess(value => value === '' ? undefined : value, z.enum(['development', 'test', 'staging', 'production']).optional()),
+  MONITORING_QUEUE_AGE_SECONDS: z.coerce.number().int().min(60).default(900),
+  MONITORING_ONBOARDING_AGE_SECONDS: z.coerce.number().int().min(60).default(86400),
+  MONITORING_HEARTBEAT_STALE_SECONDS: z.coerce.number().int().min(60).default(120),
+  MONITORING_AUTH_BURST_THRESHOLD: z.coerce.number().int().min(1).default(20),
+  MONITORING_DENIAL_THRESHOLD: z.coerce.number().int().min(1).default(5),
   PORT: z.coerce.number().int().positive().default(9000),
   API_PREFIX: z.string().default('/api/v1'),
   WEB_ORIGIN: z.string().url().default('http://localhost:5173'),

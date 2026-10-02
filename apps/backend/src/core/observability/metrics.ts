@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { observePlatformRequest } from './platform-telemetry.js';
 
 interface RouteMetric {
   requests: number;
@@ -14,8 +15,9 @@ function key(method: string, route: string): string {
 }
 
 export function observeRequest(req: Request, res: Response, durationMs: number): void {
-  const route = req.route?.path ? `${req.baseUrl}${req.route.path}` : req.path;
-  const metricKey = key(req.method, route);
+  const route = req.route?.path ? `${req.baseUrl}${req.route.path}` : '<unmatched>';
+  const candidate = key(req.method, route);
+  const metricKey = metrics.has(candidate) || metrics.size < 500 ? candidate : 'OTHER <overflow>';
   const current = metrics.get(metricKey) ?? { requests: 0, errors: 0, totalDurationMs: 0 };
   current.requests += 1;
   if (res.statusCode >= 500) current.errors += 1;
@@ -49,6 +51,7 @@ export function metricsMiddleware() {
     res.on('finish', () => {
       const durationMs = Number(process.hrtime.bigint() - started) / 1_000_000;
       observeRequest(req, res, durationMs);
+      observePlatformRequest(req, res);
     });
     next();
   };

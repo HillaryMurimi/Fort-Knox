@@ -7,3 +7,13 @@ export const platformControlRouter = Router();
 platformControlRouter.use(requireAuth);
 platformControlRouter.get('/switches', asyncHandler(controller.list));
 platformControlRouter.patch('/switches/:key', asyncHandler(controller.update));
+platformControlRouter.get('/launch-readiness', asyncHandler(controller.launchReadiness));
+platformControlRouter.patch('/launch-readiness/:key', asyncHandler(controller.updateLaunchReadiness));
+
+platformControlRouter.get('/monitoring', asyncHandler(controller.monitoringOverview));
+platformControlRouter.get('/monitoring/alerts', asyncHandler(controller.monitoringAlerts));
+platformControlRouter.get('/monitoring/alerts/:id/history', asyncHandler(controller.monitoringHistory));
+platformControlRouter.patch('/monitoring/alerts/:id', asyncHandler(controller.monitoringReview));
+platformControlRouter.get('/monitoring/maintenance-windows', asyncHandler(controller.monitoringWindows));
+platformControlRouter.post('/monitoring/maintenance-windows', asyncHandler(controller.monitoringCreateWindow));
+platformControlRouter.post('/monitoring/maintenance-windows/:id/end', asyncHandler(controller.monitoringEndWindow));

@@ -2,11 +2,13 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { connectDatabase } from './config/database.js';
 import { logger } from './core/logging/logger.js';
+import { startHeartbeat } from './core/observability/platform-telemetry.js';
 
 let shuttingDown = false;
 
 async function bootstrap() {
   await connectDatabase();
+  const stopHeartbeat = startHeartbeat('API');
   const app = createApp();
   const server = app.listen(env.PORT, () => logger.info({ port: env.PORT }, 'API server started'));
 
@@ -21,6 +23,7 @@ async function bootstrap() {
     forceExit.unref();
     server.close(async () => {
       const { disconnectDatabase } = await import('./config/database.js');
+      await stopHeartbeat();
       await disconnectDatabase();
       clearTimeout(forceExit);
       process.exit(0);

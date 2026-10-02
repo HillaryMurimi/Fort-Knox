@@ -95,3 +95,22 @@ These options must remain disabled or hidden until implemented and security-test
 `docker-compose.coolify.yml` is the intended Git-backed Coolify application; `infrastructure/docker-compose.production.yml` is a non-Coolify reference. Neither substitutes for managed secrets, TLS termination, backups or autoscaling. Use a managed MongoDB cluster and private object storage.
 
 Do not enable the development preview system in production. The frontend excludes preview role resolution when `NODE_ENV=production`, and `/dev/preview` returns 404 in production.
+
+## Launch readiness reviews
+
+Use Platform > Launch readiness to record business registration, provider onboarding, staging outcomes and release blockers with a responsible owner. Credentials are managed through deployment configuration; this screen shows presence status only. PASSED is a manual operator attestation requiring a verification summary, not an automated provider acceptance test.
+
+Set LAUNCH_READINESS_ENV=staging on staging deployments and LAUNCH_READINESS_ENV=production on live deployments, especially when both use NODE_ENV=production. Unset scope falls back to NODE_ENV. Use separate databases/accounts where already required by deployment policy. Keep environment scope stable after reviews have been recorded.
+
+Before accepting review writes, run npm --prefix apps/backend run readiness:create-index from a checkout with the target environment configured. This adds the declared unique LaunchReadiness environment/key index without dropping indexes or changing review records. Review writes fail closed with READINESS_INDEX_REQUIRED (503) if the full unique index is absent. Audit/review updates require MongoDB replica-set transactions. Refresh and re-review when another admin's update returns a revision conflict.
+
+The catalog includes optional CCTV/NVR/WhatsApp services and counts all items; it does not declare a global launch certificate or change any feature switch. Record unresolved document/provider dependencies as blockers instead of marking tests passed. Existing production startup validation still requires primary provider configuration; this monitoring screen does not relax that requirement.
+
+
+## Platform monitoring prerequisites
+
+Run npm --prefix apps/backend run monitoring:create-indexes against the configured target environment before enabling collection or alert mutations. This adds declared monitoring indexes without dropping indexes or modifying existing records. Unique alert fingerprints, signal buckets and heartbeat instances are required; absent indexes produce MONITORING_INDEX_REQUIRED. Audit/history/review and maintenance-window writes require MongoDB transactions.
+
+Deploy the API and jobs worker together. Each writes a 30-second heartbeat, and the worker collects alerts approximately every minute. Use stable LAUNCH_READINESS_ENV scopes as described above. Optional MONITORING_* thresholds are documented in apps/backend/.env.example. Signal and heartbeat retention use TTL indexes (seven days and three days respectively); alert/history retention still needs an operational policy.
+
+These views cover current records and instrumented processes. They do not establish external uptime, backup/restore success, verified notification delivery, fleet capacity or complete service-switch enforcement. Configure those sources before relying on them as release evidence. Maintenance windows suppress alerts only and do not disable services.

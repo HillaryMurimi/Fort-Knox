@@ -22,3 +22,14 @@ export function usePlatformInvoicesQuery(organizationId?: string) { return useQu
 export function useCreatePlanMutation() { const qc = useQueryClient(); return useMutation({ mutationFn: platformClient.createPlan, onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.platform.plans() }) }); }
 export function useUpdatePlanMutation() { const qc = useQueryClient(); return useMutation({ mutationFn: ({ planId, input }: { planId: string; input: Parameters<typeof platformClient.updatePlan>[1] }) => platformClient.updatePlan(planId, input), onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.platform.plans() }) }); }
 export function useMarkInvoicePaidMutation(organizationId?: string) { const qc = useQueryClient(); return useMutation({ mutationFn: ({ invoiceId, amount }: { invoiceId: string; amount: number }) => platformClient.markInvoicePaid(organizationId!, invoiceId, amount), onSuccess: () => { if (organizationId) { void qc.invalidateQueries({ queryKey: queryKeys.platform.invoices(organizationId) }); void qc.invalidateQueries({ queryKey: queryKeys.platform.subscription(organizationId) }); } } }); }
+
+export function useLaunchReadinessQuery(enabled = true) {
+  return useQuery({ queryKey: queryKeys.platform.launchReadiness(), queryFn: platformClient.launchReadiness, enabled, refetchInterval: 30_000 });
+}
+export function useUpdateLaunchReadinessMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, input }: { key: string; input: Parameters<typeof platformClient.updateLaunchReadiness>[1] }) => platformClient.updateLaunchReadiness(key, input),
+    onSuccess: data => { qc.setQueryData(queryKeys.platform.launchReadiness(), data); },
+  });
+}

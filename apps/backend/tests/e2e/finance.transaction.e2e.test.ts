@@ -3,6 +3,14 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose, { Types } from 'mongoose';
 import crypto from 'node:crypto';
 import { Payment } from '../../src/database/models/Payment.js';
+import { PlatformMonitorAlert, PlatformMonitorHistory, PlatformMonitorSignal, PlatformHeartbeat, PlatformMaintenanceWindow } from '../../src/database/models/PlatformMonitoring.js';
+import { PlatformMonitoringService } from '../../src/modules/platform-control/platform-monitoring.service.js';
+import { monitoringSnapshot } from '../../src/modules/platform-control/platform-monitoring.snapshot.js';
+import { Notification } from '../../src/database/models/Notification.js';
+import { LaunchReadiness } from '../../src/database/models/LaunchReadiness.js';
+import { LaunchReadinessService } from '../../src/modules/platform-control/launch-readiness.service.js';
+import { PlatformSwitch } from '../../src/database/models/PlatformSwitch.js';
+import { PlatformControlService } from '../../src/modules/platform-control/platform-control.service.js';
 import { PaymentRefund } from '../../src/database/models/PaymentRefund.js';
 import { RentCharge } from '../../src/database/models/RentCharge.js';
 import { PaymentAllocation } from '../../src/database/models/PaymentAllocation.js';
@@ -67,6 +75,100 @@ describe.skipIf(!process.env.RUN_TRANSACTION_E2E)('finance transactions on a rep
       raw: { id: 713, metadata: { paymentId: String(payment._id), organizationId: String(payment.organizationId) } },
     });
   }
+
+  it('commits an admin switch change and audit together without changing another switch', async () => {
+    const auth: AuthenticatedUser = { userId: new Types.ObjectId(), isPlatformAdmin: true, memberships: [] };
+    await PlatformControlService.update(auth, 'NVR_GATEWAY', { mode: 'ON', reason: 'Gateway verified', confirm: true });
+    expect(await PlatformSwitch.countDocuments({ key: 'NVR_GATEWAY', mode: 'ON', enabled: true })).toBe(1);
+    expect(await PlatformSwitch.countDocuments({ key: 'CCTV_GATEWAY', mode: 'OFF', enabled: false })).toBe(1);
+    const audit = await AuditLog.findOne({ action: 'platform.switch.enabled' }).lean();
+    expect(audit?.before).toMatchObject({ mode: 'OFF', enabled: false });
+    expect(audit?.after).toMatchObject({ mode: 'ON', enabled: true });
+  });
+
+  it('rolls back a switch change if its audit write fails', async () => {
+    await PlatformControlService.ensureCatalog();
+    const auth: AuthenticatedUser = { userId: new Types.ObjectId(), isPlatformAdmin: true, memberships: [] };
+    vi.spyOn(AuditService, 'record').mockRejectedValueOnce(new Error('audit unavailable'));
+    await expect(PlatformControlService.update(auth, 'NVR_GATEWAY', { mode: 'ON', reason: 'Gateway verified', confirm: true })).rejects.toThrow('audit unavailable');
+    expect(await PlatformSwitch.countDocuments({ key: 'NVR_GATEWAY', mode: 'OFF', enabled: false })).toBe(1);
+    expect(await AuditLog.countDocuments({ action: 'platform.switch.enabled' })).toBe(0);
+  });
+
+  it('commits readiness and audit without enabling any service, then rejects a stale review', async () => {
+    const auth: AuthenticatedUser = { userId: new Types.ObjectId(), isPlatformAdmin: true, memberships: [] };
+    const input = { expectedRevision: 0, onboarding: 'APPROVED' as const, staging: 'NOT_APPLICABLE' as const, responsibleOwner: 'Release owner', targetDate: null, nextAction: '', blocker: '', severity: 'NONE' as const, verificationNote: 'Business document received' };
+    await LaunchReadiness.createIndexes();
+    await LaunchReadinessService.update(auth, 'BUSINESS_REGISTRATION', input);
+    expect(await LaunchReadiness.countDocuments({ key: 'BUSINESS_REGISTRATION', revision: 1 })).toBe(1);
+    expect(await AuditLog.countDocuments({ action: 'platform.readiness.updated' })).toBe(1);
+    expect(await PlatformSwitch.countDocuments()).toBe(0);
+    await expect(LaunchReadinessService.update(auth, 'BUSINESS_REGISTRATION', input)).rejects.toMatchObject({ code: 'READINESS_CONFLICT' });
+    expect(await AuditLog.countDocuments({ action: 'platform.readiness.updated' })).toBe(1);
+  });
+
+  it('rolls back a new readiness record when its audit fails', async () => {
+    const auth: AuthenticatedUser = { userId: new Types.ObjectId(), isPlatformAdmin: true, memberships: [] };
+    await LaunchReadiness.createIndexes();
+    vi.spyOn(AuditService, 'record').mockRejectedValueOnce(new Error('audit unavailable'));
+    await expect(LaunchReadinessService.update(auth, 'BUSINESS_REGISTRATION', { expectedRevision: 0, onboarding: 'AWAITING_DOCUMENTS', staging: 'NOT_APPLICABLE', responsibleOwner: 'Release owner', targetDate: null, nextAction: 'Await document', blocker: 'Registration pending', severity: 'HIGH', verificationNote: '' })).rejects.toThrow('audit unavailable');
+    expect(await LaunchReadiness.countDocuments()).toBe(0);
+    expect(await AuditLog.countDocuments({ action: 'platform.readiness.updated' })).toBe(0);
+  });
+
+  async function monitoringIndexes() {
+    for (const model of [PlatformMonitorAlert, PlatformMonitorHistory, PlatformMonitorSignal, PlatformHeartbeat, PlatformMaintenanceWindow]) await model.createIndexes();
+  }
+
+  it('deduplicates real alerts and preserves acknowledgement/history across observations', async () => {
+    await monitoringIndexes();
+    const auth: AuthenticatedUser = { userId: new Types.ObjectId(), isPlatformAdmin: true, memberships: [] };
+    const condition = { area: 'queues' as const, scope: 'PLATFORM', code: 'FAILED', title: 'Failed work', severity: 'HIGH' as const, value: 2, firstAt: new Date(), lastAt: new Date() };
+    await PlatformMonitoringService.observe(condition);
+    await PlatformMonitoringService.observe(condition);
+    const alert = await PlatformMonitorAlert.findOne().orFail();
+    await PlatformMonitoringService.review(auth, String(alert._id), { expectedRevision: alert.revision, owner: 'Operations', action: 'ACKNOWLEDGE', note: 'Reviewing failed work' });
+    await PlatformMonitoringService.observe({ ...condition, value: 3 });
+    expect(await PlatformMonitorAlert.countDocuments()).toBe(1);
+    expect((await PlatformMonitorAlert.findById(alert._id))?.status).toBe('ACKNOWLEDGED');
+    expect(await PlatformMonitorHistory.countDocuments({ alertId: alert._id })).toBe(2);
+  });
+
+  it('rolls back alert review and history when its audit fails', async () => {
+    await monitoringIndexes();
+    const auth: AuthenticatedUser = { userId: new Types.ObjectId(), isPlatformAdmin: true, memberships: [] };
+    await PlatformMonitoringService.observe({ area: 'queues', scope: 'PLATFORM', code: 'FAILED', title: 'Failed work', severity: 'HIGH', value: 1, firstAt: new Date(), lastAt: new Date() });
+    const alert = await PlatformMonitorAlert.findOne().orFail();
+    vi.spyOn(AuditService, 'record').mockRejectedValueOnce(new Error('audit unavailable'));
+    await expect(PlatformMonitoringService.review(auth, String(alert._id), { expectedRevision: alert.revision, owner: 'Operations', action: 'RESOLVE', note: 'Reviewed failed work' })).rejects.toThrow('audit unavailable');
+    expect((await PlatformMonitorAlert.findById(alert._id))?.status).toBe('OPEN');
+    expect(await PlatformMonitorHistory.countDocuments({ alertId: alert._id })).toBe(1);
+  });
+
+  it('creates an audited maintenance window without modifying service state', async () => {
+    await monitoringIndexes();
+    const auth: AuthenticatedUser = { userId: new Types.ObjectId(), isPlatformAdmin: true, memberships: [] };
+    await PlatformMonitoringService.createWindow(auth, { area: 'queues', scope: 'PLATFORM', startsAt: new Date().toISOString(), endsAt: new Date(Date.now() + 3600000).toISOString(), owner: 'Operations', reason: 'Planned worker maintenance' });
+    expect(await PlatformMaintenanceWindow.countDocuments()).toBe(1);
+    expect(await AuditLog.countDocuments({ action: 'platform.monitoring.maintenance.created' })).toBe(1);
+    expect(await PlatformSwitch.countDocuments()).toBe(0);
+  });
+
+  it('aggregates real operational records without exposing notification bodies or job payloads', async () => {
+    const organizationId = new Types.ObjectId(), userId = new Types.ObjectId();
+    await Job.create([
+      { organizationId, type: 'test.work', status: 'QUEUED', availableAt: new Date(Date.now() - 2 * 86400000), payload: { private: 'must-not-expose-payload' } },
+      { organizationId, type: 'test.work', status: 'QUEUED', availableAt: new Date(Date.now() + 86400000), payload: {} },
+      { organizationId, type: 'test.work', status: 'FAILED', availableAt: new Date(), payload: {} },
+    ]);
+    await Notification.create({ organizationId, recipientUserId: userId, channel: 'EMAIL', type: 'TEST', title: 'Test message', body: 'must-not-expose-message-body', status: 'FAILED' });
+    const result = await monitoringSnapshot({ userId, isPlatformAdmin: true, memberships: [] });
+    const queues = result.areas.find(item => item.key === 'queues')!;
+    expect(queues.metrics.find(item => item.key === 'queued')?.value).toBe(2);
+    expect(queues.conditions.find(item => item.code === 'QUEUED')?.value).toBe(1);
+    expect(result.areas.find(item => item.key === 'notifications')?.metrics.find(item => item.key === 'failed')?.value).toBe(1);
+    expect(JSON.stringify(result)).not.toContain('must-not-expose');
+  });
 
   it('commits manual allocation and its audit together', async () => {
     const { ids, charges, payment } = await fixture();
