@@ -1,5 +1,7 @@
 'use client';
 import { ShieldCheck, Mail, Smartphone } from 'lucide-react';
+import { WorkflowPipeline } from '@/components/workflow-pipeline';
+import { orderedWorkflow } from '@/lib/status';
 import { Alert, Button, Input } from '@/components/ui';
 import type { AdminMfaResponse } from '@/types/auth';
 
@@ -9,10 +11,7 @@ export function AdminMfaPanel({ challenge, code, error, busy, seconds, onCode, o
 }) {
   const email = challenge.stage === 'EMAIL';
   return <form className="mt-8 space-y-5" onSubmit={event => { event.preventDefault(); onVerify(); }}>
-    <ol aria-label="Administrator authentication progress" className="flex justify-between gap-2 text-xs text-muted-foreground">
-      {['Password', 'Email', 'Phone', 'Complete'].map((label, index) => <li key={label} aria-current={index === (email ? 1 : 2) ? 'step' : undefined}
-        className={index === (email ? 1 : 2) ? 'font-semibold text-foreground' : ''}>{index + 1}. {label}</li>)}
-    </ol>
+    <WorkflowPipeline label="Administrator authentication progress" domain="auth" stages={orderedWorkflow(["Password accepted", "Email verification", "Phone verification", "Privileged session"], email ? 1 : 2, busy ? "PROCESSING" : "UNDER_REVIEW").map(stage => stage.position === "current" && error ? {...stage, position: "failed", status: "FAILED"} : stage)} />
     <div className="flex items-center gap-3">{email ? <Mail aria-hidden size={22} /> : <Smartphone aria-hidden size={22} />}
       <h2 className="text-lg font-semibold">{email ? 'Verify your email' : 'Verify your phone'}</h2></div>
     <p className="text-sm text-muted-foreground">Administrator access requires both channels. {email ? 'Your password is verified.' : 'Your password and email are verified.'}</p>

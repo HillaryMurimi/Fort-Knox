@@ -8,6 +8,7 @@
         "start": "next start",
         "lint": "eslint src",
         "test": "vitest run",
+        "verify:status-system": "vitest run src/lib/status.test.tsx && node scripts/verify-status-system.mjs",
         "verify:landing": "node scripts/verify-landing.mjs",
         "verify:workspace-scenes": "node scripts/verify-workspace-scenes.mjs",
         "verify:cinematic-demo": "node scripts/verify-cinematic-demo.mjs",

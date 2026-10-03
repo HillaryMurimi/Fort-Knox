@@ -1,3 +1,7 @@
+import {
+  assertStatusSurface,
+  assertDomainStatus,
+} from "./status-visual-checks.mjs";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -28,7 +32,8 @@ async function deliveredCode(channel) {
   }
   throw new Error("Test delivery did not reach the private harness");
 }
-let mongo, browser, page;
+let mongo, browser, page, webState;
+const runtimeErrors = [];
 const apiPort = Number(process.env.PCC_SALES_TEST_API_PORT ?? 9016),
   webPort = Number(process.env.PCC_SALES_TEST_WEB_PORT ?? 3016),
   origin = "http://127.0.0.1:" + webPort,
@@ -125,6 +130,7 @@ try {
       NEXT_PUBLIC_DEV_DEMO_MODE: "false",
     },
   );
+  webState = web;
   await ready(origin + "/login", web);
   browser = await chromium.launch({
     headless: true,
@@ -143,7 +149,10 @@ try {
   });
   page = await browserContext.newPage();
   const errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("pageerror", (error) => {
+    errors.push(error.message);
+    runtimeErrors.push(error.message);
+  });
   await page.goto(origin + "/login");
   await page
     .getByRole("tab", { name: "Email + Password", exact: true })
@@ -218,7 +227,9 @@ try {
     .getByRole("button", { name: "Investigate A01", exact: true })
     .click();
   await page.getByRole("region", { name: "Tenancy investigation" }).waitFor();
+  await assertDomainStatus(page, "OVERDUE", "sales", "blocked");
   const paid = await action("Simulate payment");
+  await assertDomainStatus(page, "PAID", "sales", "completed");
   assert.equal(paid.summary.outstandingMinor, 46400000);
   assert.equal(paid.summary.overdueTenants, 16);
   await page
@@ -227,15 +238,25 @@ try {
     .waitFor();
   await page.getByLabel("Investigate a problem").selectOption("MAINTENANCE");
   await action("Simulate tenant reporting a leak");
-  for (const name of [
-    "Triage request",
-    "Assign caretaker / contractor",
-    "Submit simulated quotation",
-    "Approve maintenance",
-    "Start work",
-    "Complete repair",
-  ])
+  for (const [name, status, semantic] of [
+    ["Triage request", "TRIAGED", "processing"],
+    ["Assign caretaker / contractor", "ASSIGNED", "processing"],
+    ["Submit simulated quotation", "APPROVAL_REQUIRED", "review"],
+    ["Approve maintenance", "APPROVED", "success"],
+    ["Start work", "IN_PROGRESS", "processing"],
+    ["Complete repair", "COMPLETED", "completed"],
+  ]) {
     await action(name);
+    await assertDomainStatus(page, status, "maintenance", semantic);
+    const current = page
+      .getByRole("list", { name: "Repair progress" })
+      .locator('[aria-current="step"][data-semantic="' + semantic + '"]');
+    await current.waitFor();
+    assert.ok(
+      (await current.textContent()).includes(status.replaceAll("_", " ")),
+      "The current pipeline stage follows the saved repair state",
+    );
+  }
   await page.getByText("COMPLETED", { exact: true }).first().waitFor();
   await action("After evidence");
   await page.getByRole("heading", { name: "Evidence retained" }).waitFor();
@@ -282,6 +303,7 @@ try {
         path: temporaryRoot + `/pcc-sales-${theme}-${size.width}.png`,
         fullPage: true,
       });
+      await assertStatusSurface(page);
       const unnamed = await page
         .locator("main button:visible")
         .evaluateAll(
@@ -330,13 +352,19 @@ try {
   await page
     .getByRole("link", { name: "Open prepared pilot workspace" })
     .click();
-  await page.waitForURL((url) => url.pathname === "/pilot" && url.searchParams.has("organizationId"));
+  await page.waitForURL(
+    (url) =>
+      url.pathname === "/pilot" && url.searchParams.has("organizationId"),
+  );
   await page
     .getByRole("heading", { name: "Acacia Discovery Portfolio", exact: true })
     .waitFor();
   const pilotUrl = page.url();
   const pilotOrg = new URL(pilotUrl).searchParams.get("organizationId");
-  assert.ok(pilotOrg, "The prepared pilot must identify its private organization");
+  assert.ok(
+    pilotOrg,
+    "The prepared pilot must identify its private organization",
+  );
   const csv =
     "propertyName,propertyCode,address,city,propertyType,buildingName,buildingCode,floorName,floorLevel,unitCode,unitType,monthlyRentMinor,depositMinor,openingBalanceMinor,tenantFirstName,tenantLastName,tenantPhone,tenancyStart,tenancyEnd\nAcacia Court,ACACIA,Kilimani,Nairobi,APARTMENT,Block A,A,Ground Floor,0,A01,TWO_BEDROOM,2500000,2500000,1200000,Amina,Wambui,+254711009776,2026-01-01,\n";
   await page.getByLabel("Upload portfolio CSV").setInputFiles({
@@ -384,10 +412,13 @@ try {
   await page.getByLabel("Investigate a problem").selectOption("SECURITY");
   await action("Simulate 02:14 AM security event");
   await action("Retrieve incident evidence");
+  await assertDomainStatus(page, "OPEN", "incident", "attention");
   await action("Investigate incident");
+  await assertDomainStatus(page, "INVESTIGATING", "incident", "processing");
   await action("Escalate response");
+  await assertDomainStatus(page, "ESCALATED", "incident", "blocked");
   await action("Resolve incident");
-  await page.getByText("RESOLVED", { exact: true }).waitFor();
+  await assertDomainStatus(page, "RESOLVED", "incident", "completed");
   await page
     .getByRole("button", { name: "Start guided pilot", exact: true })
     .click();
@@ -405,67 +436,143 @@ try {
   const ownerPage = await ownerContext.newPage();
   ownerPage.on("pageerror", (error) => errors.push(error.message));
   await ownerPage.goto(origin + "/login");
-  await ownerPage.getByRole("tab", { name: "Email + Password", exact: true }).click();
-  await ownerPage.getByLabel("Email", { exact: true }).fill("pilot-browser@example.test");
+  await ownerPage
+    .getByRole("tab", { name: "Email + Password", exact: true })
+    .click();
+  await ownerPage
+    .getByLabel("Email", { exact: true })
+    .fill("pilot-browser@example.test");
   await ownerPage.getByLabel("Password", { exact: true }).fill(password);
-  const ownerLogin = ownerPage.waitForResponse((response) =>
-    response.url().endsWith("/api/v1/auth/login") && response.request().method() === "POST");
-  await ownerPage.getByRole("button", { name: "Continue", exact: true }).click();
+  const ownerLogin = ownerPage.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/v1/auth/login") &&
+      response.request().method() === "POST",
+  );
+  await ownerPage
+    .getByRole("button", { name: "Continue", exact: true })
+    .click();
   const ownerResponse = await ownerLogin;
   assert.equal(ownerResponse.status(), 200);
   const ownerChallenge = (await ownerResponse.json()).data;
-  assert.equal(ownerChallenge.stepUpRequired, true, "Password alone must not grant landlord access");
-  assert.ok(ownerChallenge.challenge.developmentCode, "Private test environment must provide its OTP");
-  await ownerPage.getByLabel("Phone verification code").fill(ownerChallenge.challenge.developmentCode);
-  const ownerVerified = ownerPage.waitForResponse((response) =>
-    response.url().endsWith("/api/v1/auth/verify-step-up") && response.request().method() === "POST");
-  await ownerPage.getByRole("button", { name: "Enter Command Center", exact: true }).click();
+  assert.equal(
+    ownerChallenge.stepUpRequired,
+    true,
+    "Password alone must not grant landlord access",
+  );
+  assert.ok(
+    ownerChallenge.challenge.developmentCode,
+    "Private test environment must provide its OTP",
+  );
+  await ownerPage
+    .getByLabel("Phone verification code")
+    .fill(ownerChallenge.challenge.developmentCode);
+  const ownerVerified = ownerPage.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/v1/auth/verify-step-up") &&
+      response.request().method() === "POST",
+  );
+  await ownerPage
+    .getByRole("button", { name: "Enter Command Center", exact: true })
+    .click();
   const verifiedResponse = await ownerVerified;
   assert.equal(verifiedResponse.status(), 200);
   const ownerSession = (await verifiedResponse.json()).data;
-  assert.ok(ownerSession.accessToken && ownerSession.user._id, "Owner must finish the normal password and phone proof");
+  assert.ok(
+    ownerSession.accessToken && ownerSession.user._id,
+    "Owner must finish the normal password and phone proof",
+  );
   await ownerPage.waitForURL((url) => url.pathname !== "/login");
   await ownerPage.goto(pilotUrl);
   await ownerPage.getByText("71% ready", { exact: true }).waitFor();
-  const reviewed = ownerPage.waitForResponse((response) =>
-    response.url().includes("/pilot/insight") && response.request().method() === "POST");
-  await ownerPage.getByRole("button", { name: "Investigate this exposure", exact: true }).click();
+  const reviewed = ownerPage.waitForResponse(
+    (response) =>
+      response.url().includes("/pilot/insight") &&
+      response.request().method() === "POST",
+  );
+  await ownerPage
+    .getByRole("button", { name: "Investigate this exposure", exact: true })
+    .click();
   assert.equal((await reviewed).status(), 200);
   await ownerPage.waitForURL((url) => url.pathname !== "/pilot");
   await ownerPage.goto(pilotUrl);
-  await ownerPage.getByLabel("Staff email", { exact: true }).fill("caretaker-browser@example.test");
-  await ownerPage.getByRole("button", { name: "Prepare staff invitation", exact: true }).click();
+  await ownerPage
+    .getByLabel("Staff email", { exact: true })
+    .fill("caretaker-browser@example.test");
+  await ownerPage
+    .getByRole("button", { name: "Prepare staff invitation", exact: true })
+    .click();
   await ownerPage.getByText("86% ready", { exact: true }).waitFor();
   const apiBase = "http://127.0.0.1:" + apiPort + "/api/v1";
   const ownerHeaders = { Authorization: "Bearer " + ownerSession.accessToken };
   async function ownerCall(method, path, data) {
-    const response = await ownerContext.request.fetch(apiBase + path, { method, headers: ownerHeaders, ...(data ? { data } : {}) });
-    assert.ok(response.ok(), `Owner workflow failed: ${method} ${path} (${response.status()})`);
+    const response = await ownerContext.request.fetch(apiBase + path, {
+      method,
+      headers: ownerHeaders,
+      ...(data ? { data } : {}),
+    });
+    assert.ok(
+      response.ok(),
+      `Owner workflow failed: ${method} ${path} (${response.status()})`,
+    );
     return (await response.json()).data;
   }
   const units = await ownerCall("GET", `/organizations/${pilotOrg}/units`);
   assert.equal(units.length, 1);
-  const repair = await ownerCall("POST", `/organizations/${pilotOrg}/maintenance`, {
-    unitId: units[0]._id, title: "Kitchen pipe repair", description: "Actual isolated pilot request", category: "PLUMBING", priority: "HIGH",
-  });
+  const repair = await ownerCall(
+    "POST",
+    `/organizations/${pilotOrg}/maintenance`,
+    {
+      unitId: units[0]._id,
+      title: "Kitchen pipe repair",
+      description: "Actual isolated pilot request",
+      category: "PLUMBING",
+      priority: "HIGH",
+    },
+  );
   for (const [transition, body] of [
-    ["triage", {}], ["assign", { assignedToUserId: ownerSession.user._id }],
-    ["quote", { quoteAmount: 18000 }], ["approve", {}],
-    ["progress", { status: "IN_PROGRESS" }], ["progress", { status: "COMPLETED", actualAmount: 18000 }],
-  ]) await ownerCall("POST", `/maintenance/${repair._id}/${transition}`, body);
-  await ownerPage.getByRole("button", { name: "Refresh progress", exact: true }).click();
+    ["triage", {}],
+    ["assign", { assignedToUserId: ownerSession.user._id }],
+    ["quote", { quoteAmount: 18000 }],
+    ["approve", {}],
+    ["progress", { status: "IN_PROGRESS" }],
+    ["progress", { status: "COMPLETED", actualAmount: 18000 }],
+  ])
+    await ownerCall("POST", `/maintenance/${repair._id}/${transition}`, body);
+  await ownerPage
+    .getByRole("button", { name: "Refresh progress", exact: true })
+    .click();
   await ownerPage.getByText("100% ready", { exact: true }).waitFor();
-  await ownerPage.getByText("Activation milestone reached: your operation is configured and a core workflow is completed.", { exact: true }).waitFor();
-  const progress = await ownerCall("GET", `/sales/organizations/${pilotOrg}/pilot`);
+  await ownerPage
+    .getByText(
+      "Activation milestone reached: your operation is configured and a core workflow is completed.",
+      { exact: true },
+    )
+    .waitFor();
+  const progress = await ownerCall(
+    "GET",
+    `/sales/organizations/${pilotOrg}/pilot`,
+  );
   assert.equal(progress.readiness.complete, true);
   assert.equal(progress.value.completedRepairs, 1);
   assert.equal(progress.value.approvalsCompleted, 1);
   assert.equal(progress.value.meaningfulInsights, 2);
-  assert.notEqual(progress.commercialState, "ACTIVE", "Readiness must never bypass signed and paid activation");
-  await ownerPage.getByRole("link", { name: "Review agreement and activation", exact: true }).click();
+  assert.notEqual(
+    progress.commercialState,
+    "ACTIVE",
+    "Readiness must never bypass signed and paid activation",
+  );
+  await ownerPage
+    .getByRole("link", { name: "Review agreement and activation", exact: true })
+    .click();
   await ownerPage.waitForURL((url) => url.pathname === "/onboarding");
-  await ownerPage.getByRole("heading", { name: "Activate your Command Center", exact: true }).waitFor();
-  await ownerPage.getByText("Your prepared property records stay in this workspace.", { exact: false }).waitFor();
+  await ownerPage
+    .getByRole("heading", { name: "Activate your Command Center", exact: true })
+    .waitFor();
+  await ownerPage
+    .getByText("Your prepared property records stay in this workspace.", {
+      exact: false,
+    })
+    .waitFor();
   await ownerContext.close();
   assert.equal(errors.length, 0, errors.join("\n"));
   console.log(
@@ -484,6 +591,43 @@ try {
       consoleErrors: errors.length,
     }),
   );
+} catch (error) {
+  if (page) {
+    await mkdir(frontend + "/test-results", { recursive: true });
+    await page
+      .screenshot({
+        path: frontend + "/test-results/sales-workflow-failure.png",
+        fullPage: true,
+      })
+      .catch(() => {});
+    console.error(
+      "Workflow page:",
+      page.url(),
+      "Runtime errors:",
+      runtimeErrors,
+    );
+  }
+  if (browser) {
+    for (const [index, tab] of browser
+      .contexts()
+      .flatMap((c) => c.pages())
+      .entries()) {
+      console.error(
+        "Open tab:",
+        index,
+        tab.url(),
+        await tab.title().catch(() => "Unavailable"),
+      );
+      await tab
+        .screenshot({
+          path: frontend + "/test-results/sales-failure-tab-" + index + ".png",
+          fullPage: true,
+        })
+        .catch(() => {});
+    }
+  }
+  if (webState) console.error("Frontend startup:", webState.log().slice(-3000));
+  throw error;
 } finally {
   await browser?.close();
   for (const child of children) child.kill("SIGTERM");

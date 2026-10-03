@@ -1018,3 +1018,39 @@ and await rendered content; original assertions and security fixtures retained.
 Diff/whitespace and staged secret/path review precede the release commit. The
 user's dev server and .continue/rules files are preserved. Commit/push verification
 and exact final status are recorded in the delivery message.
+
+
+## 2026-10-03 - Unified status and workflow visual system
+
+Continued the existing laptop main from f9419a5 without replacing working systems.
+Audited 75 persisted lifecycle/condition fields (323 enum entries), computed DTO
+states and shared/page-specific status consumers before implementation. Added a
+domain-aware frontend registry and 12 light/dark token families. Shared Badge API
+remains available; StatusBadge, StatusSelect and WorkflowPipeline now unify
+operational lists, role workspaces, SUPER_ADMIN and sales/pilot progress.
+
+Current, completed, upcoming, blocked, failed and skipped positions retain labels
+and decorative icons. Native filters retain values/handlers. Mobile pipelines
+stack; larger tracks scroll within their container. Cancelled/unknown paths do
+not fabricate event history. Existing audit/evidence remains authoritative.
+
+Backend/frontend production verification passed: both typechecks and builds;
+lint 0 errors with 432 backend/27 frontend existing warnings; backend unit
+65 files/348 tests; backend E2E 6 files/141 tests; frontend 30 files/248 tests.
+Static release certification: 36 route files, 155 permissions, 10 critical paths.
+Status suite: 54 tests plus 12 light/dark responsive contrast/layout cases.
+Real Control/Fort Knox/pilot/import/owner activation/commercial handoff browser
+journeys passed with maintenance/security status and current-stage assertions.
+SUPER_ADMIN sidebar, malformed analytics recovery, MFA/session and preview
+isolation verification passed with incident semantics/contrast in both themes.
+
+No backend/API/DTO/enum/database/index/authentication/provider/dependency or
+application environment file changed. CI gains a status verification step.
+Full mapping, palette, changed files, findings and final regression results are
+recorded in STATUS_VISUAL_SYSTEM.md. The three editor rule files stay untracked
+and untouched; generated browser artifacts and Next types are excluded.
+
+Production public regressions passed all 12 landing and 18 cinematic cases.
+Final review corrected access-point health to integration semantics while active
+alerts retain attention semantics; regression cases cover both meanings. Final
+frontend production/status gates were rerun after this context correction.

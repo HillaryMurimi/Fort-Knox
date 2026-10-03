@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { ElementType, ReactNode } from 'react';
 
 import * as I from '@/components/icons';
-import {
+import { StatusSelect,  StatusBadge,
   Badge,
   EmptyState,
   PageTitle,
@@ -89,29 +89,7 @@ const pretty = (s?: string | null): string => {
  * Missing or unknown values use a neutral tone rather than assuming a
  * potentially misleading severity.
  */
-const tone = (
-  s?: string | null,
-): 'neutral' | 'green' | 'orange' | 'red' | 'blue' => {
-  if (!s || typeof s !== 'string') {
-    return 'neutral';
-  }
 
-  const normalized = s.toUpperCase();
-
-  if (['CRITICAL', 'HIGH'].includes(normalized)) {
-    return 'red';
-  }
-
-  if (['MEDIUM', 'MODERATE'].includes(normalized)) {
-    return 'orange';
-  }
-
-  if (['LOW', 'OPEN'].includes(normalized)) {
-    return 'blue';
-  }
-
-  return 'green';
-};
 
 /**
  * Safely formats ISO/date-compatible API values.
@@ -182,7 +160,7 @@ function Action({ a, onUpdate, pending }: ActionProps) {
       <div className="flex justify-between gap-3">
         <div>
           <div className="flex flex-wrap gap-2">
-            <Badge tone={tone(a.priority)}>{pretty(a.priority)}</Badge>
+            <StatusBadge status={a.priority} domain="predictive">{pretty(a.priority)}</StatusBadge>
 
             <Badge>{pretty(a.source)}</Badge>
 
@@ -196,7 +174,7 @@ function Action({ a, onUpdate, pending }: ActionProps) {
           </p>
         </div>
 
-        <Badge tone={tone(a.status)}>{pretty(a.status)}</Badge>
+        <StatusBadge status={a.status} domain="automation">{pretty(a.status)}</StatusBadge>
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-4">
@@ -780,7 +758,7 @@ export default function DecisionAutomationPage() {
             {tab === 'actions' && (
               <div className="pt-4">
                 <div className="mb-4 flex flex-wrap gap-2">
-                  <select
+                  <StatusSelect domain="automation"
                     className="input max-w-[180px]"
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
@@ -791,7 +769,7 @@ export default function DecisionAutomationPage() {
                     <option value="IN_PROGRESS">In progress</option>
                     <option value="RESOLVED">Resolved</option>
                     <option value="DISMISSED">Dismissed</option>
-                  </select>
+                  </StatusSelect>
 
                   <select
                     className="input max-w-[180px]"
@@ -880,9 +858,9 @@ export default function DecisionAutomationPage() {
                             </td>
 
                             <td>
-                              <Badge tone={tone(r.grade)}>
+                              <StatusBadge status={r.grade} domain="monitoring">
                                 {pretty(r.grade)}
-                              </Badge>
+                              </StatusBadge>
                             </td>
 
                             <td>{pct(r.probability)}</td>

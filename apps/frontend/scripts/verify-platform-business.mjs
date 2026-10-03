@@ -1,3 +1,7 @@
+import {
+  assertStatusSurface,
+  assertDomainStatus,
+} from "./status-visual-checks.mjs";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -21,7 +25,14 @@ const temporaryRoot = tmpdir();
 const devDemoMode = process.env.PCC_BI_TEST_DEV_DEMO_MODE === "true";
 const children = [];
 const deliveredCodes = new Map();
-async function deliveredCode(channel) { const end = Date.now() + 5000; while (Date.now() < end) { if (deliveredCodes.has(channel)) return deliveredCodes.get(channel); await new Promise(resolve => setTimeout(resolve, 50)); } throw new Error('Test delivery did not reach the private harness'); }
+async function deliveredCode(channel) {
+  const end = Date.now() + 5000;
+  while (Date.now() < end) {
+    if (deliveredCodes.has(channel)) return deliveredCodes.get(channel);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error("Test delivery did not reach the private harness");
+}
 let mongo, browser, page;
 const apiPort = Number(process.env.PCC_BI_TEST_API_PORT ?? 9015),
   webPort = Number(process.env.PCC_BI_TEST_WEB_PORT ?? 3015),
@@ -31,10 +42,20 @@ function start(cwd, args, env) {
   const child = spawn(process.execPath, args, {
     cwd,
     env: { ...process.env, ...env },
-    stdio: ["ignore", "pipe", "pipe", ...(args.includes("scripts/serve-platform-business-test.ts") ? ["ipc"] : [])],
+    stdio: [
+      "ignore",
+      "pipe",
+      "pipe",
+      ...(args.includes("scripts/serve-platform-business-test.ts")
+        ? ["ipc"]
+        : []),
+    ],
   });
   children.push(child);
-  child.on('message', message => { if (message?.type === 'PCC_TEST_MFA_DELIVERY') deliveredCodes.set(message.channel, message.code); });
+  child.on("message", (message) => {
+    if (message?.type === "PCC_TEST_MFA_DELIVERY")
+      deliveredCodes.set(message.channel, message.code);
+  });
   let log = "";
   child.stdout.on("data", (chunk) => {
     log += chunk;
@@ -124,7 +145,9 @@ try {
         : []),
     ],
   });
-  const browserContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const browserContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+  });
   page = await browserContext.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -137,34 +160,80 @@ try {
     .fill("platform-browser@example.test");
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByRole('heading', { name: 'Verify your email', exact: true }).waitFor();
-  assert.equal(await page.evaluate(() => localStorage.getItem('property-command-center.auth.session')), null);
+  await page
+    .getByRole("heading", { name: "Verify your email", exact: true })
+    .waitFor();
+  assert.equal(
+    await page.evaluate(() =>
+      localStorage.getItem("property-command-center.auth.session"),
+    ),
+    null,
+  );
   const partial = await page.context().newPage();
-  await partial.goto(origin + '/platform');
-  await partial.getByRole('button', { name: 'Continue', exact: true }).waitFor();
-  assert.ok(partial.url().includes('/login'), 'Password-only navigation must not open platform screens');
+  await partial.goto(origin + "/platform");
+  await partial
+    .getByRole("button", { name: "Continue", exact: true })
+    .waitFor();
+  assert.ok(
+    partial.url().includes("/login"),
+    "Password-only navigation must not open platform screens",
+  );
   await partial.close();
-  await page.getByLabel('Email verification code').fill(await deliveredCode('EMAIL'));
-  await page.getByRole('button', { name: 'Verify email', exact: true }).click();
-  await page.getByRole('heading', { name: 'Verify your phone', exact: true }).waitFor();
+  await page
+    .getByLabel("Email verification code")
+    .fill(await deliveredCode("EMAIL"));
+  await page.getByRole("button", { name: "Verify email", exact: true }).click();
+  await page
+    .getByRole("heading", { name: "Verify your phone", exact: true })
+    .waitFor();
   const incomplete = await page.context().newPage();
-  await incomplete.goto(origin + '/platform');
-  await incomplete.getByRole('button', { name: 'Continue', exact: true }).waitFor();
-  assert.ok(incomplete.url().includes('/login'), 'Email-only navigation must not open platform screens');
+  await incomplete.goto(origin + "/platform");
+  await incomplete
+    .getByRole("button", { name: "Continue", exact: true })
+    .waitFor();
+  assert.ok(
+    incomplete.url().includes("/login"),
+    "Email-only navigation must not open platform screens",
+  );
   await incomplete.close();
-  await page.getByLabel('SMS verification code').fill(await deliveredCode('SMS'));
-  await page.getByRole('button', { name: 'Verify phone and sign in', exact: true }).click();
-  await page.waitForURL(url => url.pathname !== '/login');
-  const malformedAnalytics = route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: {} }) });
-  await page.route("**/api/v1/platform-control/business-intelligence?*", malformedAnalytics);
+  await page
+    .getByLabel("SMS verification code")
+    .fill(await deliveredCode("SMS"));
+  await page
+    .getByRole("button", { name: "Verify phone and sign in", exact: true })
+    .click();
+  await page.waitForURL((url) => url.pathname !== "/login");
+  const malformedAnalytics = (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: {} }),
+    });
+  await page.route(
+    "**/api/v1/platform-control/business-intelligence?*",
+    malformedAnalytics,
+  );
   await page.goto(origin + "/platform");
   await page
     .getByRole("heading", { name: "Plan Performance", exact: true })
     .waitFor();
-  await page.getByText(/Analytics unavailable: Platform analytics response is incomplete or incompatible/).waitFor();
-  assert.equal(await page.getByText("Known contracted MRR", { exact: true }).count(), 0, "Malformed analytics must not render financial totals");
-  await page.unroute("**/api/v1/platform-control/business-intelligence?*", malformedAnalytics);
-  await page.getByRole("button", { name: "Retry analytics", exact: true }).click();
+  await page
+    .getByText(
+      /Analytics unavailable: Platform analytics response is incomplete or incompatible/,
+    )
+    .waitFor();
+  assert.equal(
+    await page.getByText("Known contracted MRR", { exact: true }).count(),
+    0,
+    "Malformed analytics must not render financial totals",
+  );
+  await page.unroute(
+    "**/api/v1/platform-control/business-intelligence?*",
+    malformedAnalytics,
+  );
+  await page
+    .getByRole("button", { name: "Retry analytics", exact: true })
+    .click();
   await page.getByLabel("Record dataset").selectOption("DEMO");
   await page.getByLabel("Operating period").selectOption("LAST_30_DAYS");
   await page
@@ -203,6 +272,14 @@ try {
     .click();
   await page.getByRole("heading", { name: /Drill-down: incidents/i }).waitFor();
   await page.getByText("Simulated access-control incident").first().waitFor();
+  await assertDomainStatus(page, "INVESTIGATING", "incident", "processing");
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((value) => {
+      document.documentElement.classList.toggle("dark", value === "dark");
+      document.documentElement.style.colorScheme = value;
+    }, theme);
+    await assertStatusSurface(page);
+  }
   await page
     .getByRole("button", { name: "Inspect organization", exact: true })
     .first()
@@ -215,11 +292,21 @@ try {
     path: output + "/organization-drill.png",
     fullPage: true,
   });
-  const malformedControl = route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: {} }) });
+  const malformedControl = (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: {} }),
+    });
   for (const [endpoint, tab, retry, heading] of [
     ["monitoring", "monitoring", "Retry monitoring", "Platform monitoring"],
     ["switches", "controls", "Retry controls", "Service and feature controls"],
-    ["launch-readiness", "launch readiness", "Retry readiness", "Launch readiness"],
+    [
+      "launch-readiness",
+      "launch readiness",
+      "Retry readiness",
+      "Launch readiness",
+    ],
   ]) {
     const pattern = "**/api/v1/platform-control/" + endpoint;
     await page.route(pattern, malformedControl);
@@ -229,18 +316,48 @@ try {
     await page.getByRole("button", { name: retry, exact: true }).click();
     await page.getByRole("heading", { name: heading, exact: true }).waitFor();
   }
-  const sidebarLinks = await page.locator("aside nav a").evaluateAll(links => links.map(link => ({ label: link.textContent.trim(), href: link.getAttribute("href") })));
-  const headings = { organizations: "Organizations", billing: "Platform Billing", access: "Users & Memberships", operations: "Durable jobs", security: "Integration health", controls: "Service and feature controls", monitoring: "Platform monitoring", "plan performance": "Plan Performance" };
+  const sidebarLinks = await page
+    .locator("aside nav a")
+    .evaluateAll((links) =>
+      links.map((link) => ({
+        label: link.textContent.trim(),
+        href: link.getAttribute("href"),
+      })),
+    );
+  const headings = {
+    organizations: "Organizations",
+    billing: "Platform Billing",
+    access: "Users & Memberships",
+    operations: "Durable jobs",
+    security: "Integration health",
+    controls: "Service and feature controls",
+    monitoring: "Platform monitoring",
+    "plan performance": "Plan Performance",
+  };
   for (const link of sidebarLinks) {
-    await page.locator("aside nav a").filter({ hasText: link.label }).first().click();
+    await page
+      .locator("aside nav a")
+      .filter({ hasText: link.label })
+      .first()
+      .click();
     const destination = new URL(link.href, origin);
-    await page.waitForURL(url => url.pathname === destination.pathname && url.search === destination.search);
+    await page.waitForURL(
+      (url) =>
+        url.pathname === destination.pathname &&
+        url.search === destination.search,
+    );
     const tab = destination.searchParams.get("tab");
-    if (tab && headings[tab]) await page.getByRole("heading", { name: headings[tab], exact: true }).first().waitFor();
+    if (tab && headings[tab])
+      await page
+        .getByRole("heading", { name: headings[tab], exact: true })
+        .first()
+        .waitFor();
     else await page.locator("main h1").first().waitFor();
   }
   await page.goto(origin + "/platform");
-  await page.getByRole("heading", { name: "Plan Performance", exact: true }).waitFor();
+  await page
+    .getByRole("heading", { name: "Plan Performance", exact: true })
+    .waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(350);
@@ -251,40 +368,108 @@ try {
     "Mobile layout must fit the viewport",
   );
   await page.screenshot({ path: output + "/mobile.png", fullPage: true });
-  assert.equal(await page.evaluate(() => localStorage.getItem('property-command-center.auth.session')), null, 'Privileged tokens must never enter persistent browser storage');
-  const logout = await page.context().request.post('http://127.0.0.1:' + apiPort + '/api/v1/auth/logout', { headers: { Origin: origin, 'X-PCC-Auth': '1' } });
+  assert.equal(
+    await page.evaluate(() =>
+      localStorage.getItem("property-command-center.auth.session"),
+    ),
+    null,
+    "Privileged tokens must never enter persistent browser storage",
+  );
+  const logout = await page
+    .context()
+    .request.post("http://127.0.0.1:" + apiPort + "/api/v1/auth/logout", {
+      headers: { Origin: origin, "X-PCC-Auth": "1" },
+    });
   assert.equal(logout.status(), 200);
   await page.reload();
-  await page.getByRole('button', { name: 'Continue', exact: true }).waitFor();
-  assert.ok(page.url().includes('/login'), 'Logout must revoke platform access');
+  await page.getByRole("button", { name: "Continue", exact: true }).waitFor();
+  assert.ok(
+    page.url().includes("/login"),
+    "Logout must revoke platform access",
+  );
   if (devDemoMode) {
-    const previewContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const previewContext = await browser.newContext({
+      viewport: { width: 1440, height: 1000 },
+    });
     await previewContext.addInitScript(() => {
-      localStorage.setItem("property-command-center.dev.preview-role", "SUPER_ADMIN");
-      localStorage.setItem("property-command-center.dev-auth-role", "SUPER_ADMIN");
+      localStorage.setItem(
+        "property-command-center.dev.preview-role",
+        "SUPER_ADMIN",
+      );
+      localStorage.setItem(
+        "property-command-center.dev-auth-role",
+        "SUPER_ADMIN",
+      );
     });
     const preview = await previewContext.newPage();
-    preview.on("pageerror", error => errors.push(error.message));
+    preview.on("pageerror", (error) => errors.push(error.message));
     const privilegedRequests = [];
-    preview.on("request", request => { if (request.url().includes("/api/v1/platform-control/")) privilegedRequests.push(request.url()); });
+    preview.on("request", (request) => {
+      if (request.url().includes("/api/v1/platform-control/"))
+        privilegedRequests.push(request.url());
+    });
     await preview.goto(origin + "/admin");
     await preview.locator("aside nav a").first().waitFor();
-    const links = await preview.locator("aside nav a").evaluateAll(elements => elements.map(link => ({ label: link.textContent.trim(), href: link.getAttribute("href") })));
-    assert.ok(links.length > 10, "The preview must expose the actual SUPER_ADMIN sidebar");
+    const links = await preview
+      .locator("aside nav a")
+      .evaluateAll((elements) =>
+        elements.map((link) => ({
+          label: link.textContent.trim(),
+          href: link.getAttribute("href"),
+        })),
+      );
+    assert.ok(
+      links.length > 10,
+      "The preview must expose the actual SUPER_ADMIN sidebar",
+    );
     for (const link of links) {
-      await preview.locator("aside nav a").filter({ hasText: link.label }).first().click();
+      await preview
+        .locator("aside nav a")
+        .filter({ hasText: link.label })
+        .first()
+        .click();
       const destination = new URL(link.href, origin);
-      await preview.waitForURL(url => url.pathname === destination.pathname && url.search === destination.search);
-      if (destination.pathname === "/platform") await preview.getByText("Real SUPER_ADMIN sign-in required", { exact: true }).waitFor();
-      else if (destination.pathname === "/sales-demo") await preview.getByText("Sales demonstrations require a real authenticated sales or SUPER_ADMIN session. Sign out of development preview and sign in normally.", { exact: true }).waitFor();
-      else if (destination.pathname === "/sales-intelligence") await preview.getByText("Sales intelligence requires a real SUPER_ADMIN session.", { exact: true }).waitFor();
+      await preview.waitForURL(
+        (url) =>
+          url.pathname === destination.pathname &&
+          url.search === destination.search,
+      );
+      if (destination.pathname === "/platform")
+        await preview
+          .getByText("Real SUPER_ADMIN sign-in required", { exact: true })
+          .waitFor();
+      else if (destination.pathname === "/sales-demo")
+        await preview
+          .getByText(
+            "Sales demonstrations require a real authenticated sales or SUPER_ADMIN session. Sign out of development preview and sign in normally.",
+            { exact: true },
+          )
+          .waitFor();
+      else if (destination.pathname === "/sales-intelligence")
+        await preview
+          .getByText(
+            "Sales intelligence requires a real SUPER_ADMIN session.",
+            { exact: true },
+          )
+          .waitFor();
       else await preview.locator("main h1").first().waitFor();
     }
-    assert.deepEqual(privilegedRequests, [], "Preview tokens must never reach platform-control endpoints");
+    assert.deepEqual(
+      privilegedRequests,
+      [],
+      "Preview tokens must never reach platform-control endpoints",
+    );
     await preview.setViewportSize({ width: 390, height: 844 });
     await preview.goto(origin + "/platform?tab=controls");
-    await preview.getByText("Real SUPER_ADMIN sign-in required", { exact: true }).waitFor();
-    assert.ok(await preview.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "Preview guidance must fit mobile width");
+    await preview
+      .getByText("Real SUPER_ADMIN sign-in required", { exact: true })
+      .waitFor();
+    assert.ok(
+      await preview.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth + 1,
+      ),
+      "Preview guidance must fit mobile width",
+    );
     await previewContext.close();
   }
   assert.deepEqual(
@@ -300,7 +485,11 @@ try {
     await page
       .screenshot({
         path: temporaryRoot + "/pcc-bi-browser-failure.png",
-        mask: [page.locator('input[type="password"], input[autocomplete="one-time-code"]')],
+        mask: [
+          page.locator(
+            'input[type="password"], input[autocomplete="one-time-code"]',
+          ),
+        ],
         fullPage: true,
       })
       .catch(() => {});

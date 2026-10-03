@@ -23,7 +23,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import {
+import { StatusBadge,
   Alert,
   Badge,
   Button,
@@ -414,13 +414,13 @@ export function ManagerWorkspace() {
                       <h3 className="text-sm font-semibold">
                         {item.property.name}
                       </h3>
-                      <Badge tone={healthTone(item.health.grade)}>
+                      <StatusBadge status={item.health.grade} domain="monitoring">
                         {titleCase(item.health.grade)}
-                      </Badge>
+                      </StatusBadge>
                     </div>
                     <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
                       <div
-                        className={`h-full ${item.health.score >= 80 ? "bg-[#12b76a]" : item.health.score >= 65 ? "bg-[#f79009]" : "bg-[#d92d20]"}`}
+                        className={`h-full ${item.health.score >= 80 ? "bg-[var(--status-success-text)]" : item.health.score >= 65 ? "bg-[var(--status-attention-text)]" : "bg-[var(--status-blocked-text)]"}`}
                         style={{
                           width: `${Math.max(0, Math.min(100, item.health.score))}%`,
                         }}
@@ -547,19 +547,13 @@ export function ManagerWorkspace() {
                         {titleCase(item.type)}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {titleCase(item.severity)} /{" "}
+                        <StatusBadge status={item.severity} domain="predictive" /> /{" "}
                         {formatDate(item.detectedAt)}
                       </div>
                     </div>
-                    <Badge
-                      tone={
-                        item.severity === "CRITICAL" || item.severity === "HIGH"
-                          ? "red"
-                          : "orange"
-                      }
-                    >
+                    <StatusBadge status={item.status} domain="alert">
                       {titleCase(item.status)}
-                    </Badge>
+                    </StatusBadge>
                     {item.status === "OPEN" && (
                       <Button
                         variant="outline"
@@ -670,9 +664,9 @@ export function ManagerWorkspace() {
                     Unit #{shortId(item.unitId)} / {formatDate(item.createdAt)}
                   </div>
                 </div>
-                <Badge tone={item.status === "COMPLETED" ? "green" : "orange"}>
+                <StatusBadge status={item.status} domain="general">
                   {titleCase(item.status)}
-                </Badge>
+                </StatusBadge>
                 {["DRAFT", "IN_PROGRESS"].includes(item.status) && (
                   <Button
                     variant="outline"
@@ -1409,15 +1403,7 @@ function actionLabel(action: MaintenanceAction) {
     } as const
   )[action];
 }
-function healthTone(value: string): "green" | "orange" | "red" | "neutral" {
-  return ["EXCELLENT", "GOOD"].includes(value)
-    ? "green"
-    : ["WATCH", "AT_RISK"].includes(value)
-      ? "orange"
-      : value === "CRITICAL"
-        ? "red"
-        : "neutral";
-}
+
 function titleCase(value: string) {
   return value
     .toLowerCase()

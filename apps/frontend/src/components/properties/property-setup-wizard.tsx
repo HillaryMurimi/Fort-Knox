@@ -46,6 +46,9 @@ const types: Array<{ value: Unit["unitType"]; label: string }> = (
     ["OTHER", "Custom type"],
   ] as Array<[Unit["unitType"], string]>
 ).map(([value, label]) => ({ value, label }));
+import { WorkflowPipeline } from '@/components/workflow-pipeline';
+import { orderedWorkflow } from '@/lib/status';
+
 const steps = ["Property", "Structure", "Unit layout", "Review"];
 const money = (value: number) =>
   new Intl.NumberFormat("en-KE", {
@@ -407,23 +410,7 @@ export function PropertySetupWizard() {
       </div>
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0">
-          <div
-            className="mb-8 flex items-center gap-2"
-            aria-label="Setup progress"
-          >
-            {steps.map((label, index) => (
-              <div key={label} className="min-w-0 flex-1">
-                <div
-                  className={`h-1 rounded-sm ${index <= step ? "bg-emerald-700 dark:bg-emerald-500" : "bg-border"}`}
-                />
-                <span
-                  className={`mt-2 block truncate text-xs ${index === step ? "font-semibold text-foreground" : "text-muted-foreground"}`}
-                >
-                  {String(index + 1).padStart(2, "0")} {label}
-                </span>
-              </div>
-            ))}
-          </div>
+          <WorkflowPipeline className="mb-8" label="Setup progress" stages={orderedWorkflow(steps, step, step === 3 ? "UNDER_REVIEW" : "IN_PROGRESS")} />
           <motion.div
             key={step}
             initial={reduced ? false : { opacity: 0, y: 16 }}

@@ -2,19 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { CheckCircle2, ClipboardCheck, Plus, RefreshCw, RotateCcw } from 'lucide-react';
-import { Alert, Badge, Button, Dialog, Input, Label, Select, Textarea } from '@/components/ui';
+import { StatusBadge,  Alert, Badge, Button, Dialog, Input, Label, Select, Textarea } from '@/components/ui';
 import { useApplyRefundLedgerMutation, usePaymentRefundsQuery, useReconcileRefundMutation, useRequestRefundMutation, useReviewRefundMutation } from '@/hooks/queries/use-finance-queries';
 import { useSetupPermission } from '@/hooks/use-setup-permission';
 import { DEV_DEMO_MODE } from '@/lib/demo/demo-config';
 import type { Payment } from '@/lib/data/resource-types';
 import { money } from '@/lib/utils';
 
-function refundTone(status: string): 'green' | 'orange' | 'red' | 'neutral' {
-  if (status === 'PROCESSED') return 'green';
-  if (status === 'FAILED') return 'red';
-  if (status === 'SUBMITTING' || status === 'PENDING' || status === 'PROCESSING') return 'orange';
-  return 'neutral';
-}
+
 
 export function PaymentRefundReview({ organizationId, payments }: { organizationId: string | null; payments: Payment[] }) {
   const allowed = useSetupPermission(organizationId, 'financial.manage');
@@ -88,7 +83,7 @@ export function PaymentRefundReview({ organizationId, payments }: { organization
         const canApply = canReverse && refund.status === 'PROCESSED' && !refund.ledgerReversedAt && payment?.status === 'CONFIRMED';
         return <div key={refund._id} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold">{payment?.receiptNumber ?? refund.transactionReference}</span><Badge tone={refundTone(refund.status)}>{refund.status.replaceAll('_', ' ')}</Badge>{refund.ledgerReversedAt && <Badge tone="neutral">Ledger corrected</Badge>}</div>
+            <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold">{payment?.receiptNumber ?? refund.transactionReference}</span><StatusBadge status={refund.status} domain="refund">{refund.status.replaceAll('_', ' ')}</StatusBadge>{refund.ledgerReversedAt && <Badge tone="neutral">Ledger corrected</Badge>}</div>
             <div className="mt-1 break-words text-xs text-muted-foreground">{money(refund.amountMinorUnits / 100)} | Requested {refund.createdAt.slice(0, 10)} | {refund.reason}</div>
             {refund.status === 'SUBMISSION_UNKNOWN' && <p className="mt-1 text-xs text-[var(--destructive)]">Review this request in Paystack before taking further action. Do not submit it again.</p>}
             {refund.status === 'NEEDS_ATTENTION' && <p className="mt-1 text-xs text-muted-foreground">Paystack needs customer bank details. Handle them in Paystack, then check status here.</p>}
@@ -124,7 +119,7 @@ export function PaymentRefundReview({ organizationId, payments }: { organization
     </Dialog>
     <Dialog open={Boolean(ledgerPaymentId)} onOpenChange={open => { if (!open) { setLedgerPaymentId(null); setConfirmed(false); } }} title="Correct rent ledger" description="This reopens the rent balance for the refunded payment. It does not send another refund.">
       <div className="space-y-4">
-        <div className="text-sm">Paystack refund: <b>{ledgerRefund?.status ?? 'Unavailable'}</b></div>
+        <div className="text-sm">Paystack refund: <StatusBadge status={ledgerRefund?.status} domain="refund">{ledgerRefund?.status ?? 'Unavailable'}</StatusBadge></div>
         <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} className="mt-1" />I have reviewed the processed refund and want to correct the rent ledger.</label>
         {applyLedger.error && <Alert tone="destructive">{applyLedger.error.message}</Alert>}
         <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setLedgerPaymentId(null)}>Cancel</Button><Button onClick={() => void confirmLedger()} disabled={!confirmed || ledgerRefund?.status !== 'PROCESSED'} loading={applyLedger.isPending}>Correct ledger</Button></div>

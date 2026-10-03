@@ -1,1 +1,2 @@
-import {Badge} from '@/components/ui'; export function HierarchyStatusBadge({status}:{status:string}){const tone=status==='ACTIVE'||status==='OCCUPIED'?'green':status==='VACANT'?'blue':status==='MAINTENANCE'||status==='ARCHIVED'?'red':'orange';return <Badge tone={tone}>{status.replaceAll('_',' ')}</Badge>}
+import { StatusBadge } from '@/components/ui';
+export function HierarchyStatusBadge({status}:{status:string}) { return <StatusBadge status={status} domain="entity" />; }

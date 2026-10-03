@@ -1,9 +1,10 @@
 'use client';
+import { StatusBadge } from '@/components/ui';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, CircleAlert, Play, RotateCcw, ShieldCheck, XCircle } from 'lucide-react';
-import { demoCertificationRoles, runDemoCertification, type CertificationReport, type CertificationStatus } from '@/lib/demo/demo-certification';
+import { Play, RotateCcw, ShieldCheck } from 'lucide-react';
+import { demoCertificationRoles, runDemoCertification, type CertificationReport } from '@/lib/demo/demo-certification';
 import { DEMO_ROLE_STORAGE_KEY, DEV_DEMO_MODE, getDemoRole, type DemoRole } from '@/lib/demo/demo-config';
 
 const routes = [
@@ -32,11 +33,7 @@ function setRole(role: DemoRole) {
   window.location.reload();
 }
 
-function statusIcon(status: CertificationStatus) {
-  if (status === 'PASS') return <CheckCircle2 className="h-4 w-4" />;
-  if (status === 'WARN') return <CircleAlert className="h-4 w-4" />;
-  return <XCircle className="h-4 w-4" />;
-}
+
 
 export default function DemoCertificationPage() {
   const [role, setCurrentRole] = useState<DemoRole>('LANDLORD');
@@ -146,7 +143,7 @@ export default function DemoCertificationPage() {
             <div className="grid gap-2">
               {report.checks.map((check) => (
                 <div key={check.id} className="flex items-start gap-3 rounded-xl border border-white/5 bg-black/10 p-3">
-                  <div className={check.status === 'PASS' ? 'text-emerald-400' : check.status === 'WARN' ? 'text-amber-400' : 'text-red-400'}>{statusIcon(check.status)}</div>
+                  <StatusBadge status={check.status} domain="monitoring" />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
                       <span>{check.label}</span>

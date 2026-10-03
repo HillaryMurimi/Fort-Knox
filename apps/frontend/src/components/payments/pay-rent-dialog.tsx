@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { CheckCircle2, CreditCard, Loader2, Smartphone } from 'lucide-react';
-import { Alert, Badge, Button, Dialog, Input, Label, Select } from '@/components/ui';
+import { StatusBadge, Alert, Button, Dialog, Input, Label, Select } from '@/components/ui';
 import { useCreatePaymentMutation, useRentChargesQuery } from '@/hooks/queries/use-finance-queries';
 import { useInitiateProviderPaymentMutation } from '@/hooks/queries/use-integration-queries';
 import type { PaystackChannel, ProviderPaymentResult } from '@/lib/data/integrations';
@@ -45,7 +45,7 @@ export function PayRentDialog({organizationId,open,onOpenChange}:{organizationId
         </div>
         <div><Label htmlFor="payer-contact">{provider==='MPESA'?'M-Pesa phone':'Receipt email'}</Label><Input id="payer-contact" type={provider==='MPESA'?'tel':'email'} value={contact} onChange={event=>setContact(event.target.value)} placeholder={provider==='MPESA'?'+254712345678':'you@example.com'} pattern={provider==='MPESA'?'[+][1-9][0-9]{6,14}':undefined} required/></div>
         {provider==='PAYSTACK'&&<fieldset><legend className="field-label">Checkout methods</legend><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{channels.map(channel=><label key={channel.value} className="flex min-h-10 items-center gap-2 rounded-md border border-border px-3 text-xs"><input type="checkbox" checked={selectedChannels.includes(channel.value)} onChange={event=>setSelectedChannels(current=>event.target.checked?[...current,channel.value]:current.filter(value=>value!==channel.value))}/>{channel.label}</label>)}</div><p className="mt-2 text-xs text-muted-foreground">Paystack shows only methods available for the landlord account and country.</p></fieldset>}
-        <div className="flex items-center justify-between rounded-md border border-border bg-muted p-3"><div><div className="text-xs text-muted-foreground">Amount due</div><div className="mt-1 font-semibold">{charge?.currency} {charge?.balanceAmount.toLocaleString()}</div></div><Badge tone={charge?.status==='OVERDUE'?'red':'orange'}>{charge?.status}</Badge></div>
+        <div className="flex items-center justify-between rounded-md border border-border bg-muted p-3"><div><div className="text-xs text-muted-foreground">Amount due</div><div className="mt-1 font-semibold">{charge?.currency} {charge?.balanceAmount.toLocaleString()}</div></div><StatusBadge status={charge?.status} domain="rent">{charge?.status}</StatusBadge></div>
       </>}
       {(createPayment.error||initiate.error)&&<Alert tone="destructive">{createPayment.error?.message??initiate.error?.message}</Alert>}
       {result&&<Alert tone={result.status==='FAILED'?'destructive':'success'} title={result.status==='PENDING'?'Payment request sent':'Provider response'}>{provider==='MPESA'?'Check your phone and enter your M-Pesa PIN.':result.customerMessage??'Continue in secure checkout.'}</Alert>}

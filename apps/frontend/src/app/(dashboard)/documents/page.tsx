@@ -1,4 +1,5 @@
 'use client';
+import { StatusBadge } from '@/components/ui';
 
 import Link from 'next/link';
 
@@ -156,17 +157,7 @@ export default function DocumentsPage() {
                 </div>
 
                 <div className="flex items-center justify-between gap-5 sm:justify-end">
-                  <span
-                    className={[
-                      'rounded-full px-2.5 py-1 text-[10px] font-semibold',
-                      document.status ===
-                      'Review Required'
-                        ? 'bg-[var(--warning-soft)] text-[var(--warning-text)]'
-                        : 'bg-[var(--success-soft)] text-[var(--success-text)]',
-                    ].join(' ')}
-                  >
-                    {document.status}
-                  </span>
+                  <StatusBadge status={document.status} domain="document" />
 
                   <span className="text-xs text-muted-foreground">
                     {document.updated}

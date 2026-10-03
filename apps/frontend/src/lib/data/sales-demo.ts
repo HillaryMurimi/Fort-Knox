@@ -1,3 +1,4 @@
+import { statusSemantic } from '@/lib/status';
 import { api } from "@/lib/api";
 import type {
   DemoAction,
@@ -176,19 +177,7 @@ export function semanticDemoStatus(status: string) {
   };
   return {
     label: text[status] ?? status.replaceAll("_", " "),
-    tone: [
-      "PAID",
-      "COMPLETED",
-      "VERIFIED",
-      "CLOSED",
-      "RESOLVED",
-      "HEALTHY",
-    ].includes(status)
-      ? "success"
-      : ["OVERDUE", "FAILED", "CRITICAL", "ESCALATED"].includes(status)
-        ? "danger"
-        : ["IN_PROGRESS", "INVESTIGATING", "RECONCILED"].includes(status)
-          ? "active"
-          : "attention",
+    semantic: statusSemantic(status, 'sales'),
+    tone: ['success','completed'].includes(statusSemantic(status,'sales')) ? 'success' : ['failed','blocked'].includes(statusSemantic(status,'sales')) ? 'danger' : statusSemantic(status,'sales') === 'processing' ? 'active' : 'attention',
   };
 }

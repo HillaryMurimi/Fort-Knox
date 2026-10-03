@@ -1,7 +1,7 @@
 'use client';
 import { useState, type ReactNode } from 'react';
 import * as I from '@/components/icons';
-import { PageTitle, Stat, Badge, SectionHeader, EmptyState } from '@/components/ui';
+import { StatusBadge, PageTitle, Stat, SectionHeader, EmptyState } from '@/components/ui';
 import { useOrganization } from '@/hooks/use-organization';
 import {
   useMaintenanceQuery,
@@ -21,16 +21,7 @@ type MaintenanceCategory = NonNullable<CreateMaintenanceInput['category']>;
 type MaintenancePriority = NonNullable<CreateMaintenanceInput['priority']>;
 type ExpenseCategory = NonNullable<ExpenseInput['category']>;
 
-const tone = (s: string): 'green' | 'orange' | 'red' | 'blue' | 'neutral' =>
-  s === 'COMPLETED' || s === 'VERIFIED' || s === 'CLOSED' || s === 'PAID'
-    ? 'green'
-    : s === 'APPROVAL_REQUIRED' || s === 'QUOTED' || s === 'SUBMITTED'
-      ? 'orange'
-      : s === 'EMERGENCY' || s === 'HIGH' || s === 'REJECTED'
-        ? 'red'
-        : s === 'IN_PROGRESS' || s === 'APPROVED'
-          ? 'blue'
-          : 'neutral';
+
 
 const money = (n: number | undefined, c = 'KES') => (n == null ? '—' : `${c} ${n.toLocaleString()}`);
 
@@ -151,7 +142,7 @@ function MaintenanceRow({ x, onTriage, onApprove, onProgress }: { x: Maintenance
         <div className="font-medium text-sm">{x.title}</div>
         <div className="text-xs text-muted-foreground mt-1">{x.category} · Unit {x.unitId} · {x.priority}</div>
       </div>
-      <Badge tone={tone(x.status)}>{x.status.replaceAll('_', ' ')}</Badge>
+      <StatusBadge status={x.status} domain="maintenance">{x.status.replaceAll('_', ' ')}</StatusBadge>
       <div className="text-sm font-semibold">{money(x.actualAmount ?? x.approvedAmount ?? x.quoteAmount)}</div>
       <div className="flex gap-2">
         {x.status === 'NEW' && <button className="btn-secondary" onClick={onTriage}>Triage</button>}
@@ -177,7 +168,7 @@ function Contractors({ data, loading }: { data: Contractor[]; loading: boolean }
                 <div className="font-medium text-sm">{x.name}</div>
                 <div className="text-xs text-muted-foreground">{x.trade} · {x.phone ?? 'No phone'}</div>
               </div>
-              <Badge tone={tone(x.status)}>{x.status}</Badge>
+              <StatusBadge status={x.status} domain="contractor">{x.status}</StatusBadge>
               <div className="text-sm">Rating {x.rating.toFixed?.(1) ?? x.rating}</div>
             </div>
           ))
@@ -206,7 +197,7 @@ function Expenses({ data, total, paid, onAction }: { data: Expense[]; total: num
                   <div className="font-medium text-sm">{x.description}</div>
                   <div className="text-xs text-muted-foreground">{x.category} · {x.sourceType} · {x.propertyId}</div>
                 </div>
-                <Badge tone={tone(x.status)}>{x.status}</Badge>
+                <StatusBadge status={x.status} domain="expense">{x.status}</StatusBadge>
                 <div className="font-semibold">{money(x.amount, x.currency)}</div>
                 <div className="flex gap-2">
                   {x.status === 'SUBMITTED' && <button className="btn-secondary" onClick={() => onAction(x._id, 'approve')}>Approve</button>}

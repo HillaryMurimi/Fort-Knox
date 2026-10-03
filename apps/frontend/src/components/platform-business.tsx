@@ -17,7 +17,7 @@ import {
   ChartNoAxesCombined,
   ShieldCheck,
 } from "lucide-react";
-import {
+import { StatusBadge,
   Alert,
   Badge,
   Button,
@@ -227,19 +227,9 @@ export function PriorityActions({
               className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted"
             >
               <div className="flex items-start gap-3">
-                <Badge
-                  tone={
-                    action.severity === "CRITICAL"
-                      ? "red"
-                      : action.severity === "HIGH"
-                        ? "orange"
-                        : action.severity === "MEDIUM"
-                          ? "blue"
-                          : "neutral"
-                  }
-                >
+                <StatusBadge status={action.severity} domain="predictive">
                   {businessLabel(action.severity)}
-                </Badge>
+                </StatusBadge>
                 <div>
                   <p className="text-sm font-medium">{action.title}</p>
                   <p className="text-xs text-muted-foreground">
@@ -1303,10 +1293,10 @@ export function PlatformBusiness({
                         {item.totalMinor !== undefined
                           ? businessMoney(item.totalMinor, item.currency)
                           : ""}{" "}
-                        {item.availability ??
-                          item.severity ??
-                          item.attentionCode ??
-                          ""}
+                        {item.availability && <StatusBadge status={item.availability} domain="integration" />}
+                        {item.severity && <StatusBadge status={item.severity} domain="predictive" />}
+                        {item.attentionCode && <StatusBadge status={item.attentionCode} domain="onboarding" />}
+                        {(item.state || item.status) && <StatusBadge status={item.state ?? item.status} domain={kind === "INCIDENTS" ? "incident" : kind === "CAMERAS" ? "integration" : kind === "INVOICES" || kind === "BILLING_EVENTS" ? "billing" : kind === "VERIFIED_PAYMENTS" || kind === "UNVERIFIED_PAYMENTS" ? "payment" : "onboarding"} />}
                         {item.fromPlan && item.toPlan
                           ? ` · ${businessLabel(item.fromPlan)} → ${businessLabel(item.toPlan)}`
                           : ""}{" "}

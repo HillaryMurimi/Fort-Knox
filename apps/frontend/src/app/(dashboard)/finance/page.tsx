@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { PageTitle, Stat, SectionHeader, Badge, EmptyState } from '@/components/ui';
+import { StatusBadge, PageTitle, Stat, SectionHeader, EmptyState } from '@/components/ui';
 import * as I from '@/components/icons';
 import { money } from '@/lib/utils';
 import { useOrganization } from '@/context/organization-context';
@@ -24,12 +24,7 @@ const isoDate = (date: Date) => date.toISOString().slice(0, 10);
 const monthStart = (date = new Date()) => new Date(date.getFullYear(), date.getMonth(), 1);
 const monthEnd = (date = new Date()) => new Date(date.getFullYear(), date.getMonth() + 1, 0);
 
-function tone(status: string): 'neutral' | 'green' | 'orange' | 'red' | 'blue' {
-  if (['PAID', 'CONFIRMED', 'RESOLVED'].includes(status)) return 'green';
-  if (['OVERDUE', 'FAILED', 'REVERSED', 'ESCALATED', 'WRITTEN_OFF'].includes(status)) return 'red';
-  if (['PARTIALLY_PAID', 'PENDING', 'PROMISED', 'CONTACTED'].includes(status)) return 'orange';
-  return 'blue';
-}
+
 
 const shortId = (value: string) =>
   value.length > 12 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
@@ -205,7 +200,7 @@ export default function FinancePage() {
                       <td className="py-3">{money(charge.totalAmount)}</td>
                       <td className="py-3 font-semibold">{money(charge.balanceAmount)}</td>
                       <td className="py-3">
-                        <Badge tone={tone(charge.status)}>{charge.status}</Badge>
+                        <StatusBadge status={charge.status} domain="rent">{charge.status}</StatusBadge>
                       </td>
                     </tr>
                   ))}
@@ -219,9 +214,9 @@ export default function FinancePage() {
           <SectionHeader
             title="Arrears"
             action={
-              <Badge tone={currentArrears.length ? 'red' : 'green'}>
+              <StatusBadge domain="alert" status={currentArrears.length ? 'OVERDUE' : 'HEALTHY'}>
                 {currentArrears.length} active
-              </Badge>
+              </StatusBadge>
             }
           />
           {currentArrears.length === 0 ? (
@@ -241,7 +236,7 @@ export default function FinancePage() {
                         Unit {shortId(item.unitId)}
                       </div>
                     </div>
-                    <Badge tone={tone(item.status)}>{item.status}</Badge>
+                    <StatusBadge status={item.status} domain="alert">{item.status}</StatusBadge>
                   </div>
                   <div className="metric font-semibold mt-3">
                     {money(item.amountOutstanding)}
@@ -292,7 +287,7 @@ export default function FinancePage() {
                       <td className="py-3 font-semibold">{money(payment.amount)}</td>
                       <td className="py-3">{payment.paidAt?.slice(0, 10) ?? '—'}</td>
                       <td className="py-3">
-                        <Badge tone={tone(payment.status)}>{payment.status}</Badge>
+                        <StatusBadge status={payment.status} domain="payment">{payment.status}</StatusBadge>
                       </td>
                       <td className="py-3 text-right">
                         {payment.status === 'PENDING' && !payment.providerTransactionId && (

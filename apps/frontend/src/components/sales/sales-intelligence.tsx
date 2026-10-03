@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { salesDemoClient as client } from "@/lib/data/sales-demo";
 import { useAuth } from "@/hooks/use-auth";
-import { Alert, Button } from "@/components/ui";
+import { StatusBadge,  Alert, Button } from "@/components/ui";
 export function SalesIntelligenceView() {
   const auth = useAuth(),
     [page, setPage] = useState(1),
@@ -168,7 +168,7 @@ export function SalesIntelligenceView() {
                     <strong>{lead.name}</strong>
                     <p className="mt-1 text-sm">
                       {lead.profile.primaryPain} ·{" "}
-                      {lead.profile.plan.replaceAll("_", " ")} · {lead.stage}
+                      {lead.profile.plan.replaceAll("_", " ")} · <StatusBadge status={lead.stage} domain="sales" />
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Commercial stage:{" "}

@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   Wrench,
 } from "lucide-react";
-import {
+import { StatusBadge,
   Alert,
   Badge,
   Button,
@@ -103,9 +103,9 @@ export function LandlordControlPanel({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-semibold">Owner controls</h2>
-            <Badge tone={counts.total ? "orange" : "green"}>
+            <StatusBadge domain="approval" status={counts.total ? "PENDING" : "HEALTHY"}>
               {counts.total ? `${counts.total} pending` : "Up to date"}
-            </Badge>
+            </StatusBadge>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
             Portfolio decisions, money routing, subscription, and resident
@@ -232,18 +232,14 @@ export function LandlordControlPanel({
                     Current status
                   </div>
                   <div className="mt-1 text-lg font-semibold">
-                    {subscription.data?.status
+                    <StatusBadge status={subscription.data?.status
                       ? titleCase(subscription.data.status)
-                      : "Not subscribed"}
+                      : "Not subscribed"} domain="subscription" />
                   </div>
                 </div>
-                <Badge
-                  tone={
-                    subscription.data?.status === "ACTIVE" ? "green" : "orange"
-                  }
-                >
+                <StatusBadge status={subscription.data?.status} domain="subscription">
                   {entitlements.data?.plan?.name ?? "No active plan"}
-                </Badge>
+                </StatusBadge>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
                 <div className="rounded-md bg-muted p-3">

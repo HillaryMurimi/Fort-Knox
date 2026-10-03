@@ -1,4 +1,5 @@
 'use client';
+import { StatusBadge } from '@/components/ui';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
@@ -49,7 +50,7 @@ export function CameraSetupForm({ organizationId, onDone }: { organizationId: st
     {!properties.isLoading && !properties.isError && !properties.data?.length && <p><Link href="/properties">Add a property first</Link>.</p>}
     {create.error && <p role="alert" className="text-[var(--danger-text)]">{create.error.message}</p>}
     {saved && <p role="status" className="text-[var(--success-text)]">Camera registered. Live availability must still be checked with the connected provider.</p>}
-    {cameraId && <div className="space-y-2"><button type="button" className="btn-secondary" disabled={health.isPending} onClick={() => health.mutate(cameraId)}>{health.isPending ? 'Checking?' : 'Check camera connection'}</button>{health.data && <p role="status">Provider status: {health.data.status}</p>}{health.error && <p role="alert">Unable to verify connection: {health.error.message}</p>}{onDone && <button type="button" className="btn-secondary" onClick={onDone}>Done</button>}</div>}
+    {cameraId && <div className="space-y-2"><button type="button" className="btn-secondary" disabled={health.isPending} onClick={() => health.mutate(cameraId)}>{health.isPending ? 'Checking?' : 'Check camera connection'}</button>{health.data && <p role="status">Provider status: <StatusBadge status={health.data.status} domain="integration" /></p>}{health.error && <p role="alert">Unable to verify connection: {health.error.message}</p>}{onDone && <button type="button" className="btn-secondary" onClick={onDone}>Done</button>}</div>}
     <button className="btn-primary" disabled={create.isPending || !properties.data?.length || properties.isError}>{create.isPending ? 'Registering?' : 'Register camera'}</button>
   </form>;
 }
@@ -79,7 +80,7 @@ function PaymentSetupForm({ organizationId }: { organizationId: string }) {
     {payments.isError && <p role="alert">Unable to load payments. <button type="button" onClick={() => void payments.refetch()}>Retry</button></p>}
     {!payments.isLoading && !payments.isError && eligible.length === 0 && <p className="text-sm">No pending payments are ready to initiate. <Link className="underline" href="/finance">Create a payment in Finance</Link>.</p>}
     {initiate.error && <p role="alert" className="text-[var(--danger-text)]">{initiate.error.message}</p>}
-    {initiate.data && <p role="status">Provider response: {initiate.data.status}. {initiate.data.customerMessage} Check Finance for verified payment status.</p>}
+    {initiate.data && <p role="status">Provider response: <StatusBadge status={initiate.data.status} domain="payment" />. {initiate.data.customerMessage} Check Finance for verified payment status.</p>}
     {initiate.data?.checkoutUrl && safeCheckoutUrl(initiate.data.checkoutUrl) && <a className="btn-secondary" href={safeCheckoutUrl(initiate.data.checkoutUrl)} target="_blank" rel="noopener noreferrer">Open secure checkout</a>}
     <button className="btn-primary" disabled={initiate.isPending || payments.isError || eligible.length === 0}>{initiate.isPending ? 'Requesting?' : 'Request payment'}</button>
     <p className="text-xs text-muted-foreground">If your provider is not configured, your administrator must complete the secure account connection first.</p>

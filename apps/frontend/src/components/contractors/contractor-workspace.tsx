@@ -1,4 +1,6 @@
 'use client';
+import { WorkflowPipeline } from '@/components/workflow-pipeline';
+import { maintenanceWorkflow } from '@/lib/status';
 
 import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { WorkspaceScene } from '@/components/workspaces/workspace-scene';
@@ -6,7 +8,7 @@ import {
   Bell, BriefcaseBusiness, Camera, Check, ChevronRight, CircleDollarSign, Clock3, FileCheck2,
   ImagePlus, MapPin, Play, RefreshCw, Search, Trash2, Upload, Video, Wrench,
 } from 'lucide-react';
-import { Alert, Badge, Button, Dialog, EmptyState, Input, Label, PageTitle, Skeleton, Stat, TabsList, TabsTrigger, Textarea } from '@/components/ui';
+import { StatusBadge as SemanticStatusBadge,  Alert, Badge, Button, Dialog, EmptyState, Input, Label, PageTitle, Skeleton, Stat, TabsList, TabsTrigger, Textarea  } from '@/components/ui';
 import { useAuth } from '@/hooks/use-auth';
 import { useOrganization } from '@/hooks/use-organization';
 import { useMaintenanceQuery, useQuoteMaintenanceMutation, useProgressMaintenanceMutation, useAddMaintenanceEvidenceMutation } from '@/hooks/queries/use-maintenance-queries';
@@ -115,7 +117,7 @@ function JobDetails({ open, job, location, onOpenChange, onAction, onStart, star
   const actions = contractorJobActions(job.status);
   return <Dialog open={open} onOpenChange={onOpenChange} title={job.title} description={`Job #${shortId(job._id)}`} className="max-w-2xl">
     <div className="flex flex-wrap gap-2"><PriorityBadge value={job.priority} /><StatusBadge value={job.status} /><Badge>{titleCase(job.category)}</Badge></div>
-    <p className="mt-4 text-sm leading-6 text-muted-foreground">{job.description}</p>
+    <WorkflowPipeline className="mt-4" domain="maintenance" label="Work order progress" stages={maintenanceWorkflow(job)} /><p className="mt-4 text-sm leading-6 text-muted-foreground">{job.description}</p>
     <dl className="mt-5 grid gap-4 border-y border-border py-5 sm:grid-cols-2"><Detail label="Location" value={location} /><Detail label="Assigned" value={formatDate(job.createdAt)} /><Detail label="Quote" value={money(job.quoteAmount)} /><Detail label="Approved budget" value={money(job.approvedAmount)} /><Detail label="Actual cost" value={money(job.actualAmount)} /><Detail label="Evidence" value={`${job.evidenceIds.length} file${job.evidenceIds.length === 1 ? '' : 's'}`} /></dl>
     {job.resolutionNotes && <div className="mt-4 rounded-md border border-border bg-muted p-4"><div className="text-xs font-semibold uppercase text-muted-foreground">Latest job note</div><p className="mt-1 text-sm leading-6">{job.resolutionNotes}</p></div>}
     {job.status === 'APPROVAL_REQUIRED' && <Alert tone="warning" className="mt-4" title="Waiting for approval">Management must approve the quoted amount before work starts.</Alert>}
@@ -159,8 +161,8 @@ function NotificationsDialog({ open, onOpenChange, organizationId, notifications
 
 interface ActionDialogProps { open: boolean; job: MaintenanceRequest | null; organizationId: string; onOpenChange: (open: boolean) => void; onDone: (message: string) => void }
 function Detail({ label, value }: { label: string; value: string }) { return <div><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm font-semibold">{value}</dd></div>; }
-function StatusBadge({ value }: { value: MaintenanceRequest['status'] }) { const tone = ['COMPLETED', 'VERIFIED', 'CLOSED'].includes(value) ? 'green' : ['APPROVAL_REQUIRED', 'ASSIGNED', 'QUOTED'].includes(value) ? 'orange' : ['APPROVED', 'IN_PROGRESS'].includes(value) ? 'blue' : value === 'CANCELLED' ? 'red' : 'neutral'; return <Badge tone={tone}>{titleCase(value)}</Badge>; }
-function PriorityBadge({ value }: { value: MaintenanceRequest['priority'] }) { return <Badge tone={value === 'EMERGENCY' ? 'red' : value === 'HIGH' ? 'orange' : value === 'LOW' ? 'green' : 'neutral'}>{titleCase(value)}</Badge>; }
+function StatusBadge({value}:{value:MaintenanceRequest['status']}) { return <SemanticStatusBadge status={value} domain="maintenance">{titleCase(value)}</SemanticStatusBadge>; }
+function PriorityBadge({value}:{value:MaintenanceRequest['priority']}) { return <SemanticStatusBadge status={value} domain="predictive">{titleCase(value)}</SemanticStatusBadge>; }
 function JobsSkeleton() { return <div className="space-y-0 divide-y divide-border">{Array.from({ length: 3 }, (_, index) => <div key={index} className="p-5"><div className="flex gap-2"><Skeleton className="h-5 w-16" /><Skeleton className="h-5 w-24" /></div><Skeleton className="mt-3 h-4 w-2/5" /><Skeleton className="mt-2 h-3 w-4/5" /></div>)}</div>; }
 function titleCase(value: string) { return value.toLowerCase().replaceAll('_', ' ').replace(/(^|\s)\S/g, (character) => character.toUpperCase()); }
 function shortId(value: string) { return value.length > 8 ? value.slice(-8).toUpperCase() : value.toUpperCase(); }

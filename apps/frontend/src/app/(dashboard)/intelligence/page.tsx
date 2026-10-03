@@ -11,7 +11,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts';
-import { PageTitle, Stat, SectionHeader, Badge, EmptyState } from '@/components/ui';
+import { StatusSelect,  StatusBadge,  PageTitle, Stat, SectionHeader, Badge, EmptyState } from '@/components/ui';
 import * as I from '@/components/icons';
 import { useOrganization } from '@/hooks/use-organization';
 import {
@@ -53,12 +53,7 @@ function pct(value: number) {
   return `${Math.round(value)}%`;
 }
 
-function tone(value: string) {
-  if (value === 'CRITICAL' || value === 'HIGH' || value === 'AT_RISK') return 'red' as const;
-  if (value === 'MEDIUM' || value === 'WATCH') return 'orange' as const;
-  if (value === 'GOOD' || value === 'LOW') return 'blue' as const;
-  return 'green' as const;
-}
+
 
 function dimensionScore(dimensions: DimensionsMap, key: string) {
   const value = dimensions[key];
@@ -203,7 +198,7 @@ export default function Intelligence() {
             </button>
           ))}
         </div>
-        <select
+        <StatusSelect domain="predictive"
           value={severity}
           onChange={(event) => setSeverity(event.target.value)}
           className="input max-w-[170px]"
@@ -213,7 +208,7 @@ export default function Intelligence() {
           <option value="HIGH">High</option>
           <option value="MEDIUM">Medium</option>
           <option value="LOW">Low</option>
-        </select>
+        </StatusSelect>
       </div>
 
       {dashboard.isLoading ? (
@@ -280,10 +275,10 @@ export default function Intelligence() {
                 {...(selectedProperty
                   ? {
                       action: (
-                        <Badge tone={tone(selectedProperty.health.grade)}>
+                        <StatusBadge status={selectedProperty.health.grade} domain="monitoring">
                           {Math.round(selectedProperty.health.score)} ·{' '}
                           {selectedProperty.health.grade.replaceAll('_', ' ')}
-                        </Badge>
+                        </StatusBadge>
                       ),
                     }
                   : {})}
@@ -381,7 +376,7 @@ export default function Intelligence() {
                       key={`${action.propertyId}-${action.code}`}
                     >
                       <div className="flex items-center gap-2">
-                        <Badge tone={tone(action.priority)}>{action.priority}</Badge>
+                        <StatusBadge status={action.priority} domain="predictive">{action.priority}</StatusBadge>
                         <span className="font-medium text-sm">{action.title}</span>
                       </div>
                       <p className="text-sm text-muted-foreground mt-2">
@@ -438,7 +433,7 @@ export default function Intelligence() {
                   >
                     <div className="flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={tone(alert.severity)}>{alert.severity}</Badge>
+                        <StatusBadge status={alert.severity} domain="predictive">{alert.severity}</StatusBadge>
                         <span className="font-semibold text-sm">{alert.title}</span>
                         <span className="text-[10px] text-muted-foreground">{alert.code}</span>
                       </div>

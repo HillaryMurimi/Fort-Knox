@@ -1,10 +1,11 @@
 'use client';
 import Link from 'next/link';
 import { Activity, ArrowUpRight, AlertCircle, FileText } from 'lucide-react';
-import { Badge, Dialog, EmptyState, SectionHeader } from '@/components/ui';
+import { StatusBadge, Badge, Dialog, EmptyState, SectionHeader } from '@/components/ui';
+import type { StatusDomain } from '@/lib/status';
 import { label } from '@/lib/presentation';
 import { useState } from 'react';
-export function Status({ value }: { value: unknown }) { const text = typeof value === 'string' ? value : 'UNKNOWN'; const tone = ['ACTIVE','CLOSED','VERIFIED','COMPLETED','PAID','SUCCEEDED'].includes(text) ? 'green' : ['HIGH','EMERGENCY','FAILED','SUSPENDED'].includes(text) ? 'red' : ['PENDING','APPROVAL_REQUIRED','QUOTED','DEGRADED'].includes(text) ? 'orange' : 'neutral'; return <Badge tone={tone}>{label(text)}</Badge>; }
+export function Status({ value, domain = 'general' }: { value: unknown; domain?: StatusDomain }) { return <StatusBadge status={value} domain={domain}>{label(typeof value === 'string' ? value : 'UNKNOWN')}</StatusBadge>; }
 export function Section({ id, title, description, children, action }: { id: string; title: string; description?: string; children: React.ReactNode; action?: React.ReactNode }) { return <section id={id} className="card scroll-mt-24 p-5 sm:p-6"><SectionHeader title={title} {...(description !== undefined ? { description } : {})} {...(action !== undefined ? { action } : {})}/>{children}</section>; }
 export function QueryState({ query, empty, children }: { query: { isLoading: boolean; isError: boolean; error: unknown; refetch: () => unknown }; empty?: boolean; children: React.ReactNode }) {
  if (query.isLoading) return <div role="status" className="animate-pulse space-y-3 py-5"><div className="h-4 w-2/3 rounded bg-muted"/><div className="h-4 w-1/2 rounded bg-muted"/><span className="sr-only">Loading records</span></div>;

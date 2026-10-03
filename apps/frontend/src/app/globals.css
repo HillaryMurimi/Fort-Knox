@@ -114,3 +114,63 @@ td:last-child, th:last-child { padding-right: 0; }
 
 .recharts-text, .recharts-cartesian-axis-tick-value { fill: var(--muted-foreground); }
 .recharts-default-tooltip { background: var(--panel) !important; color: var(--foreground) !important; border-color: var(--border) !important; }
+
+/* Workflow semantics: backend state -> domain mapping -> themed surface. */
+:root {
+  --status-neutral-bg: #f0f2f3; --status-neutral-text: #475467; --status-neutral-border: #d0d5dd;
+  --status-pending-bg: #fff9ed; --status-pending-text: #845414; --status-pending-border: #e8d7b8;
+  --status-processing-bg: #edf4fb; --status-processing-text: #315a86; --status-processing-border: #c5d7e8;
+  --status-review-bg: #f3f0fa; --status-review-text: #655086; --status-review-border: #d9cfe9;
+  --status-attention-bg: #fff4e9; --status-attention-text: #965522; --status-attention-border: #ebd2ba;
+  --status-blocked-bg: #fbeeee; --status-blocked-text: #9b3e3f; --status-blocked-border: #e7caca;
+  --status-failed-bg: #faeceb; --status-failed-text: #9f3730; --status-failed-border: #e9c8c4;
+  --status-success-bg: #edf6f0; --status-success-text: #356948; --status-success-border: #c8decf;
+  --status-completed-bg: #e7f3ef; --status-completed-text: #216651; --status-completed-border: #bdd8cd;
+  --status-paused-bg: #f3f0e9; --status-paused-text: #6c6147; --status-paused-border: #dcd5c5;
+  --status-inactive-bg: #f0f1f2; --status-inactive-text: #626b76; --status-inactive-border: #d4d8dd;
+  --status-archived-bg: #f3f4f6; --status-archived-text: #667085; --status-archived-border: #dde1e7;
+}
+.dark {
+  --status-neutral-bg: #252d38; --status-neutral-text: #b8c3d1; --status-neutral-border: #455263;
+  --status-pending-bg: #342d22; --status-pending-text: #e5c58e; --status-pending-border: #615239;
+  --status-processing-bg: #202f41; --status-processing-text: #adcbea; --status-processing-border: #425b75;
+  --status-review-bg: #302b40; --status-review-text: #c9bade; --status-review-border: #57496d;
+  --status-attention-bg: #392e23; --status-attention-text: #e9bb8c; --status-attention-border: #6b5139;
+  --status-blocked-bg: #3b282d; --status-blocked-text: #edb2b4; --status-blocked-border: #705057;
+  --status-failed-bg: #3d2828; --status-failed-text: #f1b0a9; --status-failed-border: #75504b;
+  --status-success-bg: #24372f; --status-success-text: #add6b8; --status-success-border: #456650;
+  --status-completed-bg: #20372f; --status-completed-text: #9ed5bf; --status-completed-border: #3f6756;
+  --status-paused-bg: #302e29; --status-paused-text: #cfc6b0; --status-paused-border: #595448;
+  --status-inactive-bg: #282d33; --status-inactive-text: #b2bac5; --status-inactive-border: #48515e;
+  --status-archived-bg: #242a32; --status-archived-text: #a6b2c2; --status-archived-border: #3d4857;
+}
+.status-surface { color: var(--status-text); background: var(--status-bg); border-color: var(--status-border); }
+.status-neutral { --status-bg: var(--status-neutral-bg); --status-text: var(--status-neutral-text); --status-border: var(--status-neutral-border); }
+.status-pending { --status-bg: var(--status-pending-bg); --status-text: var(--status-pending-text); --status-border: var(--status-pending-border); }
+.status-processing { --status-bg: var(--status-processing-bg); --status-text: var(--status-processing-text); --status-border: var(--status-processing-border); }
+.status-review { --status-bg: var(--status-review-bg); --status-text: var(--status-review-text); --status-border: var(--status-review-border); }
+.status-attention { --status-bg: var(--status-attention-bg); --status-text: var(--status-attention-text); --status-border: var(--status-attention-border); }
+.status-blocked { --status-bg: var(--status-blocked-bg); --status-text: var(--status-blocked-text); --status-border: var(--status-blocked-border); }
+.status-failed { --status-bg: var(--status-failed-bg); --status-text: var(--status-failed-text); --status-border: var(--status-failed-border); }
+.status-success { --status-bg: var(--status-success-bg); --status-text: var(--status-success-text); --status-border: var(--status-success-border); }
+.status-completed { --status-bg: var(--status-completed-bg); --status-text: var(--status-completed-text); --status-border: var(--status-completed-border); }
+.status-paused { --status-bg: var(--status-paused-bg); --status-text: var(--status-paused-text); --status-border: var(--status-paused-border); }
+.status-inactive { --status-bg: var(--status-inactive-bg); --status-text: var(--status-inactive-text); --status-border: var(--status-inactive-border); }
+.status-archived { --status-bg: var(--status-archived-bg); --status-text: var(--status-archived-text); --status-border: var(--status-archived-border); }
+.status-badge { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-height: 22px; border: 1px solid var(--status-border); border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 600; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; vertical-align: middle; }
+.status-badge > svg { flex-shrink: 0; }
+.workflow-pipeline { display: flex; flex-wrap: nowrap; gap: 12px; max-width: 100%; overflow-x: auto; padding: 2px; list-style: none; scrollbar-width: thin; }
+.workflow-stage { position: relative; flex: 1 0 125px; min-width: 0; border: 1px solid var(--status-border); border-radius: 6px; padding: 10px 12px; }
+.workflow-stage[data-position="current"], .workflow-stage[data-position="blocked"], .workflow-stage[data-position="failed"] { box-shadow: inset 0 0 0 1px var(--status-text); }
+.workflow-stage[data-position="completed"] { background: var(--panel); }
+.workflow-stage[data-position="upcoming"], .workflow-stage[data-position="skipped"] { background: var(--panel); border-style: dashed; }
+.workflow-stage:not(:last-child)::after { content: ''; position: absolute; height: 1px; width: 12px; background: var(--border); left: 100%; top: 50%; }
+.workflow-stage[data-position="completed"]::after { background: var(--status-border); }
+.workflow-stage-heading { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.5; font-weight: 600; }
+.workflow-stage-heading > svg { flex-shrink: 0; margin-top: 2px; }
+.workflow-stage-position { display: block; margin-top: 4px; padding-left: 22px; font-size: 10px; line-height: 1.5; }
+@media (max-width: 639px) {
+  .workflow-pipeline { flex-direction: column; overflow: visible; }
+  .workflow-stage { flex-basis: auto; }
+  .workflow-stage:not(:last-child)::after { top: 100%; left: 19px; width: 1px; height: 12px; }
+}

@@ -2,13 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import {
-  Badge,
-  EmptyState,
-  PageTitle,
-  SectionHeader,
-  Stat,
-} from "@/components/ui";
+import { StatusBadge, EmptyState, PageTitle, SectionHeader, Stat } from "@/components/ui";
 import * as I from "@/components/icons";
 import { money, pct } from "@/lib/utils";
 import { useOrganization } from "@/hooks/use-organization";
@@ -17,7 +11,7 @@ import {
   useEvaluateIntelligenceMutation,
   useUpdateIntelligenceAlertMutation,
 } from "@/hooks/queries/use-command-center-queries";
-import type { CommandCenterProperty, HealthGrade } from "@/types/api";
+import type { CommandCenterProperty } from "@/types/api";
 import { LandlordControlPanel } from "@/components/landlords/landlord-control-panel";
 import { WorkspaceScene } from "@/components/workspaces/workspace-scene";
 
@@ -29,25 +23,15 @@ function isoDate(daysAgo: number) {
   return date.toISOString();
 }
 
-function scoreTone(grade: HealthGrade): "green" | "blue" | "orange" | "red" {
-  if (grade === "EXCELLENT") return "green";
-  if (grade === "GOOD") return "blue";
-  if (grade === "WATCH") return "orange";
-  return "red";
-}
 
-function severityTone(severity: string): "green" | "blue" | "orange" | "red" {
-  if (severity === "CRITICAL" || severity === "HIGH") return "red";
-  if (severity === "MEDIUM") return "orange";
-  if (severity === "LOW") return "blue";
-  return "green";
-}
+
+
 
 function healthBar(score: number) {
-  if (score >= 90) return "bg-[#12b76a]";
-  if (score >= 75) return "bg-[#2e90fa]";
-  if (score >= 60) return "bg-[#f79009]";
-  return "bg-[#f04438]";
+  if (score >= 90) return "bg-[var(--status-success-text)]";
+  if (score >= 75) return "bg-[var(--status-success-text)]";
+  if (score >= 60) return "bg-[var(--status-attention-text)]";
+  return "bg-[var(--status-blocked-text)]";
 }
 
 function propertyAddress(property: CommandCenterProperty) {
@@ -268,7 +252,7 @@ export default function Dashboard() {
             </div>
             <div className="h-2 rounded-full bg-muted">
               <div
-                className={`h-2 rounded-full ${p.collectionRate >= 90 ? "bg-[#12b76a]" : p.collectionRate >= 75 ? "bg-[#f79009]" : "bg-[#f04438]"}`}
+                className={`h-2 rounded-full ${p.collectionRate >= 90 ? "bg-[var(--status-success-text)]" : p.collectionRate >= 75 ? "bg-[var(--status-attention-text)]" : "bg-[var(--status-blocked-text)]"}`}
                 style={{
                   width: `${Math.min(100, Math.max(0, p.collectionRate))}%`,
                 }}
@@ -279,17 +263,17 @@ export default function Dashboard() {
             <MiniSignal
               label="Outstanding rent"
               value={money(p.outstandingRent)}
-              tone={p.outstandingRent > 0 ? "orange" : "green"}
+              status={p.outstandingRent > 0 ? "NEEDS_ATTENTION" : "HEALTHY"}
             />
             <MiniSignal
               label="Critical incidents"
               value={String(p.criticalIncidents)}
-              tone={p.criticalIncidents > 0 ? "red" : "green"}
+              status={p.criticalIncidents > 0 ? "CRITICAL" : "NONE"}
             />
             <MiniSignal
               label="Access denials / 24h"
               value={String(p.accessDenied24h)}
-              tone={p.accessDenied24h > 10 ? "red" : "blue"}
+              status={p.accessDenied24h > 10 ? "CRITICAL" : "INFO"}
             />
           </div>
         </div>
@@ -298,9 +282,9 @@ export default function Dashboard() {
           <SectionHeader
             title="Portfolio health score"
             action={
-              <Badge tone={scoreTone(p.grade)}>
+              <StatusBadge status={p.grade} domain="monitoring">
                 {p.grade.replaceAll("_", " ")}
-              </Badge>
+              </StatusBadge>
             }
           />
           <div className="flex items-center gap-5">
@@ -370,9 +354,9 @@ export default function Dashboard() {
                         {item.property.code} · {propertyAddress(item)}
                       </div>
                     </div>
-                    <Badge tone={scoreTone(item.health.grade)}>
-                      {Math.round(item.health.score)}
-                    </Badge>
+                    <StatusBadge status={item.health.grade} domain="monitoring">
+                      {Math.round(item.health.score)} · {item.health.grade.replaceAll("_", " ")}
+                    </StatusBadge>
                   </div>
                   <div className="mt-3 h-1.5 rounded-full bg-muted">
                     <div
@@ -420,17 +404,9 @@ export default function Dashboard() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        tone={
-                          action.priority === "CRITICAL"
-                            ? "red"
-                            : action.priority === "HIGH"
-                              ? "orange"
-                              : "blue"
-                        }
-                      >
+                      <StatusBadge status={action.priority} domain="predictive">
                         {action.priority}
-                      </Badge>
+                      </StatusBadge>
                       <span className="font-medium text-sm">
                         {action.title}
                       </span>
@@ -506,9 +482,9 @@ export default function Dashboard() {
                 <div className="flex items-start gap-3">
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone={severityTone(alert.severity)}>
+                      <StatusBadge status={alert.severity} domain="predictive">
                         {alert.severity}
-                      </Badge>
+                      </StatusBadge>
                       <span className="font-semibold text-sm">
                         {alert.title}
                       </span>
@@ -590,10 +566,10 @@ function PropertyDrilldown({ property }: { property: CommandCenterProperty }) {
             {property.property.propertyType.replaceAll("_", " ")}
           </p>
         </div>
-        <Badge tone={scoreTone(property.health.grade)}>
+        <StatusBadge status={property.health.grade} domain="monitoring">
           {Math.round(property.health.score)} ·{" "}
           {property.health.grade.replaceAll("_", " ")}
-        </Badge>
+        </StatusBadge>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
         <Metric label="Occupancy" value={pct(m.occupancyRate)} />
@@ -643,19 +619,11 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MiniSignal({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "green" | "orange" | "red" | "blue";
-}) {
+function MiniSignal({label,value,status}:{label:string;value:string;status:string}) {
   return (
     <div className="rounded-xl border border-border p-3 flex items-center justify-between gap-2">
       <span className="text-muted-foreground">{label}</span>
-      <Badge tone={tone}>{value}</Badge>
+      <StatusBadge status={status} domain="monitoring">{value} - {status.replaceAll("_", " ")}</StatusBadge>
     </div>
   );
 }

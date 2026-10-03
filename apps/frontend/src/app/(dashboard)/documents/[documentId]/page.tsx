@@ -26,7 +26,7 @@ import type {
   CreateEvidenceInput,
 } from "@/lib/data/documents";
 import type { DocumentRecord, EvidenceRecord } from "@/lib/data/resource-types";
-import {
+import { StatusBadge,
   Badge,
   EmptyState,
   PageTitle,
@@ -273,17 +273,9 @@ function DocumentList({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Badge
-                  tone={
-                    d.status === "ACTIVE"
-                      ? "green"
-                      : d.status === "QUARANTINED"
-                        ? "red"
-                        : "neutral"
-                  }
-                >
+                <StatusBadge status={d.status} domain="document">
                   {d.status}
-                </Badge>
+                </StatusBadge>
                 <Badge
                   tone={
                     d.visibility === "PRIVATE"

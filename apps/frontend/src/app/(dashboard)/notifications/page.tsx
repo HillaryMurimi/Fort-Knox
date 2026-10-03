@@ -1,12 +1,12 @@
 'use client';
 import { useMemo, useState } from 'react';
 import * as I from '@/components/icons';
-import { Badge, EmptyState, PageTitle, SectionHeader, Stat } from '@/components/ui';
+import { StatusSelect,  StatusBadge, EmptyState, PageTitle, SectionHeader, Stat } from '@/components/ui';
 import { useOrganization } from '@/hooks/use-organization';
 import { useNotificationsQuery, useNotificationPreferencesQuery, useNotificationPreferenceMutation, useNotificationReadMutation } from '@/hooks/queries/use-operations-queries';
 import type { NotificationRecord } from '@/lib/data/resource-types';
 
-const tone: Record<NotificationRecord['status'], 'neutral'|'green'|'orange'|'red'|'blue'> = { QUEUED:'orange', SENT:'blue', DELIVERED:'green', READ:'neutral', FAILED:'red', CANCELLED:'neutral' };
+
 const channels: NotificationRecord['channel'][] = ['IN_APP','EMAIL','SMS','PUSH','WHATSAPP'];
 
 function time(value?: string) { return value ? new Date(value).toLocaleString() : '—'; }
@@ -34,9 +34,9 @@ export default function NotificationsPage() {
     </div>
     <div className="grid xl:grid-cols-[1.5fr_1fr] gap-6">
       <section className="card p-5">
-        <SectionHeader title="Notification inbox" action={<select value={status} onChange={(e) => setStatus(e.target.value as NotificationRecord['status'] | '')} className="input max-w-[150px]"><option value="">All statuses</option>{['QUEUED','SENT','DELIVERED','READ','FAILED','CANCELLED'].map((x)=><option key={x}>{x}</option>)}</select>} />
-        {query.isLoading ? <div className="py-12 text-center text-sm text-muted-foreground">Loading notifications…</div> : query.isError ? <div className="py-12 text-center text-sm text-[#b42318]">Unable to load notifications.</div> : notifications.length === 0 ? <EmptyState icon={I.Bell} title="Inbox is clear" description="No notifications match the current filter."/> : <div className="space-y-2">{notifications.map((n) => <div key={n._id} className={`rounded-xl border p-4 ${n.status === 'READ' ? 'border-border bg-card' : 'border-[#f2d4c5] bg-[#fffaf7]'}`}>
-          <div className="flex items-start gap-3"><div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center shrink-0"><I.Bell size={16}/></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="font-medium text-sm">{n.title}</span><Badge tone={tone[n.status]}>{n.status}</Badge><Badge tone={n.priority === 'URGENT' ? 'red' : n.priority === 'HIGH' ? 'orange' : 'neutral'}>{n.priority}</Badge></div><p className="text-sm text-muted-foreground mt-1">{n.body}</p><div className="text-[11px] text-muted-foreground mt-2">{n.channel} · {n.type} · {time(n.createdAt)}</div></div>{n.status !== 'READ' && <button className="btn-secondary" disabled={readMutation.isPending} onClick={() => readMutation.mutate(n._id)}>Mark read</button>}</div>
+        <SectionHeader title="Notification inbox" action={<StatusSelect domain="notification" value={status} onChange={(e) => setStatus(e.target.value as NotificationRecord['status'] | '')} className="input max-w-[150px]"><option value="">All statuses</option>{['QUEUED','SENT','DELIVERED','READ','FAILED','CANCELLED'].map((x)=><option key={x}>{x}</option>)}</StatusSelect>} />
+        {query.isLoading ? <div className="py-12 text-center text-sm text-muted-foreground">Loading notifications…</div> : query.isError ? <div className="py-12 text-center text-sm text-[var(--status-failed-text)]">Unable to load notifications.</div> : notifications.length === 0 ? <EmptyState icon={I.Bell} title="Inbox is clear" description="No notifications match the current filter."/> : <div className="space-y-2">{notifications.map((n) => <div key={n._id} className={`rounded-xl border p-4 ${n.status === 'READ' ? 'border-border bg-card' : 'border-[var(--status-pending-border)] bg-card'}`}>
+          <div className="flex items-start gap-3"><div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center shrink-0"><I.Bell size={16}/></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="font-medium text-sm">{n.title}</span><StatusBadge status={n.status} domain="notification">{n.status}</StatusBadge><StatusBadge status={n.priority} domain="predictive">{n.priority}</StatusBadge></div><p className="text-sm text-muted-foreground mt-1">{n.body}</p><div className="text-[11px] text-muted-foreground mt-2">{n.channel} · {n.type} · {time(n.createdAt)}</div></div>{n.status !== 'READ' && <button className="btn-secondary" disabled={readMutation.isPending} onClick={() => readMutation.mutate(n._id)}>Mark read</button>}</div>
         </div>)}</div>}
       </section>
       <section className="card p-5">

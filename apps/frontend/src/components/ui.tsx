@@ -12,7 +12,8 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
-import { AlertCircle, ArrowDownRight, ArrowUpRight, Loader2, Search, X } from 'lucide-react';
+import { AlertCircle, ArrowDownRight, ArrowUpRight, Loader2, Search, X, Circle, Clock3, CircleCheck, CheckCircle2, CircleX, PauseCircle, MinusCircle, Archive, ScanEye } from 'lucide-react';
+import { statusSemantic, statusLabel, type StatusDomain, type StatusSemantic } from '@/lib/status';
 import { cn } from '@/lib/utils';
 
 type ButtonVariant = 'default' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'link';
@@ -103,6 +104,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
   ({ className, ...props }, ref) => <select ref={ref} className={cn('input appearance-none pr-9', className)} {...props} />,
 );
 Select.displayName = 'Select';
+export function StatusSelect({domain='general',className,value,...props}:SelectHTMLAttributes<HTMLSelectElement> & {domain?:StatusDomain}) {
+  const semantic=statusSemantic(value,domain);
+  return <Select {...props} value={value} data-semantic={semantic} className={cn('status-surface',`status-${semantic}`,className)} />;
+}
 
 export const Label = forwardRef<HTMLLabelElement, LabelHTMLAttributes<HTMLLabelElement>>(
   ({ className, ...props }, ref) => <label ref={ref} className={cn('field-label', className)} {...props} />,
@@ -113,17 +118,16 @@ export function SearchField({ className, ...props }: InputHTMLAttributes<HTMLInp
   return <div className={cn('relative min-w-0', className)}><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" size={16} /><Input type="search" className="pl-9" {...props} /></div>;
 }
 
-type BadgeTone = 'neutral' | 'green' | 'orange' | 'red' | 'blue';
-const badgeTones: Record<BadgeTone, string> = {
-  neutral: 'border-[#d0d5dd] bg-muted text-muted-foreground',
-  green: 'border-[#abefc6] bg-[#ecfdf3] text-[#067647]',
-  orange: 'border-[#fedf89] bg-[#fffaeb] text-[#b54708]',
-  red: 'border-[#fecdca] bg-[#fef3f2] text-[#b42318]',
-  blue: 'border-[#b2ddff] bg-[#eff8ff] text-[#175cd3]',
-};
+type BadgeTone = 'neutral' | 'green' | 'orange' | 'red' | 'blue' | 'purple';
+const badgeTones: Record<BadgeTone, StatusSemantic> = { neutral: 'neutral', green: 'success', orange: 'attention', red: 'failed', blue: 'processing', purple: 'review' };
 
 export function Badge({ children, tone = 'neutral', className }: { children: ReactNode; tone?: BadgeTone; className?: string }) {
-  return <span className={cn('inline-flex min-h-5 items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-none', badgeTones[tone], className)}>{children}</span>;
+  return <span className={cn('status-badge status-surface', `status-${badgeTones[tone]}`, className)}>{children}</span>;
+}
+const statusIcons = { neutral: Circle, pending: Clock3, processing: Loader2, review: ScanEye, attention: AlertCircle, blocked: AlertCircle, failed: CircleX, success: CircleCheck, completed: CheckCircle2, paused: PauseCircle, inactive: MinusCircle, archived: Archive };
+export function StatusBadge({ status, domain = 'general', children, className, ...props }: Omit<HTMLAttributes<HTMLSpanElement>, 'color'> & { status: unknown; domain?: StatusDomain }) {
+  const semantic = statusSemantic(status, domain), Icon = statusIcons[semantic];
+  return <span {...props} data-status={typeof status === 'string' ? status : 'UNKNOWN'} data-domain={domain} data-semantic={semantic} className={cn('status-badge status-surface', `status-${semantic}`, className)}><Icon size={12} aria-hidden="true" /><span>{children ?? statusLabel(status)}</span></span>;
 }
 
 export function TabsList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -143,13 +147,8 @@ export function Skeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>
 }
 
 export function Alert({ title, children, tone = 'default', className }: { title?: string; children: ReactNode; tone?: 'default' | 'destructive' | 'warning' | 'success'; className?: string }) {
-  const tones = {
-    default: 'border-[#b2ddff] bg-[#eff8ff] text-[#1849a9]',
-    destructive: 'border-[#fecdca] bg-[#fef3f2] text-[#912018]',
-    warning: 'border-[#fedf89] bg-[#fffaeb] text-[#93370d]',
-    success: 'border-[#abefc6] bg-[#ecfdf3] text-[#05603a]',
-  };
-  return <div role="alert" className={cn('flex gap-3 rounded-md border p-3 text-sm', tones[tone], className)}><AlertCircle className="mt-0.5 shrink-0" size={16} /><div>{title && <div className="font-semibold">{title}</div>}<div className={cn(title && 'mt-0.5')}>{children}</div></div></div>;
+  const tones = { default: 'status-processing', destructive: 'status-failed', warning: 'status-attention', success: 'status-success' };
+  return <div role="alert" className={cn('status-surface flex gap-3 rounded-md border p-3 text-sm', tones[tone], className)}><AlertCircle className="mt-0.5 shrink-0" size={16} /><div>{title && <div className="font-semibold">{title}</div>}<div className={cn(title && 'mt-0.5')}>{children}</div></div></div>;
 }
 
 export function Tooltip({ label, children }: { label: string; children: ReactNode }) {

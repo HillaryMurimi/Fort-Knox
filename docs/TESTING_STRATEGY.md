@@ -270,3 +270,25 @@ have no backdrop blur. Empty hero space must still pass pointer gestures to the
 API-isolation assertions remain. `verify:cinematic-demo` additionally checks the
 full dashboard across ten viewport/theme cases and square studio finance values,
 while retaining aspect-ratio, role-scope and simulated-approval coverage.
+
+
+## Unified status and workflow presentation (2026-10-03)
+
+`src/lib/status.test.tsx` checks domain exceptions, all persisted lifecycle enum
+values, unknown-state fallback, the original Badge API, native option values,
+readable/decorative status markup, current/future/completed/blocked/failed/skipped
+progression, truthful optional approval and cancellation history, and all twelve
+light/dark palette contrast ratios. Vitest includes both .test.ts and .test.tsx.
+
+`npm --prefix apps/frontend run verify:status-system` runs those tests and renders
+the actual shared components into an ignored browser fixture. Edge/Playwright
+checks 320/390/768/1366/1440/1920 widths in both themes: computed contrast at least
+4.5:1, labels, containment/wrapping, no page overflow, mobile stacking, current
+outline, muted future stages and reduced-motion/static status behavior.
+
+Authenticated `verify:sales-demo` additionally checks overdue-to-paid semantics,
+maintenance transitions and security investigation/escalation/resolution against
+real state-changing workflows. `verify:platform-business` checks incident and
+severity badges and computed contrast in both themes during the existing private
+SUPER_ADMIN journey. Existing workflow, malformed-response, sidebar, commercial
+control, isolation, keyboard and responsive assertions are retained.

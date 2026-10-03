@@ -1,15 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
+import { WorkflowPipeline } from '@/components/workflow-pipeline';
+import { StatusBadge } from '@/components/ui';
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import {
-  ArrowRight,
-  CheckCircle2,
-  Circle,
-  Download,
-  Upload,
-  RefreshCw,
-} from "lucide-react";
+import { ArrowRight, Download, Upload, RefreshCw } from "lucide-react";
 import { Alert, Button, Input } from "@/components/ui";
 import { useOrganization } from "@/hooks/use-organization";
 import {
@@ -141,7 +136,7 @@ export function GuidedPilotWorkspace() {
           aria-label="Command Center activation readiness"
         >
           <div
-            className="h-full bg-primary transition-[width] motion-reduce:transition-none"
+            className={`h-full transition-[width] motion-reduce:transition-none ${p.readiness.complete ? "bg-[var(--status-completed-text)]" : "bg-[var(--status-processing-text)]"}`}
             style={{ width: `${p.readiness.percent}%` }}
           />
         </div>
@@ -155,40 +150,12 @@ export function GuidedPilotWorkspace() {
           still requires the signed agreement and verified prepaid payment.
         </p>
       </section>
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-        <section className="rounded-2xl border border-border bg-card p-6">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <section className="min-w-0 rounded-2xl border border-border bg-card p-6">
           <h2 className="text-xl font-semibold">
             Get to your first useful outcome
           </h2>
-          <ol className="mt-5 space-y-3">
-            {p.readiness.checks.map((check) => (
-              <li
-                className="flex items-center justify-between gap-3 rounded-xl border border-border p-4"
-                key={check.key}
-              >
-                <div className="flex items-center gap-3">
-                  {check.done ? (
-                    <CheckCircle2 className="text-emerald-600" size={18} />
-                  ) : (
-                    <Circle className="text-muted-foreground" size={18} />
-                  )}
-                  <div>
-                    <strong className="text-sm">{check.label}</strong>
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                      {check.done
-                        ? "Complete · confirmed by platform records"
-                        : "Next action required"}
-                    </span>
-                  </div>
-                </div>
-                {!check.done && (
-                  <Link href={check.href} className="btn-secondary">
-                    Continue <ArrowRight size={14} />
-                  </Link>
-                )}
-              </li>
-            ))}
-          </ol>
+          <WorkflowPipeline className="mt-5" label="Guided pilot readiness" stages={p.readiness.checks.map(check => ({key: check.key, label: check.label, position: check.done ? "completed" : check.label === p.readiness.next?.label ? "current" : "upcoming", ...(check.done ? {} : {href: check.href, status: check.label === p.readiness.next?.label ? "IN_PROGRESS" : "NOT_STARTED"})}))} />
         </section>
         <aside className="space-y-5">
           <section className="rounded-2xl border border-border bg-card p-6">
@@ -242,7 +209,7 @@ export function GuidedPilotWorkspace() {
           <section className="rounded-2xl border border-border bg-card p-6">
             <h2 className="text-lg font-semibold">Commercial activation</h2>
             <p className="mt-3 text-sm text-muted-foreground">
-              Current stage: {p.commercialState.replaceAll("_", " ")}.
+              Current stage: <StatusBadge status={p.commercialState} domain="onboarding" />.
             </p>
             <p className="mt-3 text-sm text-muted-foreground">
               Review the plan and exact unit pricing, sign the services

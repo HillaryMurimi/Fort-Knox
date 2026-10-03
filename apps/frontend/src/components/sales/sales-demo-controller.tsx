@@ -24,6 +24,8 @@ import type {
   DemoStory,
   DemoMaintenance,
 } from "@/lib/data/sales-demo.types";
+import { WorkflowPipeline } from '@/components/workflow-pipeline';
+import { lifecycleWorkflow } from '@/lib/status';
 import { DemoStatus } from "./demo-status";
 const fieldClass =
   "mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
@@ -1195,7 +1197,8 @@ export function SalesDemoController() {
                             02:14 AM · {i.property}
                           </h3>
                           <div className="mt-3">
-                            <DemoStatus status={i.status} />
+                            <DemoStatus status={i.status} domain="incident" />
+                            <WorkflowPipeline className="mt-4" domain="incident" label="Simulated incident response" stages={lifecycleWorkflow(["OPEN","INVESTIGATING","RESOLVED"], i.status === "ESCALATED" ? "INVESTIGATING" : i.status).map(stage => stage.position === "current" && i.status === "ESCALATED" ? {...stage, status: "ESCALATED", position: "blocked"} : stage)} />
                           </div>
                           <p className="mt-3 text-sm">
                             Exact location: {i.location}
@@ -1515,9 +1518,9 @@ function RepairStory({
     <article className="rounded-xl border border-border p-5">
       <div className="flex flex-wrap justify-between gap-3">
         <h3 className="text-lg font-semibold">{m.title}</h3>
-        <DemoStatus status={m.status} />
+        <DemoStatus status={m.status} domain="maintenance" />
       </div>
-      <p className="mt-3 text-sm text-muted-foreground">{m.description}</p>
+      <WorkflowPipeline className="mt-4" domain="maintenance" label="Repair progress" stages={lifecycleWorkflow(["NEW","TRIAGED","ASSIGNED","APPROVAL_REQUIRED","APPROVED","IN_PROGRESS","COMPLETED","VERIFIED","CLOSED"], m.status)} /><p className="mt-3 text-sm text-muted-foreground">{m.description}</p>
       <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-muted-foreground">Requested by</dt>

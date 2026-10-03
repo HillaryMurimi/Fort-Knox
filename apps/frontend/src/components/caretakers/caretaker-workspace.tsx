@@ -23,7 +23,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import {
+import { StatusBadge,
   Alert,
   Badge,
   Button,
@@ -417,13 +417,9 @@ export function CaretakerWorkspace() {
                           {building.code} / {buildingUnits.length} units
                         </div>
                       </div>
-                      <Badge
-                        tone={
-                          building.status === "ACTIVE" ? "green" : "neutral"
-                        }
-                      >
+                      <StatusBadge status={building.status} domain="general">
                         {titleCase(building.status)}
-                      </Badge>
+                      </StatusBadge>
                     </div>
                     <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
                       <Mini
@@ -546,15 +542,9 @@ export function CaretakerWorkspace() {
                       {item.description ?? titleCase(item.source)}
                     </div>
                   </div>
-                  <Badge
-                    tone={
-                      item.severity === "CRITICAL" || item.severity === "HIGH"
-                        ? "red"
-                        : "orange"
-                    }
-                  >
+                  <StatusBadge status={item.severity} domain="predictive">
                     {titleCase(item.severity)}
-                  </Badge>
+                  </StatusBadge>
                 </div>
               ))}
             {!(securityEvents.data ?? []).some(
@@ -631,9 +621,9 @@ export function CaretakerWorkspace() {
                   {formatDate(item.createdAt)}
                 </div>
               </div>
-              <Badge tone={item.status === "COMPLETED" ? "green" : "orange"}>
+              <StatusBadge status={item.status} domain="general">
                 {titleCase(item.status)}
-              </Badge>
+              </StatusBadge>
               {["DRAFT", "IN_PROGRESS"].includes(item.status) && (
                 <Button
                   variant="outline"
@@ -682,24 +672,16 @@ export function CaretakerWorkspace() {
                 <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-muted">
                   <Package size={16} />
                 </div>
-                <Badge
-                  tone={
-                    item.status === "ACTIVE"
-                      ? "green"
-                      : item.status === "UNDER_REPAIR"
-                        ? "orange"
-                        : "red"
-                  }
-                >
+                <StatusBadge status={item.status} domain="general">
                   {titleCase(item.status)}
-                </Badge>
+                </StatusBadge>
               </div>
               <div className="mt-3 text-sm font-semibold">{item.name}</div>
               <div className="mt-1 text-xs text-muted-foreground">
                 {item.assetTag} / {unitLabel(units.data, item.unitId)}
               </div>
               <div className="mt-3 flex items-center justify-between gap-2 text-xs">
-                <span>{titleCase(item.condition)}</span>
+                <span><StatusBadge status={titleCase(item.condition)} domain="inventory" /></span>
                 <span
                   className={
                     inventoryDue.data?.some(

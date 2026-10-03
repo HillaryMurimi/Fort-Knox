@@ -12,7 +12,7 @@ import {
 } from "@/hooks/queries/use-hierarchy-queries";
 import { useSetupPermission } from "@/hooks/use-setup-permission";
 import { BuildingForm } from "@/components/properties/building-form";
-import { Dialog } from "@/components/ui";
+import { StatusBadge,  Dialog } from "@/components/ui";
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-KE", {
@@ -178,7 +178,7 @@ export default function PropertyDetailPage({
                                 <span className="mt-1 block text-muted-foreground">
                                   {unit.unitTypeLabel ||
                                     unit.unitType.replaceAll("_", " ")}{" "}
-                                  · {unit.status}
+                                  · <StatusBadge status={unit.status} domain="unit" />
                                 </span>
                                 {canViewRent &&
                                   typeof unit.monthlyRent === "number" && (

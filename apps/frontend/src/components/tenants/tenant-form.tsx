@@ -1,4 +1,5 @@
 'use client';
+import { StatusSelect } from '@/components/ui';
 import { useState } from 'react';
 import { useCreateTenantMutation } from '@/hooks/queries/use-tenant-queries';
 import type { Tenant } from '@/lib/data/resource-types';
@@ -34,11 +35,11 @@ export function TenantForm({ organizationId, tenant, onDone, onCancel }: { organ
       </label>
       <label>
         <span className="field-label">Tenant status</span>
-        <select value={status} onChange={(e) => setStatus(e.target.value as Tenant['status'])}>
+        <StatusSelect domain="entity" value={status} onChange={(e) => setStatus(e.target.value as Tenant['status'])}>
           {['PROSPECT', 'ACTIVE', 'INACTIVE', 'BLACKLISTED'].map((x) => (
             <option key={x}>{x}</option>
           ))}
-        </select>
+        </StatusSelect>
       </label>
       <label>
         <span className="field-label">National ID last 4</span>

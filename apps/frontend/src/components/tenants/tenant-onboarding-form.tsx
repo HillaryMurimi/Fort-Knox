@@ -1,4 +1,5 @@
 'use client';
+import { StatusBadge } from '@/components/ui';
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -13,7 +14,7 @@ export function TenantOnboardingForm({ organizationId, onCancel }: { organizatio
   const mutation = useMutation({ mutationFn: (input: { firstName: string; lastName: string; phone: string; email?: string; unitId: string }) =>
     api<{ status: string; expiresAt: string }>('/organizations/' + organizationId + '/tenant-onboarding', { method: 'POST', body: JSON.stringify(input) }) });
   const vacant = (units.data ?? []).filter(unit => unit.propertyId === propertyId && unit.status === 'VACANT');
-  if (mutation.isSuccess) return <div className="space-y-4"><p role="status">Tenant pre-registration saved. The selected unit is reserved until {new Date(mutation.data.expiresAt).toLocaleDateString()}. Phone verification is still required before onboarding is complete.</p><button className="btn-primary" onClick={onCancel}>Done</button></div>;
+  if (mutation.isSuccess) return <div className="space-y-4"><p role="status"><StatusBadge status={mutation.data.status} domain="onboarding" /> Tenant pre-registration saved. The selected unit is reserved until {new Date(mutation.data.expiresAt).toLocaleDateString()}. Phone verification is still required before onboarding is complete.</p><button className="btn-primary" onClick={onCancel}>Done</button></div>;
   return <form className="space-y-4" onSubmit={event => {
     event.preventDefault();
     if (mutation.isPending || !vacant.some(unit => unit._id === unitId)) return;

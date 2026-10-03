@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import * as I from "@/components/icons";
-import {
+import { StatusBadge,
   Badge,
   EmptyState,
   PageTitle,
@@ -20,10 +20,7 @@ import {
   useRecoverCheckoutMutation,
   useSubscribeMutation,
 } from "@/hooks/queries/use-billing-queries";
-import type {
-  BillingPlan,
-  BillingSubscription,
-} from "@/lib/data/resource-types";
+import type { BillingPlan } from "@/lib/data/resource-types";
 
 const money = (currency: string, n: number) =>
   `${currency} ${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -35,14 +32,7 @@ const date = (v?: string) =>
     : "—";
 const interval = (v: BillingPlan["billingInterval"]) =>
   v === "MONTH" ? "month" : v === "QUARTER" ? "quarter" : "year";
-const tone = (s: BillingSubscription["status"] | "UNSUBSCRIBED") =>
-  s === "ACTIVE" || s === "TRIALING"
-    ? "green"
-    : s === "PAST_DUE" || s === "PAUSED"
-      ? "orange"
-      : s === "CANCELLED" || s === "EXPIRED"
-        ? "red"
-        : "neutral";
+
 const lim = (n: number) => (n < 0 ? "Unlimited" : n.toLocaleString());
 const planOf = (
   v: BillingPlan | string | undefined,
@@ -248,7 +238,7 @@ export default function BillingPage() {
               title="Current subscription"
               action={
                 sub.data && (
-                  <Badge tone={tone(sub.data.status)}>{sub.data.status}</Badge>
+                  <StatusBadge status={sub.data.status} domain="subscription">{sub.data.status}</StatusBadge>
                 )
               }
             />
@@ -521,20 +511,9 @@ export default function BillingPage() {
                           {money(inv.currency, inv.total)}
                         </td>
                         <td className="py-3">
-                          <Badge
-                            tone={
-                              inv.status === "PAID"
-                                ? "green"
-                                : inv.status === "PAST_DUE"
-                                  ? "orange"
-                                  : inv.status === "VOID" ||
-                                      inv.status === "UNCOLLECTIBLE"
-                                    ? "red"
-                                    : "neutral"
-                            }
-                          >
+                          <StatusBadge status={inv.status} domain="billing">
                             {inv.status}
-                          </Badge>
+                          </StatusBadge>
                           {inv.amountPaid > 0 && inv.status !== "PAID" && (
                             <div className="text-[10px] text-muted-foreground mt-1">
                               Paid {money(inv.currency, inv.amountPaid)}
