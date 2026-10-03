@@ -989,3 +989,32 @@ limitations and acceptance answers are in DAPINNI_SALES_COMPLETION.md.
 Earlier branding-withheld notes are historical and superseded by this completed continuation.
 No schema/index/provider/dependency or production environment changes in this continuation.
 The user's three .continue/rules files remain untracked and untouched.
+
+## 2026-10-03 — Landing desktop overlap and action obstruction
+
+Continued the existing laptop checkout on main from 85dd022, preserving editor
+rules and unrelated generated state. Reproduced desktop dashboard values wider
+than their metric cells and scene controls covering hero actions at 1920x650;
+390x844 was unaffected. Metrics/header/health now size against their containers.
+Hero copy/readout use normal grid flow; the opaque scene strip occupies its own
+row, so content can grow without covering actions. Pointer gestures still reach
+the 3D canvas through non-interactive copy. Existing scene/dialog/theme flows remain.
+
+Added scripts/landing-layout-checks.mjs; modified landing-page.tsx,
+digital-twin.css, demo.module.css, verify-landing.mjs, verify-cinematic-demo.mjs,
+TESTING_STRATEGY.md and this tracker. No API, database, dependency or environment
+file changes. Original signed documents and authenticated sales workflows untouched.
+
+Frontend typecheck/lint (0 errors, 27 existing warnings), 29 files/194 tests and
+optimized production build passed. Final cinematic gate passed all 18 layouts,
+role/theme/clean-view/simulated-approval checks, plus ten dashboard text-fit cases
+and square studio finance values. Final landing gate passed all 12 light/dark
+viewport cases, including 1366x600, 1920x650 and 1920x1080, full action hit tests,
+canvas pointer reachability, scene/dialog/navigation/theme behavior, no overflow,
+no runtime errors and zero unexpected API attempts. Combined browser command
+exited 0 in 219.37s. New finance assertions explicitly advance beyond its opening
+and await rendered content; original assertions and security fixtures retained.
+
+Diff/whitespace and staged secret/path review precede the release commit. The
+user's dev server and .continue/rules files are preserved. Commit/push verification
+and exact final status are recorded in the delivery message.

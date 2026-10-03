@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 import sharp from 'sharp';
 import { mkdir } from 'node:fs/promises';
 import { publicVisitor } from './public-visitor-fixture.mjs';
+import { assertLandingLayout } from './landing-layout-checks.mjs';
 
 const output = 'test-results/digital-twin';
 const baseUrl = process.argv[2] ?? process.env.LANDING_BASE_URL ?? 'http://localhost:3100';
@@ -13,6 +14,9 @@ try {
   for (const [theme, name, width, height] of [
     ['dark', 'mobile', 390, 844], ['dark', 'tablet', 768, 1024], ['dark', 'desktop', 1440, 900],
     ['light', 'mobile', 390, 844], ['light', 'tablet', 768, 1024], ['light', 'desktop', 1440, 900],
+    ['dark', 'short-laptop', 1366, 600], ['light', 'short-laptop', 1366, 600],
+    ['dark', 'short-desktop', 1920, 650], ['light', 'short-desktop', 1920, 650],
+    ['dark', 'wide-desktop', 1920, 1080], ['light', 'wide-desktop', 1920, 1080],
   ]) {
     const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
     const errors = [], apiAttempts = [], anonymousBootstraps = [];
@@ -28,6 +32,7 @@ try {
         && document.title.startsWith('Dapinni') && document.querySelector('.dt-brand-name')?.textContent === 'Dapinni';
     });
     if (!brandHierarchy) throw new Error('Dapinni must be primary in page identity and responsive visual hierarchy');
+    const layout = await assertLandingLayout(page);
     await page.locator('.property-scene canvas').waitFor({ timeout: 30000 });
     await page.waitForTimeout(1200);
     const canvas = page.locator('.property-scene canvas');
@@ -47,6 +52,9 @@ try {
     const scrolledNavigation = await page.locator('.dt-nav').evaluate((element) => element.classList.contains('dt-nav-scrolled') && getComputedStyle(element).position === 'fixed');
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: `${output}/${theme}-${name}.png`, fullPage: true });
+    await page.locator('.dt-hero').screenshot({ path: `${output}/${theme}-${name}-hero.png` });
+    await page.locator('[data-kind="dashboard"]').screenshot({ path: `${output}/${theme}-${name}-metrics.png` });
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
     await page.getByRole('tab', { name: /Move-ins/i }).click();
     const selected = await page.getByRole('tab', { name: /Move-ins/i }).getAttribute('aria-selected');
     await page.getByRole('button', { name: 'See it in action' }).click();
@@ -59,7 +67,7 @@ try {
     await page.getByRole('button', { name: `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme` }).click();
     await page.waitForFunction((nextTheme) => document.documentElement.classList.contains(nextTheme), theme === 'dark' ? 'light' : 'dark');
     const toggled = await page.evaluate((nextTheme) => document.documentElement.classList.contains(nextTheme) && localStorage.getItem('pmcc.theme') === nextTheme, theme === 'dark' ? 'light' : 'dark');
-    results.push({ theme, name, apiAttempts, anonymousSessionsDenied: anonymousBootstraps.length, overviewBackground, scrolledNavigation, canvasWidth: canvasBox?.width, canvasHeight: canvasBox?.height, contextLost, brightnessRange: Math.round(range), cameraChange: Math.round(cameraChange), demoOpens, horizontalOverflow, selected, toggled, pageErrors: errors });
+    results.push({ theme, name, ...layout, apiAttempts, anonymousSessionsDenied: anonymousBootstraps.length, overviewBackground, scrolledNavigation, canvasWidth: canvasBox?.width, canvasHeight: canvasBox?.height, contextLost, brightnessRange: Math.round(range), cameraChange: Math.round(cameraChange), demoOpens, horizontalOverflow, selected, toggled, pageErrors: errors });
     await page.close();
   }
   console.log(JSON.stringify(results, null, 2));

@@ -28,7 +28,7 @@
 .contentHead p{margin:8px 0 0;color:var(--muted);font-size:13px}
 .contentActions{display:flex;gap:8px}
 .player{display:grid;place-items:center;min-height:420px;padding:clamp(12px,2vw,28px);background:var(--surface2);border:1px solid var(--line)}
-.frame{position:relative;width:min(100%,1260px);overflow:hidden;background:var(--surface);box-shadow:0 24px 80px rgb(0 0 0 / 24%)}
+.frame{position:relative;container-type:inline-size;width:min(100%,1260px);overflow:hidden;background:var(--surface);box-shadow:0 24px 80px rgb(0 0 0 / 24%)}
 .frame[data-ratio=vertical]{width:min(100%,min(420px,calc((100vh - 260px)*.5625)))}
 .frame[data-ratio=portrait]{width:min(100%,min(590px,calc((100vh - 260px)*.8)))}
 .frame[data-ratio=square]{width:min(100%,calc(100vh - 260px))}
@@ -119,17 +119,19 @@
 .command{height:100%;display:flex;flex-direction:column}
 .commandHead,.financeMetrics,.commandBody{display:flex;justify-content:space-between;gap:24px}
 .commandHead{align-items:end;padding-bottom:15px;border-bottom:1px solid var(--sline)}
-.commandHead h3{margin-bottom:0}
+.commandHead>div:first-child{min-width:0}
+.commandHead h3{margin-bottom:0;font-size:clamp(20px,4.5cqw,62px)}
 .commandHealth{text-align:right;color:var(--smuted);font-size:10px}
-.commandHealth strong{display:block;color:var(--sgreen);font-size:clamp(36px,4vw,70px);line-height:1;font-weight:500}
+.commandHealth strong{display:block;color:var(--sgreen);font-size:clamp(24px,5cqw,70px);line-height:1;font-weight:500}
 .commandHealth small{font-size:15px;color:var(--smuted)}
 .commandBody{flex:1;min-height:0;padding-top:20px}
 .commandMain{flex:1.6;min-width:0;display:flex;flex-direction:column}
 .commandAside{flex:1;min-width:0;border-left:1px solid var(--sline);padding-left:24px}
 .metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.metrics>div,.financeMetrics>div{min-width:0;padding:15px 0;border-top:1px solid var(--sline)}
+/* A preview can be narrow inside a wide viewport: size values to their own cells. */
+.metrics>div,.financeMetrics>div{container-type:inline-size;min-width:0;padding:15px 0;border-top:1px solid var(--sline)}
 .metrics small,.financeMetrics small{display:block;color:var(--smuted);font-size:9px}
-.metrics strong,.financeMetrics strong{display:block;margin-top:9px;font-size:clamp(15px,1.8vw,32px);font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+.metrics strong,.financeMetrics strong{display:block;margin-top:9px;font-size:clamp(8px,10cqw,32px);font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
 .metrics>div:nth-child(2) strong,.financeMetrics>div:nth-child(2) strong{color:var(--sgreen)}
 .chart{flex:1;min-height:70px;display:flex;flex-direction:column;margin-top:20px;padding:20px;background:var(--ssurface)}
 .chart>div{flex:1;min-height:0;display:flex;align-items:end;gap:5%;border-bottom:1px solid var(--sline)}

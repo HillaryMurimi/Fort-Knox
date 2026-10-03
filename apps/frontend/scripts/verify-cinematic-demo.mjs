@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { assertDemoMetrics } from './landing-layout-checks.mjs';
 import { anonymousRefresh, publicVisitor as installPublicVisitor } from './public-visitor-fixture.mjs';
 
 const baseUrl = process.argv[2] ?? 'http://localhost:3000';
@@ -30,6 +31,10 @@ try {
     const stage = page.locator('[data-ratio]').first();
     await stage.waitFor();
     await page.waitForTimeout(350);
+    await page.getByRole('button', { name: 'Next scene' }).click();
+    await page.locator('[data-kind="dashboard"]').waitFor();
+    await page.waitForTimeout(900);
+    const metrics = await assertDemoMetrics(page);
     await page.getByRole('button', { name: 'Follow a repair' }).click();
     await page.getByRole('button', { name: 'Next scene' }).click();
     await page.waitForTimeout(900);
@@ -40,7 +45,7 @@ try {
     const box = await stage.boundingBox();
     const ratio = await stage.getAttribute('data-ratio');
     const aspectError = box && ratio ? Math.abs(box.width / box.height - expectedRatios[ratio]) : 1;
-    results.push({ name: `${theme}-${width}`, stageTheme, sceneKind, stageWidth: box?.width, aspectError, horizontalOverflow, mutations, errors });
+    results.push({ name: `${theme}-${width}`, metrics, stageTheme, sceneKind, stageWidth: box?.width, aspectError, horizontalOverflow, mutations, errors });
     await page.close();
   }
   for (const [ratio, scenario] of [['vertical', 'maintenance'], ['square', 'rent'], ['portrait', 'passport'], ['landscape', 'security']]) {
@@ -50,6 +55,12 @@ try {
     await publicVisitor(page, mutations);
     await page.goto(new URL(`/demo/studio?scenario=${scenario}&ratio=${ratio}&theme=light`, baseUrl).toString(), { waitUntil: 'networkidle' });
     await page.waitForTimeout(900);
+    if (scenario === 'rent') {
+      await page.getByRole('button', { name: 'Next scene' }).click();
+      await page.locator('[data-kind="finance"]').waitFor();
+      await page.getByRole('heading', { name: 'Money in motion.' }).waitFor();
+      await assertDemoMetrics(page);
+    }
     const frame = page.locator('[data-ratio]').first();
     const box = await frame.boundingBox();
     const aspectError = box ? Math.abs(box.width / box.height - expectedRatios[ratio]) : 1;

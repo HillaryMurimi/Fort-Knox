@@ -258,3 +258,15 @@ The actual backend E2E command now includes admin-auth.e2e.test.ts. Random code 
 ## Pain-first sales demonstration and guided pilot (2026-10-02)
 
 Sales policy/data/status/CSV tests complement real Mongo replica-set HTTP Control/Fort Knox/reset/concurrency/rollback/isolation/pilot/import/activation/commercial-conversion coverage. verify:sales-demo runs real browser workflows at desktop/tablet/mobile in light/dark with keyboard and accessible-control checks. It uses a private isolated test server, ephemeral credentials and private MFA IPC, never production integrations. Both browser journeys are included in Quality CI.
+
+## Landing layout regressions (2026-10-03)
+
+`verify:landing` now covers 12 light/dark viewport cases, including 1366x600,
+1920x650 and 1920x1080 desktop windows. Real DOM text ranges must fit all three
+embedded dashboard metric cells. Both hero actions require separation from the
+scene controls and five-point hit testing after scrolling; the control strip must
+have no backdrop blur. Empty hero space must still pass pointer gestures to the
+3D canvas. Existing canvas, scene, dialog, navigation, theme and
+API-isolation assertions remain. `verify:cinematic-demo` additionally checks the
+full dashboard across ten viewport/theme cases and square studio finance values,
+while retaining aspect-ratio, role-scope and simulated-approval coverage.

@@ -247,35 +247,37 @@ function Hero({ onDemo }: { onDemo: () => void }) {
       </div>
       <div className="dt-hero-grid" aria-hidden="true" />
       <div className="dt-hero-shade" aria-hidden="true" />
-      <div className="dt-hero-content">
-        <p className="dt-overline">
-          <span className="dt-live-dot" /> CONNECTED PROPERTY OPERATIONS
-        </p>
-        <h1 id="dt-title">{BRAND.name}</h1>
-        <p className="dt-hero-descriptor">{BRAND.descriptor}</p>
-        <p className="dt-hero-promise">{BRAND.promise}</p>
-        <p className="dt-hero-subtitle">
-          See the rent. Follow the work. Approve the spend. Know who acted.
-          Direct your property operations from one clear view.
-        </p>
-        <div className="dt-hero-actions">
-          <button className="dt-primary" onClick={onDemo}>
-            See it in action <ArrowRight size={17} />
-          </button>
-          <a
-            href="#overview"
-            onClick={() => trackMarketingEvent("product_exploration")}
-          >
-            Explore the system <ArrowDown size={16} />
-          </a>
+      <div className="dt-hero-main">
+        <div className="dt-hero-content">
+          <p className="dt-overline">
+            <span className="dt-live-dot" /> CONNECTED PROPERTY OPERATIONS
+          </p>
+          <h1 id="dt-title">{BRAND.name}</h1>
+          <p className="dt-hero-descriptor">{BRAND.descriptor}</p>
+          <p className="dt-hero-promise">{BRAND.promise}</p>
+          <p className="dt-hero-subtitle">
+            See the rent. Follow the work. Approve the spend. Know who acted.
+            Direct your property operations from one clear view.
+          </p>
+          <div className="dt-hero-actions">
+            <button className="dt-primary" onClick={onDemo}>
+              See it in action <ArrowRight size={17} />
+            </button>
+            <a
+              href="#overview"
+              onClick={() => trackMarketingEvent("product_exploration")}
+            >
+              Explore the system <ArrowDown size={16} />
+            </a>
+          </div>
         </div>
-      </div>
-      <div className="dt-hero-readout">
-        <span className="dt-readout-label">DIGITAL TWIN / ILLUSTRATIVE</span>
-        <span className="dt-readout-index">
-          0{focuses.findIndex((item) => item.key === focus) + 1} / 04
-        </span>
-        <strong>{current.detail}</strong>
+        <div className="dt-hero-readout">
+          <span className="dt-readout-label">DIGITAL TWIN / ILLUSTRATIVE</span>
+          <span className="dt-readout-index">
+            0{focuses.findIndex((item) => item.key === focus) + 1} / 04
+          </span>
+          <strong>{current.detail}</strong>
+        </div>
       </div>
       <div
         className="dt-hero-controls"

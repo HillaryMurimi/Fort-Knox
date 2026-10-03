@@ -193,8 +193,10 @@
 }
 .dt-hero {
   position: relative;
-  height: min(780px, 78svh);
-  min-height: 560px;
+  display: flex;
+  flex-direction: column;
+  padding-top: 74px;
+  min-height: clamp(560px, 78svh, 780px);
   background: #0c1c28;
   overflow: hidden;
   color: #f2f7f4;
@@ -233,13 +235,23 @@
     linear-gradient(90deg, #07131bea 0%, #07131bb8 32%, #07131b14 64%),
     linear-gradient(0deg, #07131bd8 0%, transparent 25%);
 }
+/* Content determines the hero height; scene tabs occupy their own row below it. */
+.dt-hero-main {
+  position: relative;
+  pointer-events: none;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 540px) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(24px, 5vw, 64px);
+  width: min(1320px, calc(100% - 48px));
+  margin-inline: auto;
+  padding-block: 48px;
+}
 .dt-hero-content {
-  position: absolute;
+  position: relative;
   z-index: 2;
-  top: 50%;
-  left: max(24px, calc((100% - 1320px) / 2));
-  transform: translateY(-46%);
-  width: min(540px, calc(100% - 48px));
+  min-width: 0;
   pointer-events: none;
 }
 .dt-hero-content a,
@@ -311,11 +323,11 @@
   color: var(--dt-cyan);
 }
 .dt-hero-readout {
-  position: absolute;
+  position: relative;
   z-index: 2;
-  right: max(24px, calc((100% - 1320px) / 2));
-  bottom: 130px;
-  width: min(320px, 35vw);
+  align-self: end;
+  justify-self: end;
+  width: min(320px, 100%);
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 6px;
@@ -340,19 +352,17 @@
   font-weight: 600;
 }
 .dt-hero-controls {
-  position: absolute;
+  position: relative;
   z-index: 3;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  flex-shrink: 0;
   display: flex;
   justify-content: center;
   gap: 1px;
   min-height: 65px;
   padding: 0 max(24px, calc((100% - 1320px) / 2));
   border-top: 1px solid #59828b8a;
-  background: #0a2029d9;
-  backdrop-filter: blur(12px);
+  background: #111416;
+  backdrop-filter: none;
 }
 .dt-hero-controls button {
   flex: 1;
@@ -1173,7 +1183,7 @@
 }
 .digital-twin-landing .dt-hero-controls {
   border-top-color: rgb(236 232 223 / 15%);
-  background: rgb(17 20 22 / 84%);
+  background: #111416;
 }
 .digital-twin-landing .dt-hero-controls button {
   color: #b9c1bb;
@@ -1383,8 +1393,10 @@
   .dt-intelligence {
     grid-template-columns: minmax(0, 1fr) minmax(300px, 0.8fr);
   }
-  .dt-hero-readout {
-    bottom: 80px;
+  .dt-hero-main {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: space-between;
+    gap: 24px;
   }
   .dt-access-band {
     gap: 30px;
@@ -1400,17 +1412,10 @@
     display: flex;
   }
   .dt-hero {
-    height: min(850px, 82svh);
-    min-height: 620px;
-  }
-  .dt-hero-content {
-    top: 32%;
-    transform: translateY(-20%);
+    min-height: clamp(620px, 82svh, 850px);
   }
   .dt-hero-readout {
-    right: 20px;
-    bottom: 77px;
-    width: min(330px, calc(100% - 40px));
+    width: min(330px, 100%);
   }
   .dt-section-heading {
     align-items: start;
@@ -1442,8 +1447,7 @@
     width: calc(100% - 32px);
   }
   .dt-hero {
-    height: min(770px, 88svh);
-    min-height: 605px;
+    min-height: clamp(605px, 88svh, 770px);
   }
   .dt-hero-shade {
     background: linear-gradient(
@@ -1454,11 +1458,9 @@
       #07131be0 100%
     );
   }
-  .dt-hero-content {
-    top: 98px;
-    left: 16px;
+  .dt-hero-main {
     width: calc(100% - 32px);
-    transform: none;
+    padding-block: 24px;
   }
   .dt-hero h1 {
     margin: 15px 0;
@@ -1483,9 +1485,7 @@
     font-size: 12px;
   }
   .dt-hero-readout {
-    right: 16px;
-    bottom: 80px;
-    width: calc(100% - 32px);
+    width: 100%;
     padding: 9px 12px;
   }
   .dt-hero-controls {
