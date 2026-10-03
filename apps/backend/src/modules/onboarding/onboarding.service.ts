@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from '../../config/brand.js';
 import bcrypt from 'bcryptjs';
 import { randomInt } from 'node:crypto';
 import { Types } from 'mongoose';
@@ -54,7 +55,7 @@ export class OnboardingService {
     if (env.NODE_ENV === 'production') {
       await getSmsProvider().send({
         to: onboarding.phone,
-        body: `Your Property Command Center onboarding code is ${otp}. It expires in 10 minutes. Do not share this code.`,
+        body: `Your ${PRODUCT_NAME} onboarding code is ${otp}. It expires in 10 minutes. Do not share this code.`,
       });
     }
     return { onboardingId: onboarding._id, expiresAt: onboarding.otpExpiresAt, ...(env.NODE_ENV !== 'production' ? { developmentOtp: otp } : {}) };

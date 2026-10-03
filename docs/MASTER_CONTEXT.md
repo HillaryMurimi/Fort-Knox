@@ -1,9 +1,9 @@
-# Property Management Command Center --- Master Context
+# Dapinni — Property Command Center — Master Context
 
 ## 1. Purpose
 
-This document is the canonical product context for the **Property
-Management Command Center (PMCC)**. Any AI coding agent, engineer,
+This document is the canonical product context for **Dapinni**, the property
+command center (engineering identifier: PMCC). Any AI coding agent, engineer,
 reviewer, or architect working on this repository must read this file
 before making architectural or feature-level changes.
 
@@ -14,6 +14,8 @@ operations, maintenance, evidence, security, communications, and
 portfolio intelligence from one auditable platform.
 
 ### Core positioning
+
+**Dapinni** is the primary brand. **Your Property Command Center** is its supporting descriptor. The promise is **Your properties. Your decisions. Wherever you are.** Use this hierarchy in navigation, authentication, marketing, demos, metadata and newly issued communications/artifacts. [BRANDING.md](BRANDING.md) records the identity and compatibility boundaries.
 
 > You don't need to be everywhere. You just need to be connected to
 > everything that matters.

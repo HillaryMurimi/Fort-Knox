@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { PRODUCT_NAME, PRODUCT_DESCRIPTOR } from '../../config/brand.js';
 import { readFileSync } from 'node:fs';
 import type { ClientSession, Types } from 'mongoose';
 import { Document } from '../../database/models/Document.js';
@@ -12,14 +13,16 @@ export interface ArtifactInput {
   kind: 'CONTRACT' | 'SIGNED_CONTRACT' | 'SUBSCRIPTION_INVOICE' | 'SUBSCRIPTION_RECEIPT';
   title: string; text: string; issuedAt: Date; contentHash: string;
 }
-// Render v1 is fixed; bytes are retained so library upgrades cannot rewrite historical evidence.
+// Newly issued Dapinni artifacts use v2. Historical evidence always serves retained bytes.
+export const ARTIFACT_RENDER_VERSION = 2;
 export function renderArtifact(input: Pick<ArtifactInput, 'title' | 'text' | 'issuedAt' | 'contentHash'>): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 48, info: { Title: input.title, Author: 'Property Command Center', Creator: 'PMCC document renderer v1', Producer: 'PMCC document renderer v1', CreationDate: input.issuedAt, ModDate: input.issuedAt } });
+    const doc = new PDFDocument({ size: 'A4', margin: 48, info: { Title: input.title, Author: PRODUCT_NAME, Creator: `${PRODUCT_NAME} document renderer v${ARTIFACT_RENDER_VERSION}`, Producer: `${PRODUCT_NAME} document renderer v${ARTIFACT_RENDER_VERSION}`, CreationDate: input.issuedAt, ModDate: input.issuedAt } });
     const chunks: Buffer[] = [];
     doc.on('data', (chunk: Buffer) => chunks.push(chunk)); doc.on('error', reject);
     doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.font(font).fontSize(10).fillColor('#475569').text('PROPERTY COMMAND CENTER', { characterSpacing: 1 });
+    doc.font(font).fontSize(16).fillColor('#0f172a').text(PRODUCT_NAME);
+    doc.fontSize(9).fillColor('#475569').text(PRODUCT_DESCRIPTOR);
     doc.moveDown().fontSize(18).fillColor('#0f172a').text(input.title);
     doc.moveDown().fontSize(9.5).text(input.text, { lineGap: 3 });
     doc.moveDown(2).fontSize(8).fillColor('#475569').text(`Snapshot SHA-256: ${input.contentHash}`, { lineGap: 3 });
@@ -32,8 +35,8 @@ export async function retainArtifact(input: ArtifactInput, session: ClientSessio
     organizationId: input.organizationId, ownerUserId: input.actorUserId, title: input.title.slice(0,240),
     category: input.kind.includes('INVOICE') ? 'INVOICE' : input.kind.includes('RECEIPT') ? 'RECEIPT' : 'LEGAL',
     fileName: `${input.kind.toLowerCase()}-${input.resourceId}.pdf`, mimeType: 'application/pdf', sizeBytes: bytes.length,
-    storageProvider: 'OTHER', storageKey: `generated/${input.organizationId}/${input.resourceId}/${input.kind}/v1`,
-    sha256, visibility: 'PRIVATE', immutableArtifact: true, artifactBody: bytes, artifactKind: input.kind, renderVersion: 1,
+    storageProvider: 'OTHER', storageKey: `generated/${input.organizationId}/${input.resourceId}/${input.kind}/v${ARTIFACT_RENDER_VERSION}`,
+    sha256, visibility: 'PRIVATE', immutableArtifact: true, artifactBody: bytes, artifactKind: input.kind, renderVersion: ARTIFACT_RENDER_VERSION,
     metadata: { resourceId: String(input.resourceId), snapshotHash: input.contentHash }, createdBy: input.actorUserId, updatedBy: input.actorUserId,
   }], { session });
   await Evidence.create([{

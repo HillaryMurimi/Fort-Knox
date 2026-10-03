@@ -36,7 +36,7 @@ export class LandlordOnboardingService {
     const contract = organization.onboarding?.contractId ? await OrganizationContract.findOne({ _id: organization.onboarding.contractId, organizationId }).lean() : null;
     const invoice = organization.onboarding?.invoiceId ? await SubscriptionInvoice.findOne({ _id: organization.onboarding.invoiceId, organizationId }).lean() : null;
     const subscription = await OrganizationSubscription.findOne({ organizationId }).lean();
-    return { organization: { _id: organization._id, name: organization.name, ...organization.onboarding },
+    return { organization: { _id: organization._id, name: organization.name, pilotPrepared: !!organization.guidedPilot, ...organization.onboarding },
       state: organization.onboarding?.state ?? (subscription?.status === 'ACTIVE' ? 'ACTIVE' : 'ACCOUNT_CREATED'),
       revision: organization.onboarding?.revision ?? 0, contract, invoice, subscription,
       nextStep: !organization.onboarding && subscription?.status === 'ACTIVE' ? 'COMPLETE' : !organization.onboarding?.legalIdentifier ? 'DETAILS' : !contract ? 'PLAN' : contract.status !== 'SIGNED' ? 'SIGNATURE' : subscription?.status === 'ACTIVE' && organization.onboarding?.state === 'ACTIVE' ? 'COMPLETE' : 'PAYMENT',

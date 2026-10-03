@@ -2,6 +2,7 @@
 
 import { useState, type CSSProperties } from "react";
 import Link from "next/link";
+import { BRAND } from "@/lib/brand";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowRight, Camera, Check, ChevronRight, LockKeyhole, Play } from "lucide-react";
 import { money, personas, portfolio, portfolioTotals, roleViews, type DemoRole, type DemoScene, type SceneKind } from "@/lib/cinematic-demo/content";
@@ -53,7 +54,7 @@ function Intelligence({ kind, progress }: { kind: SceneKind; progress: number })
 
 function Network() { return <div className={styles.network}><span className={styles.eyebrow}>ONE CONNECTED SYSTEM</span><h3>Everything in context.</h3><div>{["PROPERTY", "UNIT", "TENANT", "PAYMENT", "MAINTENANCE", "CONTRACTOR", "SECURITY", "EVIDENCE", "INTELLIGENCE"].map((item) => <span key={item}>{item}</span>)}</div><p>One operational history connects physical assets, people, money and decisions.</p></div>; }
 
-function Closing({ progress }: { progress: number }) { const lines = ["Your buildings are physical.", "Your control doesn't have to be.", "You don't need to be everywhere.", "You just need to be connected to everything that matters."]; const index = Math.min(lines.length - 1, Math.floor(progress * lines.length)); return <div className={styles.closing}><span className={styles.eyebrow}>PROPERTY COMMAND CENTER</span><AnimatePresence mode="wait"><motion.h3 key={index} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: .6 }}>{lines[index]}</motion.h3></AnimatePresence><p>Remote control for your bricks and mortar.</p><Link href="/#contact">Request a private demo <ArrowRight size={16}/></Link></div>; }
+function Closing({ progress }: { progress: number }) { const lines = ["Your buildings are physical.", "Your control doesn't have to be.", "You don't need to be everywhere.", "You just need to be connected to everything that matters."]; const index = Math.min(lines.length - 1, Math.floor(progress * lines.length)); return <div className={styles.closing}><span className={styles.eyebrow}>{BRAND.name} / {BRAND.descriptor}</span><AnimatePresence mode="wait"><motion.h3 key={index} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: .6 }}>{lines[index]}</motion.h3></AnimatePresence><p>{BRAND.promise}</p><Link href="/#contact">Request a private demo <ArrowRight size={16}/></Link></div>; }
 
 function SceneContent({ scene, progress }: { scene: DemoScene; progress: number }) { switch (scene.kind) { case "opening": return <Opening progress={progress}/>; case "dashboard": return <CommandCenter/>; case "queue": return <DecisionDesk/>; case "finance": return <Finance/>; case "vacancy": return <Vacancy/>; case "tenant": case "context": case "caretaker": case "contractor": case "approval": case "progress": return <Maintenance kind={scene.kind}/>; case "evidence": return <EvidenceLedger/>; case "performance": return <Performance/>; case "passport": return <Passport/>; case "roles": return <Roles progress={progress}/>; case "security": case "motion": case "incident": case "audit": return <Security kind={scene.kind}/>; case "tiers": return <Tiers/>; case "intelligence": case "health": return <Intelligence kind={scene.kind} progress={progress}/>; case "network": return <Network/>; case "closing": return <Closing progress={progress}/>; } }
 
@@ -61,7 +62,7 @@ export function DemoStage({ scene, progress, captions, showLabels, theme, safeAr
   const reducedMotion = Boolean(useReducedMotion());
   return <div className={styles.stage} data-theme={theme} data-kind={scene.kind} data-platform={platform}>
     <div className={styles.stageLine} aria-hidden="true"/>
-    <div className={styles.stageTop}><span>PROPERTY COMMAND CENTER</span><span>{showLabels ? `${prospect || portfolio.organization} / ${scene.kind.toUpperCase()}` : "FICTIONAL PRODUCT DEMO"}</span><span>ACACIA / DEMO</span></div>
+    <div className={styles.stageTop}><span>{BRAND.name}</span><span>{showLabels ? `${prospect || portfolio.organization} / ${scene.kind.toUpperCase()}` : "FICTIONAL PRODUCT DEMO"}</span><span>ACACIA / DEMO</span></div>
     <AnimatePresence mode="wait"><motion.div className={styles.scene} key={`${scene.id}-${scene.title}`} initial={reducedMotion ? false : { opacity: 0, scale: .975, x: 18 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={reducedMotion ? {} : { opacity: 0, scale: 1.015, x: -12 }} transition={{ duration: reducedMotion ? 0 : .65, ease: [0.16, 1, .3, 1] }}><SceneContent scene={scene} progress={progress}/></motion.div></AnimatePresence>
     {captions && <div className={styles.caption}>{scene.narration}</div>}
     {safeArea && <div className={styles.safeArea} aria-hidden="true"/>}

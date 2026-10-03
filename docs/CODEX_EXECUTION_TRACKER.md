@@ -960,3 +960,32 @@ Modified files:
 Scope: no new dependencies, environment variables, database/model/index changes or backend API changes. Real platform access continues through existing backend authorization and dual-channel MFA. Dedicated raw webhook-history and session-administration views are not introduced; those sidebar labels lead to existing integration-health/security capability. Production provider certification, full load testing and independent penetration testing are outside this frontend repair.
 
 Final root backend/frontend production build passed again against the final source (112.33 seconds), with development demo/bypass flags disabled in the build process and an HTTPS example API URL. Local `.env.local` was not edited. Full staged manifest/whitespace and changed-file secret-pattern reviews passed; only the eighteen listed files are included. Existing `.continue/` editor files and generated Next declarations are excluded. The pushed commit hash and exact post-push laptop Git status are supplied in the delivery message.
+
+
+## Dapinni identity and remote ownership narrative (2026-10-03)
+
+Audited branding on the existing laptop main at 8486747 before editing. Dapinni is now the primary product identity, with Your Property Command Center as the supporting descriptor and Your properties. Your decisions. Wherever you are. as the ownership promise. Reused existing visual tokens, layouts, themes, authentication, navigation, demos, integrations and commercial document retention. Added small per-app identity configurations and a D application icon; updated public/authentication/workspace/demo branding, metadata, newly issued verification messages, provider display descriptions and future PDF headers. Render version 2 identifies new branded artifacts while retained historical evidence stays immutable. Existing plan capabilities, routes, identifiers, authorization, commercial terms, database schemas and configuration are unchanged. Full file inventory and validation are recorded in BRANDING.md.
+
+Validation: backend/frontend typecheck, lint (0 errors; 432/27 existing warnings), unit suites (348 backend / 188 frontend), production builds, static release certification and six responsive landing browser cases passed. Public/authentication/demo/icon routes return 200 with Dapinni identity. Latest standard backend E2E passed 138/141; three existing long-flow cases exceeded their unchanged five-second deadlines. Isolated administrator retries did not establish a green gate. Assertions, deadlines and production security were not relaxed. Commit/push are withheld under the all-gates-pass instruction; exact results and limitations are recorded in BRANDING.md.
+
+Production cinematic verification rendered ten theme/viewport cases, four studio ratios and four home layouts without overflow/errors; role scope, theme, clean view and simulated approval passed. The unmodified verifier exited 1 because it classifies the existing anonymous authentication-refresh POST as a mutation. No operational writes were recorded, and that assertion was not removed. Production scenario query initialization passed; the development probe did not. Publication remains withheld, with details and exact Git status in BRANDING.md.
+
+## Dapinni sales-engine continuation completed (2026-10-03)
+
+Resumed the existing main at 8486747 and preserved all 39 staged branding files. Reused the
+committed sales/pilot architecture. Completed primary Dapinni identity; added the computed
+pilotPrepared commercial DTO/copy/CTA; isolated development browser caches; extended the real
+sales browser journey through owner phone proof, insight/staff/repair/100% readiness and
+commercial handoff; fixed the anonymous visitor verification fixture and the execution
+budgets of three multi-system E2Es without changing assertions or production security.
+
+Final quality: backend/frontend typecheck and builds PASS; lint 0 errors (432/27 existing
+warnings); backend 65 files/348 tests and frontend 29 files/194 tests PASS; backend E2E
+6 files/141 tests PASS; CERTIFIED_STATIC 36 routes/155 permissions/10 critical paths.
+Sales browser, all SUPER_ADMIN sidebar/analytics recovery checks with interception off/on,
+18 production cinematic layouts and six production landing layouts PASS. No operational API
+writes/errors/overflow in public verification. Full results, requirements, files, safety,
+limitations and acceptance answers are in DAPINNI_SALES_COMPLETION.md.
+Earlier branding-withheld notes are historical and superseded by this completed continuation.
+No schema/index/provider/dependency or production environment changes in this continuation.
+The user's three .continue/rules files remain untracked and untouched.

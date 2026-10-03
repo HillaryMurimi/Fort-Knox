@@ -2,7 +2,7 @@
 
 ## 1. Mission
 
-You are working on the **Property Management Command Center (PMCC)**.
+You are working on **Dapinni**, the Property Command Center (engineering identifier: PMCC). Follow `docs/BRANDING.md` for the customer-facing brand hierarchy and remote ownership narrative.
 
 PMCC is a production-oriented, multi-tenant property operations platform. It is not a tutorial application, demo CRUD system, or generic property-management dashboard.
 

@@ -7,7 +7,7 @@ describe('API foundation', () => {
     const response = await request(createApp()).get('/');
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
-    expect(response.body.data.name).toContain('Property Management Command Center');
+    expect(response.body.data.name).toBe('Dapinni Property Command Center API');
   });
 
   it('returns liveness status without a database dependency', async () => {

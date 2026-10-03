@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from '../../config/brand.js';
 import { integrationConfig } from '../integrations/config.js';
 import { requestJson } from '../integrations/http.js';
 import { toPaystackMinorUnits } from '../integrations/paystack.provider.js';
@@ -76,7 +77,7 @@ export class PaystackBillingProvider {
   async createSubscription(input: CreateSubscriptionInput): Promise<BillingProviderSubscription> {
     const amount = toPaystackMinorUnits(input.amount, input.currency);
     const plan = await this.request<{ plan_code: string }>('plan', {
-      name: `PMCC ${input.planKey}`,
+      name: `${PRODUCT_NAME} ${input.planKey}`,
       amount,
       currency: input.currency.toUpperCase(),
       interval: { MONTH: 'monthly', QUARTER: 'quarterly', YEAR: 'annually' }[input.interval],
@@ -145,7 +146,7 @@ export class PaystackBillingProvider {
 
   async updatePlan(planCode: string, input: { planKey: string; amount: number; currency: string; interval: CreateSubscriptionInput['interval'] }) {
     await this.request(`plan/${encodeURIComponent(planCode)}`, {
-      name: `PMCC ${input.planKey}`,
+      name: `${PRODUCT_NAME} ${input.planKey}`,
       amount: toPaystackMinorUnits(input.amount, input.currency),
       currency: input.currency.toUpperCase(),
       interval: { MONTH: 'monthly', QUARTER: 'quarterly', YEAR: 'annually' }[input.interval],

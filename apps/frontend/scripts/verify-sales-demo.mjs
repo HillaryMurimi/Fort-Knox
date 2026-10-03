@@ -119,6 +119,7 @@ try {
     ],
     {
       NODE_ENV: "development",
+      PCC_BROWSER_TEST_BUILD: "sales",
       NEXT_PUBLIC_API_URL: "http://127.0.0.1:" + apiPort + "/api/v1",
       NEXT_PUBLIC_DEV_AUTH_BYPASS: "false",
       NEXT_PUBLIC_DEV_DEMO_MODE: "false",
@@ -329,9 +330,13 @@ try {
   await page
     .getByRole("link", { name: "Open prepared pilot workspace" })
     .click();
+  await page.waitForURL((url) => url.pathname === "/pilot" && url.searchParams.has("organizationId"));
   await page
     .getByRole("heading", { name: "Acacia Discovery Portfolio", exact: true })
     .waitFor();
+  const pilotUrl = page.url();
+  const pilotOrg = new URL(pilotUrl).searchParams.get("organizationId");
+  assert.ok(pilotOrg, "The prepared pilot must identify its private organization");
   const csv =
     "propertyName,propertyCode,address,city,propertyType,buildingName,buildingCode,floorName,floorLevel,unitCode,unitType,monthlyRentMinor,depositMinor,openingBalanceMinor,tenantFirstName,tenantLastName,tenantPhone,tenancyStart,tenancyEnd\nAcacia Court,ACACIA,Kilimani,Nairobi,APARTMENT,Block A,A,Ground Floor,0,A01,TWO_BEDROOM,2500000,2500000,1200000,Amina,Wambui,+254711009776,2026-01-01,\n";
   await page.getByLabel("Upload portfolio CSV").setInputFiles({
@@ -395,6 +400,73 @@ try {
     .locator("main")
     .getByText("Acacia Discovery Portfolio", { exact: true })
     .waitFor();
+  // A separate owner session proves readiness from actual private pilot activity.
+  const ownerContext = await browser.newContext({ viewport: sizes[0] });
+  const ownerPage = await ownerContext.newPage();
+  ownerPage.on("pageerror", (error) => errors.push(error.message));
+  await ownerPage.goto(origin + "/login");
+  await ownerPage.getByRole("tab", { name: "Email + Password", exact: true }).click();
+  await ownerPage.getByLabel("Email", { exact: true }).fill("pilot-browser@example.test");
+  await ownerPage.getByLabel("Password", { exact: true }).fill(password);
+  const ownerLogin = ownerPage.waitForResponse((response) =>
+    response.url().endsWith("/api/v1/auth/login") && response.request().method() === "POST");
+  await ownerPage.getByRole("button", { name: "Continue", exact: true }).click();
+  const ownerResponse = await ownerLogin;
+  assert.equal(ownerResponse.status(), 200);
+  const ownerChallenge = (await ownerResponse.json()).data;
+  assert.equal(ownerChallenge.stepUpRequired, true, "Password alone must not grant landlord access");
+  assert.ok(ownerChallenge.challenge.developmentCode, "Private test environment must provide its OTP");
+  await ownerPage.getByLabel("Phone verification code").fill(ownerChallenge.challenge.developmentCode);
+  const ownerVerified = ownerPage.waitForResponse((response) =>
+    response.url().endsWith("/api/v1/auth/verify-step-up") && response.request().method() === "POST");
+  await ownerPage.getByRole("button", { name: "Enter Command Center", exact: true }).click();
+  const verifiedResponse = await ownerVerified;
+  assert.equal(verifiedResponse.status(), 200);
+  const ownerSession = (await verifiedResponse.json()).data;
+  assert.ok(ownerSession.accessToken && ownerSession.user._id, "Owner must finish the normal password and phone proof");
+  await ownerPage.waitForURL((url) => url.pathname !== "/login");
+  await ownerPage.goto(pilotUrl);
+  await ownerPage.getByText("71% ready", { exact: true }).waitFor();
+  const reviewed = ownerPage.waitForResponse((response) =>
+    response.url().includes("/pilot/insight") && response.request().method() === "POST");
+  await ownerPage.getByRole("button", { name: "Investigate this exposure", exact: true }).click();
+  assert.equal((await reviewed).status(), 200);
+  await ownerPage.waitForURL((url) => url.pathname !== "/pilot");
+  await ownerPage.goto(pilotUrl);
+  await ownerPage.getByLabel("Staff email", { exact: true }).fill("caretaker-browser@example.test");
+  await ownerPage.getByRole("button", { name: "Prepare staff invitation", exact: true }).click();
+  await ownerPage.getByText("86% ready", { exact: true }).waitFor();
+  const apiBase = "http://127.0.0.1:" + apiPort + "/api/v1";
+  const ownerHeaders = { Authorization: "Bearer " + ownerSession.accessToken };
+  async function ownerCall(method, path, data) {
+    const response = await ownerContext.request.fetch(apiBase + path, { method, headers: ownerHeaders, ...(data ? { data } : {}) });
+    assert.ok(response.ok(), `Owner workflow failed: ${method} ${path} (${response.status()})`);
+    return (await response.json()).data;
+  }
+  const units = await ownerCall("GET", `/organizations/${pilotOrg}/units`);
+  assert.equal(units.length, 1);
+  const repair = await ownerCall("POST", `/organizations/${pilotOrg}/maintenance`, {
+    unitId: units[0]._id, title: "Kitchen pipe repair", description: "Actual isolated pilot request", category: "PLUMBING", priority: "HIGH",
+  });
+  for (const [transition, body] of [
+    ["triage", {}], ["assign", { assignedToUserId: ownerSession.user._id }],
+    ["quote", { quoteAmount: 18000 }], ["approve", {}],
+    ["progress", { status: "IN_PROGRESS" }], ["progress", { status: "COMPLETED", actualAmount: 18000 }],
+  ]) await ownerCall("POST", `/maintenance/${repair._id}/${transition}`, body);
+  await ownerPage.getByRole("button", { name: "Refresh progress", exact: true }).click();
+  await ownerPage.getByText("100% ready", { exact: true }).waitFor();
+  await ownerPage.getByText("Activation milestone reached: your operation is configured and a core workflow is completed.", { exact: true }).waitFor();
+  const progress = await ownerCall("GET", `/sales/organizations/${pilotOrg}/pilot`);
+  assert.equal(progress.readiness.complete, true);
+  assert.equal(progress.value.completedRepairs, 1);
+  assert.equal(progress.value.approvalsCompleted, 1);
+  assert.equal(progress.value.meaningfulInsights, 2);
+  assert.notEqual(progress.commercialState, "ACTIVE", "Readiness must never bypass signed and paid activation");
+  await ownerPage.getByRole("link", { name: "Review agreement and activation", exact: true }).click();
+  await ownerPage.waitForURL((url) => url.pathname === "/onboarding");
+  await ownerPage.getByRole("heading", { name: "Activate your Command Center", exact: true }).waitFor();
+  await ownerPage.getByText("Your prepared property records stay in this workspace.", { exact: false }).waitFor();
+  await ownerContext.close();
   assert.equal(errors.length, 0, errors.join("\n"));
   console.log(
     JSON.stringify({
@@ -402,7 +474,8 @@ try {
       journeys: [
         "Control state transitions",
         "Fort Knox security and evidence",
-        "guided pilot validation and import",
+        "guided pilot validation, import and owner activation milestone",
+        "existing commercial activation handoff without paid-access bypass",
         "sales conversion intelligence",
       ],
       viewports: sizes,

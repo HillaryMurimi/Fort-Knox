@@ -197,7 +197,8 @@ describe.skipIf(!process.env.RUN_E2E)('SUPER_ADMIN dual-channel authentication H
     await verify(step.body.data.flowToken, 'EMAIL'); const complete = await verify(step.body.data.flowToken, 'SMS');
     expect(complete.status).toBe(200); expect((await platform(result.body.data.accessToken)).status).toBe(401);
     const current = await RefreshSession.findOne({ revokedAt: { $exists: false } }); expect(current?.absoluteExpiresAt).toEqual(parent?.absoluteExpiresAt);
-  });
+    // Two complete dual-channel proofs retain the real bcrypt work and session-expiry assertions.
+  }, 15000);
   it('enforces origin and custom-header CSRF controls on privileged cookie operations', async () => {
     const result = await fullLogin();
     expect((await request(app).post(base + '/refresh').set('Cookie', result.headers['set-cookie'])).status).toBe(403);
@@ -239,7 +240,8 @@ describe.skipIf(!process.env.RUN_E2E)('SUPER_ADMIN dual-channel authentication H
     if (!complete.complete) throw new Error('Fixture did not complete');
     await finishAdminEnrollment(complete.flowId, 'case-fixture-0001');
     expect(await RefreshSession.countDocuments()).toBe(0); expect((await fullLogin()).status).toBe(200);
-  });
+    // Enrollment plus a fresh login performs four production-strength OTP checks.
+  }, 15000);
   it('revokes active privileged sessions on reuse of a rotated refresh token', async () => {
     const first = await fullLogin();
     const next = await request(app).post(base + '/refresh').set(origin()).set('Cookie', first.headers['set-cookie']);

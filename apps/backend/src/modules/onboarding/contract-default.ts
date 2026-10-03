@@ -1,6 +1,7 @@
+import { PRODUCT_NAME } from '../../config/brand.js';
 // A starting draft for commercial/legal review. Never published automatically.
 export const defaultContractDraft = {
-  templateId: 'PMCC_SERVICES', name: 'Property Command Center Services Agreement', version: 1,
+  templateId: 'PMCC_SERVICES', name: `${PRODUCT_NAME} Property Command Center Services Agreement`, version: 1,
   plans: ['CONTROL', 'FORT_KNOX'],
   body: `SERVICES AGREEMENT
 

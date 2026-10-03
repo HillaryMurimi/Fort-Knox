@@ -620,6 +620,9 @@ describe.skipIf(!process.env.RUN_E2E)(
         next_payment_date: input.startsAt.toISOString(),
       }));
       const commercial = `/api/v1/organizations/${org}/landlord-onboarding`;
+      const preparedStatus = await request(app).get(commercial).auth(ownerToken, { type: "bearer" });
+      expect(preparedStatus.body.data.organization.pilotPrepared).toBe(true);
+      expect(preparedStatus.body.data.state).not.toBe("ACTIVE");
       let r = await request(app)
         .put(commercial + "/details")
         .auth(ownerToken, { type: "bearer" })
@@ -735,7 +738,9 @@ describe.skipIf(!process.env.RUN_E2E)(
       expect((await Organization.findById(org))!.onboarding!.state).toBe(
         "ACTIVE",
       );
-    });
+      // This spans import, repair, PDF/signature, verified payment and retention transactions.
+      // The execution budget is separate from asserted pilot/session/commercial deadlines.
+    }, 20000);
     it("keeps repeated scenarios on one prospect and resumes its pilot without resetting or extending it", async () => {
       const d = await offer(await prepare()),
         org = await pilot(d, 3),

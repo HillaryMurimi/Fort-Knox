@@ -587,3 +587,14 @@ Normal /auth/login starts administrator EMAIL then SMS verification. New /auth/a
 ## Pain-first sales demonstration and guided pilot (2026-10-02)
 
 Authenticated /sales/demos catalog/list/prepare/view/commands/pilot and /sales/organizations/:organizationId/pilot progress/insight/import-preview/import-confirm extend the Sales API. /platform-control/sales-intelligence is SUPER_ADMIN-only. Commands require expectedRevision and commandId; demo resource IDs must be synthetic. Import confirmation requires validated rows, matching SHA-256 digest and confirm:true. OpenAPI includes request schemas. Reset never accepts a live organization ID.
+
+## Prepared-pilot commercial handoff (2026-10-03)
+
+The existing landlord-onboarding status response includes the computed
+`organization.pilotPrepared: boolean`. It identifies a guided-pilot workspace
+without exposing its discovery profile or granting commercial access.
+It is false for the ordinary organization-first onboarding path.
+Existing authorization, plan/pricing, contract/signature, invoice, checkout and
+server-verified payment transitions are unchanged. The frontend retains prepared
+portfolio records during commercial setup and opens the populated operation after
+the existing backend completion step. No new endpoint or model/index is introduced.

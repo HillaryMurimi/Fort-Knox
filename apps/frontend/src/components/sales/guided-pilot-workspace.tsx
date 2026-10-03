@@ -59,7 +59,7 @@ export function GuidedPilotWorkspace() {
       url = URL.createObjectURL(blob),
       a = document.createElement("a");
     a.href = url;
-    a.download = "property-command-center-pilot-import.csv";
+    a.download = "dapinni-pilot-import.csv";
     a.click();
     URL.revokeObjectURL(url);
   }

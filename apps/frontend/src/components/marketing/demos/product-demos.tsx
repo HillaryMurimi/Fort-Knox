@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { BRAND } from '@/lib/brand';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   AlertTriangle, ArrowDown, Banknote, Building2, Camera, Check, CheckCircle2,
@@ -17,7 +18,7 @@ const money = [
 
 export function PortfolioCommandCenterDemo({ compact = false }: { compact?: boolean }) {
   return <div className={`${styles.productWindow} ${compact ? styles.productWindowCompact : ''}`} aria-label="Portfolio command center demonstration">
-    <div className={styles.windowBar}><div className={styles.windowBrand}><span className={styles.brandMark}>PC</span><span>Portfolio command</span></div><span className={styles.livePill}><i /> Live</span></div>
+    <div className={styles.windowBar}><div className={styles.windowBrand}><span className={styles.brandMark} aria-hidden="true">{BRAND.mark}</span><span>{BRAND.name} / Portfolio command</span></div><span className={styles.livePill}><i /> Live</span></div>
     <div className={styles.demoBody}>
       <div className={styles.demoRail} aria-hidden="true">{[Gauge, Building2, Banknote, Wrench, ShieldCheck].map((Icon, index) => <span key={index} className={index === 0 ? styles.railActive : ''}><Icon size={15} /></span>)}</div>
       <div className={styles.demoContent}>
@@ -42,7 +43,7 @@ export function ChaosDemo() {
     ['Voice note', '0:47 · forwarded'],
     ['CCTV', 'Playback unavailable'],
   ];
-  return <div className={styles.chaosStage}>{fragments.map(([label,copy],index)=><motion.div className={styles.chaosFragment} key={label} initial={{opacity:0,scale:.9,y:20}} whileInView={{opacity:1,scale:1,y:0}} transition={{delay:index*.08}} viewport={{once:true}} style={{'--chaos-index':index} as never}><small>{label}</small><strong>{copy}</strong></motion.div>)}<div className={styles.chaosCore}><span className={styles.brandMark}>PC</span><b>One operational truth</b></div></div>;
+  return <div className={styles.chaosStage}>{fragments.map(([label,copy],index)=><motion.div className={styles.chaosFragment} key={label} initial={{opacity:0,scale:.9,y:20}} whileInView={{opacity:1,scale:1,y:0}} transition={{delay:index*.08}} viewport={{once:true}} style={{'--chaos-index':index} as never}><small>{label}</small><strong>{copy}</strong></motion.div>)}<div className={styles.chaosCore}><span className={styles.brandMark} aria-hidden="true">{BRAND.mark}</span><b>One operational truth</b></div></div>;
 }
 
 const maintenanceSteps = [

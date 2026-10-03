@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from 'react';
 import Link from 'next/link';
+import { BRAND } from '@/lib/brand';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Building2 } from 'lucide-react';
 import { Alert, Button, Input } from '@/components/ui';
@@ -48,7 +49,8 @@ export default function SignupPage() {
       <form onSubmit={submit} className="rounded-lg border border-[var(--border)] bg-card shadow-xl">
         <div className="border-b border-[var(--border)] p-5 sm:p-7">
           <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-md bg-[#17191c] text-white"><Building2 size={19} /></div>
-          <h1 className="text-2xl font-semibold">Create your Command Center</h1>
+          <p className="mb-2 text-sm font-semibold text-[var(--accent-strong)]">{BRAND.name}</p>
+          <h1 className="text-2xl font-semibold">Create your Property Command Center</h1>
           <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">Set up the organization owner account. Staff and tenants will join through controlled invitations.</p>
         </div>
         <div className="space-y-5 p-5 sm:p-7">

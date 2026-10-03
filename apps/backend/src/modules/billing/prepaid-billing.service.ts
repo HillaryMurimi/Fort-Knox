@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from '../../config/brand.js';
 import mongoose, { Types } from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import { Organization } from '../../database/models/Organization.js';
@@ -37,7 +38,7 @@ export async function startPrepaidCheckout(auth: AuthenticatedUser, organization
       subscription.providerCustomerId = customer.providerCustomerId; await subscription.save();
     }
     if (!subscription.providerPlanCode) {
-      subscription.providerPlanCode = await provider.createPrepaidPlan({ name: `PMCC ${snapshot.planKey} ${subscription._id}`, amount: snapshot.recurringMinor / 100, currency: snapshot.currency, interval: snapshot.billingCycle as 'MONTH' | 'QUARTER' | 'YEAR' }); await subscription.save();
+      subscription.providerPlanCode = await provider.createPrepaidPlan({ name: `${PRODUCT_NAME} ${snapshot.planKey} ${subscription._id}`, amount: snapshot.recurringMinor / 100, currency: snapshot.currency, interval: snapshot.billingCycle as 'MONTH' | 'QUARTER' | 'YEAR' }); await subscription.save();
     }
     // Persist the reference before the network call. Ambiguous responses can be verified, never charged again blindly.
     subscription.providerCheckoutReference = `pcc-${randomUUID()}`; await subscription.save();

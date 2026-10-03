@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { BRAND } from '@/lib/brand';
 import { navigationFor, isNavigationItemActive } from '@/lib/navigation';
 import { usePlatformSearch } from '@/hooks/use-platform-search';
 import { useRoleContext } from '@/hooks/use-role-context';
@@ -202,16 +203,16 @@ export function Sidebar({
       >
         <div className="flex h-[72px] shrink-0 items-center gap-3 border-b border-white/10 px-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#d97745] shadow-lg shadow-orange-950/20">
-            <I.Command size={18} />
+            <span aria-hidden="true" className="text-lg font-bold">{BRAND.mark}</span>
           </div>
 
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold tracking-tight">
-              Command Center
+              {BRAND.name}
             </div>
 
             <div className="text-[9px] uppercase tracking-[0.18em] text-white/35">
-              Property OS
+              {BRAND.descriptor}
             </div>
           </div>
 

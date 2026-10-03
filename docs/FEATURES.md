@@ -1,4 +1,6 @@
-# Property Management Command Center --- Feature Specification
+# Dapinni — Property Command Center — Feature Specification
+
+Customer-facing identity and the remote ownership narrative follow [BRANDING.md](BRANDING.md). Dapinni is the brand; the Property Command Center describes its operational purpose.
 
 ## 1. Portfolio Command Center
 

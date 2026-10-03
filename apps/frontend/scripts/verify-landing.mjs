@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import sharp from 'sharp';
 import { mkdir } from 'node:fs/promises';
+import { publicVisitor } from './public-visitor-fixture.mjs';
 
 const output = 'test-results/digital-twin';
 const baseUrl = process.argv[2] ?? process.env.LANDING_BASE_URL ?? 'http://localhost:3100';
@@ -14,11 +15,19 @@ try {
     ['light', 'mobile', 390, 844], ['light', 'tablet', 768, 1024], ['light', 'desktop', 1440, 900],
   ]) {
     const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
-    const errors = [];
+    const errors = [], apiAttempts = [], anonymousBootstraps = [];
+    await publicVisitor(page, baseUrl, apiAttempts, anonymousBootstraps);
     page.on('pageerror', (error) => errors.push(error.message));
     await page.addInitScript((selectedTheme) => localStorage.setItem('pmcc.theme', selectedTheme), theme);
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
     await page.waitForFunction((selectedTheme) => document.documentElement.classList.contains(selectedTheme), theme);
+    await page.getByRole('heading', { name: 'Dapinni', level: 1, exact: true }).waitFor();
+    const brandHierarchy = await page.evaluate(() => {
+      const heading = document.querySelector('#dt-title'), descriptor = document.querySelector('.dt-hero-descriptor');
+      return heading && descriptor && parseFloat(getComputedStyle(heading).fontSize) > parseFloat(getComputedStyle(descriptor).fontSize)
+        && document.title.startsWith('Dapinni') && document.querySelector('.dt-brand-name')?.textContent === 'Dapinni';
+    });
+    if (!brandHierarchy) throw new Error('Dapinni must be primary in page identity and responsive visual hierarchy');
     await page.locator('.property-scene canvas').waitFor({ timeout: 30000 });
     await page.waitForTimeout(1200);
     const canvas = page.locator('.property-scene canvas');
@@ -50,9 +59,9 @@ try {
     await page.getByRole('button', { name: `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme` }).click();
     await page.waitForFunction((nextTheme) => document.documentElement.classList.contains(nextTheme), theme === 'dark' ? 'light' : 'dark');
     const toggled = await page.evaluate((nextTheme) => document.documentElement.classList.contains(nextTheme) && localStorage.getItem('pmcc.theme') === nextTheme, theme === 'dark' ? 'light' : 'dark');
-    results.push({ theme, name, overviewBackground, scrolledNavigation, canvasWidth: canvasBox?.width, canvasHeight: canvasBox?.height, contextLost, brightnessRange: Math.round(range), cameraChange: Math.round(cameraChange), demoOpens, horizontalOverflow, selected, toggled, pageErrors: errors });
+    results.push({ theme, name, apiAttempts, anonymousSessionsDenied: anonymousBootstraps.length, overviewBackground, scrolledNavigation, canvasWidth: canvasBox?.width, canvasHeight: canvasBox?.height, contextLost, brightnessRange: Math.round(range), cameraChange: Math.round(cameraChange), demoOpens, horizontalOverflow, selected, toggled, pageErrors: errors });
     await page.close();
   }
   console.log(JSON.stringify(results, null, 2));
-  if (results.some((result) => result.pageErrors.length || result.contextLost || !result.demoOpens || result.horizontalOverflow || result.selected !== 'true' || !result.toggled || !result.scrolledNavigation || result.brightnessRange < 40 || result.cameraChange < 4 || !result.canvasWidth || !result.canvasHeight || (result.theme === 'light' && result.overviewBackground !== 'rgb(244, 241, 235)') || (result.theme === 'dark' && result.overviewBackground !== 'rgb(17, 20, 22)'))) process.exitCode = 1;
+  if (results.some((result) => result.pageErrors.length || result.apiAttempts.length || result.contextLost || !result.demoOpens || result.horizontalOverflow || result.selected !== 'true' || !result.toggled || !result.scrolledNavigation || result.brightnessRange < 40 || result.cameraChange < 4 || !result.canvasWidth || !result.canvasHeight || (result.theme === 'light' && result.overviewBackground !== 'rgb(244, 241, 235)') || (result.theme === 'dark' && result.overviewBackground !== 'rgb(17, 20, 22)'))) process.exitCode = 1;
 } finally { await browser.close(); }

@@ -7,7 +7,7 @@ export interface ContractPricing {
 }
 export interface LandlordProgress {
   state: string; revision: number; nextStep: 'DETAILS' | 'PLAN' | 'SIGNATURE' | 'PAYMENT' | 'COMPLETE';
-  organization: { _id: string; name: string; legalName?: string; legalIdentifier?: string; billingEmail?: string; unitCount?: number; attentionCode?: string };
+  organization: { _id: string; name: string; pilotPrepared?: boolean; legalName?: string; legalIdentifier?: string; billingEmail?: string; unitCount?: number; attentionCode?: string };
   contract: null | { _id: string; body: string; sha256: string; templateId: string; templateVersion: number; status: string; documentId: string; signedDocumentId?: string; snapshot: ContractPricing; signature?: { name: string; signedAt: string } };
   invoice: null | { _id: string; invoiceNumber: string; total: number; currency: string; status: string; documentId?: string; receiptDocumentId?: string; dueDate: string };
   subscription: null | { status: string; providerCheckoutUrl?: string; providerCheckoutReference?: string; currentPeriodEnd: string; renewalState?: string };
@@ -33,6 +33,6 @@ export const landlordOnboardingClient = {
 export async function downloadArtifact(id: string) {
   const blob = await api<Blob>(`/documents/${id}/pdf`, { responseType: 'blob' });
   const url = URL.createObjectURL(blob), anchor = document.createElement('a');
-  anchor.href = url; anchor.download = `property-command-center-${id}.pdf`; anchor.click(); URL.revokeObjectURL(url);
+  anchor.href = url; anchor.download = `dapinni-${id}.pdf`; anchor.click(); URL.revokeObjectURL(url);
 }
 export const onboardingStepIndex = (state: LandlordProgress) => state.nextStep === 'DETAILS' ? 0 : state.nextStep === 'PLAN' ? 1 : state.nextStep === 'SIGNATURE' ? 2 : state.nextStep === 'PAYMENT' ? 3 : 4;

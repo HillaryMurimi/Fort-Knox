@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from '../../config/brand.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { randomUUID, createHash, randomInt } from 'node:crypto';
@@ -130,7 +131,7 @@ export async function requestOtp(phoneInput: string, purpose: 'LOGIN' | 'ONBOARD
   if (env.NODE_ENV === 'production') {
     await getSmsProvider().send({
       to: phone,
-      body: `Your Property Command Center verification code is ${code}. It expires in ${Math.ceil(env.OTP_TTL_SECONDS / 60)} minutes. Do not share this code.`,
+      body: `Your ${PRODUCT_NAME} verification code is ${code}. It expires in ${Math.ceil(env.OTP_TTL_SECONDS / 60)} minutes. Do not share this code.`,
     });
   }
   return { phone, expiresIn: env.OTP_TTL_SECONDS, ...(env.NODE_ENV !== 'production' ? { developmentCode: code } : {}) };

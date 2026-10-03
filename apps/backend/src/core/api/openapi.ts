@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from '../../config/brand.js';
 import { salesDemoPaths } from '../../modules/sales/sales-demo.openapi.js';
 import { platformBusinessPaths } from '../../modules/platform-control/platform-business.openapi.js';
 import { landlordContractPaths } from '../../modules/onboarding/landlord-onboarding.openapi.js';
@@ -7,9 +8,9 @@ export function buildOpenApiDocument() {
   return {
     openapi: '3.1.0',
     info: {
-      title: 'Property Management Command Center API',
+      title: `${PRODUCT_NAME} Property Command Center API`,
       version: API_VERSION,
-      description: 'Versioned REST API for the Property Management Command Center. Authentication uses Bearer access tokens. Mutating requests may use Idempotency-Key.',
+      description: `Versioned REST API for ${PRODUCT_NAME}, the property command center. Authentication uses Bearer access tokens. Mutating requests may use Idempotency-Key.`,
       'x-contract-version': API_CONTRACT_VERSION,
     },
     servers: [{ url: '/api/v1' }],

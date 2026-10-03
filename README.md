@@ -1,10 +1,10 @@
-# Fort Knox | Property Command Center
+# Dapinni | Your Property Command Center
 
-### Your entire property portfolio. One command center.
+### Your properties. Your decisions. Wherever you are.
 
 **Know what is happening. Know what it costs. Know who did it.**
 
-Property Command Center connects rent, tenants, maintenance, contractors, expenses, security and evidence into one operational history. It is built for owners who want to understand their buildings without being physically present at every one of them.
+Dapinni connects rent, tenants, maintenance, contractors, expenses, security and evidence into one operational history. It is built for owners who want to understand their buildings without being physically present at every one of them.
 
 > You don't need to be everywhere. You just need to be connected to everything that matters.
 
@@ -227,3 +227,13 @@ Landlord contract and prepaid activation lifecycle, API, tests and deployment pr
 ### SUPER_ADMIN MFA preparation
 
 Platform administrators now require password plus independently verified email and SMS. Read [the enrollment, index and recovery runbook](docs/SUPER_ADMIN_AUTHENTICATION.md) before enabling this release. Existing bootstrap no longer overwrites an administrator; live provider/worker acceptance remains an operator prerequisite.
+
+## Sales demonstrations and guided pilots
+
+Authenticated sales staff prepare prospect profiles and pain-specific state-changing stories
+at `/sales-demo`. Owner workspaces continue at `/pilot`; SUPER_ADMIN follows actual prospect
+cohorts and value events at `/sales-intelligence`. Use the existing backend/authentication,
+roles/plans/index setup described in [the sales runbook](docs/SALES_RUNBOOK.md).
+
+[The Dapinni completion report](docs/DAPINNI_SALES_COMPLETION.md) records the resumed
+architecture, branding, workflow/pilot handoff, isolation, exact checks and remaining limits.

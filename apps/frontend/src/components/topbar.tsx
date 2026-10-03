@@ -1,6 +1,7 @@
 'use client';
 
 import { ThemeSwitcher } from '@/components/theme-switcher';
+import { BRAND } from '@/lib/brand';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import * as I from './icons';
@@ -47,7 +48,7 @@ export function Topbar({ onMobileMenuToggle, mobileMenuOpen }: TopbarProps) {
 
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold text-[var(--foreground)]"><LocalGreeting name={user?.firstName?.trim() || 'landlord'} /></div>
-          <div className="hidden truncate text-xs text-[var(--muted-foreground)] sm:block">Portfolio operations and exceptions, in one view.</div>
+          <div className="truncate text-xs text-[var(--muted-foreground)]"><span className="font-semibold lg:hidden">{BRAND.name} · </span><span className="sm:hidden">{BRAND.descriptor}</span><span className="hidden sm:inline">{BRAND.promise}</span></div>
         </div>
 
         <ThemeSwitcher/>

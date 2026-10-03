@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from './config/brand.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -33,7 +34,7 @@ export function createApp() {
   app.use(pinoHttp({ logger, genReqId: (req) => req.requestId ?? randomUUID() }));
   if (env.NODE_ENV !== 'test') app.use(morgan('combined', { skip: (req) => req.path.startsWith(`${env.API_PREFIX}/auth`) }));
 
-  app.get('/', (_req, res) => res.json({ success: true, data: { name: 'Property Management Command Center API', version: 'v1' } }));
+  app.get('/', (_req, res) => res.json({ success: true, data: { name: `${PRODUCT_NAME} Property Command Center API`, version: 'v1' } }));
   app.use(`${env.API_PREFIX}/auth`, authRateLimit);
   app.get(`${env.API_PREFIX}/openapi.json`, (_req, res) => res.json(buildOpenApiDocument()));
   app.use(env.API_PREFIX, idempotencyMiddleware, auditRequestMiddleware, apiRouter);

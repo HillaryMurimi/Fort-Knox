@@ -31,6 +31,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
+import { BRAND } from "@/lib/brand";
 import { DemoRequestDialog } from "./demo-request-dialog";
 import { DemoTeaser } from "@/components/marketing/cinematic-demo/demo-teaser";
 import { trackMarketingEvent } from "@/lib/marketing/analytics";
@@ -164,13 +165,12 @@ function MarketingNav({ onDemo }: { onDemo: () => void }) {
         <Link
           href="/"
           className="dt-brand"
-          aria-label="Property Command Center home"
+          aria-label={`${BRAND.name} home`}
         >
-          <span className="dt-mark">PC</span>
+          <span className="dt-mark" aria-hidden="true">{BRAND.mark}</span>
           <span>
-            PROPERTY
-            <br />
-            COMMAND CENTER
+            <strong className="dt-brand-name">{BRAND.name}</strong>
+            <small className="dt-brand-descriptor">{BRAND.descriptor}</small>
           </span>
         </Link>
         <nav className="dt-links" aria-label="Main navigation">
@@ -251,14 +251,12 @@ function Hero({ onDemo }: { onDemo: () => void }) {
         <p className="dt-overline">
           <span className="dt-live-dot" /> CONNECTED PROPERTY OPERATIONS
         </p>
-        <h1 id="dt-title">
-          Property
-          <br />
-          Command Center
-        </h1>
+        <h1 id="dt-title">{BRAND.name}</h1>
+        <p className="dt-hero-descriptor">{BRAND.descriptor}</p>
+        <p className="dt-hero-promise">{BRAND.promise}</p>
         <p className="dt-hero-subtitle">
-          Every building, payment, repair and security signal in one clear view.
-          Stay close to what matters without being everywhere.
+          See the rent. Follow the work. Approve the spend. Know who acted.
+          Direct your property operations from one clear view.
         </p>
         <div className="dt-hero-actions">
           <button className="dt-primary" onClick={onDemo}>
@@ -567,7 +565,7 @@ export function LandingPage() {
         <DemoTeaser />
         <section className="dt-final" id="contact">
           <div className="dt-container">
-            <span className="dt-kicker">PROPERTY COMMAND CENTER</span>
+            <span className="dt-kicker">{BRAND.name} / {BRAND.descriptor}</span>
             <h2>
               You do not need to be everywhere.
               <br />
@@ -587,14 +585,13 @@ export function LandingPage() {
       <footer className="dt-footer">
         <div className="dt-container">
           <Link href="/" className="dt-brand">
-            <span className="dt-mark">PC</span>
+            <span className="dt-mark" aria-hidden="true">{BRAND.mark}</span>
             <span>
-              PROPERTY
-              <br />
-              COMMAND CENTER
+              <strong className="dt-brand-name">{BRAND.name}</strong>
+              <small className="dt-brand-descriptor">{BRAND.descriptor}</small>
             </span>
           </Link>
-          <p>Property operations, connected.</p>
+          <p>{BRAND.promise}</p>
           <div>
             <a href="#overview">Product</a>
             <a href="#operations">Operations</a>

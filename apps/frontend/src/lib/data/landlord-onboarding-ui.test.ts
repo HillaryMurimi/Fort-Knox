@@ -24,6 +24,21 @@ describe('guided landlord onboarding screens', () => {
     state.progress = progress('COMPLETE'); const html = renderToStaticMarkup(createElement(Page));
     expect(html).toContain('Your Command Center is active'); expect(html).toContain('Add your first property'); expect(html).toContain('Payment confirmation');
   });
+  it('keeps prepared pilot records through commercial setup and opens the populated operation after verified activation', () => {
+    const details = progress('DETAILS');
+    state.progress = { ...details, organization: { ...details.organization, pilotPrepared: true } };
+    const setup = renderToStaticMarkup(createElement(Page));
+    expect(setup).toContain('Your prepared property records stay in this workspace');
+    expect(setup).not.toContain('Your property records are created after activation');
+    expect(setup).not.toContain('Your Command Center is active');
+    const complete = progress('COMPLETE');
+    state.progress = { ...complete, organization: { ...complete.organization, pilotPrepared: true } };
+    const active = renderToStaticMarkup(createElement(Page));
+    expect(active).toContain('Open your Command Center');
+    expect(active).toContain('href="/dashboard"');
+    expect(active).toContain('Manage properties');
+    expect(active).not.toContain('Add your first property');
+  });
   it('provides loading, retry and sign-in recovery states', () => {
     state.loading = true; expect(renderToStaticMarkup(createElement(Page))).toContain('Restoring your saved onboarding progress');
     state.loading = false; state.error = 'Network unavailable'; expect(renderToStaticMarkup(createElement(Page))).toContain('Retry');

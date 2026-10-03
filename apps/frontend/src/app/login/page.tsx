@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
+import { BRAND } from '@/lib/brand';
 import { useRouter } from 'next/navigation';
 import { Building2, ShieldCheck } from 'lucide-react';
 import { Alert, Button, Input, TabsList, TabsTrigger } from '@/components/ui';
@@ -59,14 +60,14 @@ export default function LoginPage() {
   return <main className="grid min-h-screen bg-[#17191c] lg:grid-cols-[minmax(0,1fr)_minmax(440px,560px)]">
     <section className="hidden border-r border-white/10 p-12 text-white lg:flex lg:flex-col lg:justify-between">
       <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#d97745]"><Building2 size={20} /></span>
-        <div><div className="text-sm font-semibold">Property Command Center</div><div className="text-xs text-white/45">Connected operations</div></div></div>
-      <div className="max-w-xl"><div className="mb-5 h-1 w-12 bg-[#d97745]" /><h2 className="text-4xl font-semibold leading-tight">Your portfolio, with every important signal in reach.</h2>
+        <div><div className="text-xl font-semibold">{BRAND.name}</div><div className="text-xs text-white/60">{BRAND.descriptor}</div></div></div>
+      <div className="max-w-xl"><div className="mb-5 h-1 w-12 bg-[#d97745]" /><h2 className="text-4xl font-semibold leading-tight">Your properties. Your decisions. Wherever you are.</h2>
         <p className="mt-4 max-w-lg text-base leading-7 text-white/55">Secure access for owners, operators, field teams, and tenants across every property workflow.</p></div>
       <div className="flex items-center gap-2 text-xs text-white/45"><ShieldCheck size={15} className="text-[#6ce9a6]" /> Multi-tenant controls and auditable access</div>
     </section>
     <section className="flex min-h-screen items-center justify-center bg-muted px-4 py-8 sm:px-8">
       <div className="w-full max-w-md rounded-lg border border-[var(--border)] bg-card p-6 shadow-xl sm:p-8">
-        <p className="mb-2 text-xs font-bold uppercase text-[var(--accent-strong)]">Property Management</p><h1 className="text-2xl font-semibold">Command Center</h1>
+        <h1 className="text-3xl font-semibold">{BRAND.name}</h1><p className="mt-2 text-sm font-medium text-[var(--accent-strong)]">{BRAND.descriptor}</p>
         <p className="mt-2 text-sm text-muted-foreground">Sign in to your secure operations workspace.</p>
         {step === 'ADMIN' && mfa ? <AdminMfaPanel key={mfa.stage} challenge={mfa} code={code} error={error} busy={busy}
           seconds={Math.max(0, Math.ceil((Date.parse(mfa.challenge.resendAt) - now) / 1000))}

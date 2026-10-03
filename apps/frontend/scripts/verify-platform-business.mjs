@@ -105,6 +105,7 @@ try {
     ],
     {
       NODE_ENV: "development",
+      PCC_BROWSER_TEST_BUILD: "platform",
       NEXT_PUBLIC_API_URL: "http://127.0.0.1:" + apiPort + "/api/v1",
       NEXT_PUBLIC_DEV_AUTH_BYPASS: "false",
       NEXT_PUBLIC_DEV_DEMO_MODE: String(devDemoMode),

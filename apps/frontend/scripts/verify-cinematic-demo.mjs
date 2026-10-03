@@ -1,5 +1,7 @@
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import { anonymousRefresh, publicVisitor as installPublicVisitor } from './public-visitor-fixture.mjs';
 
 const baseUrl = process.argv[2] ?? 'http://localhost:3000';
 const output = 'test-results/cinematic-demo';
@@ -8,12 +10,22 @@ await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ ...(chromePath ? { executablePath: chromePath } : { channel: 'chrome' }), headless: true });
 const expectedRatios = { vertical: 9 / 16, landscape: 16 / 9, square: 1, portrait: 4 / 5 };
 const results = [];
+const anonymousBootstraps = [];
+// A visitor fixture may deny empty session discovery; it must never mask an authenticated write.
+const refreshUrl = 'https://api.example.test/api/v1/auth/refresh';
+assert.ok(anonymousRefresh('POST', refreshUrl, {}, null));
+for (const [method, url, headers, body] of [
+  ['GET', refreshUrl, {}, null], ['POST', refreshUrl, { authorization: 'Bearer fixture' }, null],
+  ['POST', refreshUrl, { cookie: 'refresh=fixture' }, null], ['POST', refreshUrl, {}, '{"refreshToken":"fixture"}'],
+  ['POST', 'https://api.example.test/api/v1/payments', {}, null],
+]) assert.equal(anonymousRefresh(method, url, headers, body), false);
+const publicVisitor = (page, mutations) => installPublicVisitor(page, baseUrl, mutations, anonymousBootstraps);
 try {
   for (const [theme, width, height] of [['dark', 375, 812], ['light', 375, 812], ['dark', 430, 932], ['light', 430, 932], ['dark', 1024, 768], ['light', 1024, 768], ['dark', 1440, 900], ['light', 1440, 900], ['dark', 1920, 1080], ['light', 1920, 1080]]) {
     const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
     const errors = [], mutations = [];
     page.on('pageerror', (error) => errors.push(error.message));
-    page.on('request', (request) => { if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method()) && request.url().includes('/api/v1/')) mutations.push(`${request.method()} ${request.url()}`); });
+    await publicVisitor(page, mutations);
     await page.goto(new URL(`/demo/explore?theme=${theme}`, baseUrl).toString(), { waitUntil: 'networkidle' });
     const stage = page.locator('[data-ratio]').first();
     await stage.waitFor();
@@ -35,7 +47,7 @@ try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     const errors = [], mutations = [];
     page.on('pageerror', (error) => errors.push(error.message));
-    page.on('request', (request) => { if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method()) && request.url().includes('/api/v1/')) mutations.push(request.url()); });
+    await publicVisitor(page, mutations);
     await page.goto(new URL(`/demo/studio?scenario=${scenario}&ratio=${ratio}&theme=light`, baseUrl).toString(), { waitUntil: 'networkidle' });
     await page.waitForTimeout(900);
     const frame = page.locator('[data-ratio]').first();
@@ -49,7 +61,7 @@ try {
   const interaction = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const interactionErrors = [], interactionMutations = [];
   interaction.on('pageerror', (error) => interactionErrors.push(error.message));
-  interaction.on('request', (request) => { if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method()) && request.url().includes('/api/v1/')) interactionMutations.push(request.url()); });
+  await publicVisitor(interaction, interactionMutations);
   await interaction.goto(new URL('/demo/explore?scenario=roles', baseUrl).toString(), { waitUntil: 'networkidle' });
   await interaction.getByRole('tab', { name: 'CARETAKER' }).click();
   const caretakerSelected = await interaction.getByRole('tab', { name: 'CARETAKER' }).getAttribute('aria-selected');
@@ -62,7 +74,7 @@ try {
   await interaction.close();
   const approval = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   approval.on('pageerror', (error) => interactionErrors.push(error.message));
-  approval.on('request', (request) => { if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method()) && request.url().includes('/api/v1/')) interactionMutations.push(request.url()); });
+  await publicVisitor(approval, interactionMutations);
   await approval.goto(new URL('/demo/explore?scenario=approval', baseUrl).toString(), { waitUntil: 'networkidle' });
   await approval.getByRole('button', { name: 'Next scene' }).click();
   await approval.getByRole('button', { name: 'Approve KES 27,500' }).click();
@@ -71,6 +83,7 @@ try {
   const homeResults = [];
   for (const [theme, width] of [['dark', 375], ['light', 375], ['dark', 1440], ['light', 1440]]) {
     const home = await browser.newPage({ viewport: { width, height: 900 } });
+    await publicVisitor(home, interactionMutations);
     await home.addInitScript((selectedTheme) => localStorage.setItem('pmcc.theme', selectedTheme), theme);
     await home.goto(new URL('/demo', baseUrl).toString(), { waitUntil: 'networkidle' });
     const overflow = await home.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
@@ -79,7 +92,7 @@ try {
     homeResults.push({ theme, width, overflow, hasScenario });
     await home.close();
   }
-  console.log(JSON.stringify({ caretakerSelected, caretakerScope, ownerPortfolioHidden, switchedTheme, cleanView, approvalSimulated, interactionErrors, interactionMutations }));
+  console.log(JSON.stringify({ anonymousBootstraps, caretakerSelected, caretakerScope, ownerPortfolioHidden, switchedTheme, cleanView, approvalSimulated, interactionErrors, interactionMutations }));
   console.log(JSON.stringify(homeResults));
   console.log(JSON.stringify(results, null, 2));
   if (results.some((item) => item.errors.length || item.mutations.length || item.horizontalOverflow || !item.stageWidth || item.aspectError > .01 || item.stageTheme !== (item.name.startsWith('dark') ? 'dark' : 'light') || (item.sceneKind && item.sceneKind !== 'context')) || homeResults.some((item) => item.overflow || !item.hasScenario) || caretakerSelected !== 'true' || !caretakerScope || !ownerPortfolioHidden || switchedTheme !== 'light' || !cleanView || !approvalSimulated || interactionErrors.length || interactionMutations.length) process.exitCode = 1;

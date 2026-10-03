@@ -1,3 +1,5 @@
+import { BRAND } from "@/lib/brand";
+
 export const portfolio = {
   organization: "Acacia Property Holdings",
   properties: [
@@ -74,7 +76,7 @@ export const signatureScenes: readonly DemoScene[] = [
   scene("intelligence", "Signals, not another inbox.", "Patterns across maintenance, arrears and vacancies surface suggested actions.", "Intelligence turns operational history into priorities."),
   scene("health", "One number. The operation behind it.", "Property health combines collections, occupancy, maintenance and service.", "The score is backed by operational contributors."),
   scene("network", "Not ten disconnected systems.", "One operational history connects people, property, money and evidence.", "The command center connects everything that matters."),
-  scene("closing", "You don't need to be everywhere.", "You just need to be connected to everything that matters.", "Property Command Center. Remote control for your bricks and mortar."),
+  scene("closing", "You don't need to be everywhere.", "You just need to be connected to everything that matters.", `${BRAND.name}. ${BRAND.promise}`),
 ];
 
 const byKind = (kinds: readonly SceneKind[]) => kinds.map((kind) => signatureScenes.find((item) => item.kind === kind)!);
@@ -118,6 +120,6 @@ const campaignSeeds: readonly CampaignSeed[] = [
 ];
 
 export type SocialCampaign = { id: string; hook: string; scenarioId: string; cta: string; scenes: readonly DemoScene[]; platforms: readonly string[] };
-export const socialCampaigns: readonly SocialCampaign[] = campaignSeeds.map((seed) => ({ ...seed, scenes: [scene("opening", seed.hook, "ACACIA PROPERTY HOLDINGS / FICTIONAL DEMO", seed.hook, 1800), ...byKind(seed.kinds).map((item) => ({ ...item, durationMs: 4000 })), scene("closing", seed.cta, "Property Command Center", seed.cta, 1700)], platforms: ["TikTok", "Instagram Reels", "YouTube Shorts", "LinkedIn"] }));
+export const socialCampaigns: readonly SocialCampaign[] = campaignSeeds.map((seed) => ({ ...seed, scenes: [scene("opening", seed.hook, "ACACIA PROPERTY HOLDINGS / FICTIONAL DEMO", seed.hook, 1800), ...byKind(seed.kinds).map((item) => ({ ...item, durationMs: 4000 })), scene("closing", seed.cta, `${BRAND.name} / ${BRAND.descriptor}`, seed.cta, 1700)], platforms: ["TikTok", "Instagram Reels", "YouTube Shorts", "LinkedIn"] }));
 
 export const money = (amount: number) => `KES ${Math.round(amount).toLocaleString("en-KE")}`;

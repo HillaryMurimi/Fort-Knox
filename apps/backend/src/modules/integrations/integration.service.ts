@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from '../../config/brand.js';
 import { assertOperationalIntegrationAllowed } from '../sales/pilot-safety.js';
 import { settlePrepaidInvoice, settlePrepaidRenewal } from '../billing/prepaid-billing.service.js';
 import mongoose, { Types } from 'mongoose';
@@ -129,7 +130,7 @@ export class IntegrationService {
             : providerKey === 'MPESA'
               ? `PMCC${String(p._id).slice(-8)}`
               : p.receiptNumber ?? String(p._id),
-        description: p.notes ?? 'Property Command Center payment',
+        description: p.notes ?? `${PRODUCT_NAME} payment`,
         paystackChannels,
         ...(providerKey === 'PAYSTACK' && destination?.paystackSubaccountCode
           ? { paystackSubaccountCode: destination.paystackSubaccountCode }

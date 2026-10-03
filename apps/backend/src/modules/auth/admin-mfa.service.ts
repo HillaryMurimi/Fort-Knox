@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from '../../config/brand.js';
 import bcrypt from 'bcryptjs';
 import { randomBytes, randomInt } from 'node:crypto';
 import mongoose, { type Types } from 'mongoose';
@@ -86,9 +87,9 @@ async function send(flow: Flow, account: Account, token: string, meta: AuthMetad
     const destination = channel === 'EMAIL' ? authEvidence(account.email) : account.phone;
     if (testDelivery) await testDelivery(channel, destination, code);
     else {
-      const body = 'Your Property Command Center administrator ' + channel.toLowerCase() + ' verification code is ' + code +
+      const body = 'Your ' + PRODUCT_NAME + ' administrator ' + channel.toLowerCase() + ' verification code is ' + code +
         '. It expires in ' + Math.ceil(env.ADMIN_OTP_TTL_SECONDS / 60) + ' minutes. Never share it.';
-      if (channel === 'EMAIL') await getEmailProvider().send({ to: destination, subject: 'Administrator sign-in verification', body });
+      if (channel === 'EMAIL') await getEmailProvider().send({ to: destination, subject: `${PRODUCT_NAME} administrator sign-in verification`, body });
       else await getSmsProvider().send({ to: destination, body });
     }
     await OtpChallenge.updateOne({ _id: challenge._id, consumedAt: { $exists: false } }, { $set: { deliveryStatus: 'SENT' } });

@@ -1,14 +1,16 @@
 import './globals.css';
 import { ThemeProvider } from '@/providers/theme-provider';
 import type { Metadata } from 'next';
+import { BRAND } from '@/lib/brand';
 import { QueryProvider } from '@/providers/query-provider';
 import { AuthProvider } from '@/context/auth-context';
 import { OrganizationProvider } from '@/context/organization-context';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
-  title: { default: 'Property Management Command Center', template: '%s | Property Command Center' },
-  description: 'Remote control for your bricks and mortar.',
+  applicationName: BRAND.name,
+  title: { default: BRAND.title, template: `%s | ${BRAND.name}` },
+  description: BRAND.description,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

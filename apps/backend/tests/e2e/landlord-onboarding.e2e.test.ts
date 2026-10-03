@@ -91,7 +91,9 @@ describe.skipIf(!process.env.RUN_E2E)('landlord onboarding replica-set / HTTP en
     await IntegrationService.handleWebhook('PAYSTACK', raw, signature);
   }
   it('completes new signup, owner step-up, pricing, contract, signature, invoice, verified payment and property access', async () => {
-    expect((await request(app).get(path()).auth(token, { type: 'bearer' })).body.data.state).toBe('ACCOUNT_CREATED');
+    const initialStatus = (await request(app).get(path()).auth(token, { type: 'bearer' })).body.data;
+    expect(initialStatus.state).toBe('ACCOUNT_CREATED');
+    expect(initialStatus.organization.pilotPrepared).toBe(false);
     const login = await request(app).post('/api/v1/auth/login').send({ method: 'email', email: 'owner@example.com', password: 'Secure-test-password-2026!' });
     expect(login.body.data.stepUpRequired).toBe(true);
     const verification = await request(app).post('/api/v1/auth/verify-step-up').send({ email: 'owner@example.com', code: '123456' });
@@ -110,6 +112,7 @@ describe.skipIf(!process.env.RUN_E2E)('landlord onboarding replica-set / HTTP en
     for (const [name, id] of [['contract', activated.contract.documentId], ['signed-contract', activated.contract.signedDocumentId], ['invoice', activated.invoice.documentId], ['receipt', activated.invoice.receiptDocumentId]]) {
       const doc = await Document.findById(id).select('+artifactBody').orFail();
       expect(hash(Buffer.from(doc.artifactBody!))).toBe(doc.sha256); expect(doc.immutableArtifact).toBe(true);
+      expect(doc.renderVersion).toBe(2); expect(doc.storageKey).toMatch(/\/v2$/);
       if (process.env.PCC_PDF_QA_DIR) await writeFile(`${process.env.PCC_PDF_QA_DIR}/${name}.pdf`, Buffer.from(doc.artifactBody!));
       const downloaded = await request(app).get(`/api/v1/documents/${id}/pdf`).auth(token, { type: 'bearer' }); expect(downloaded.status).toBe(200); expect(downloaded.headers['content-type']).toContain('application/pdf');
     }

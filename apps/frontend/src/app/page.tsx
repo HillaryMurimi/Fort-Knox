@@ -1,20 +1,22 @@
 import type { Metadata } from 'next';
+import { BRAND } from '@/lib/brand';
 import { LandingPage } from '@/components/marketing/landing/landing-page';
 
 export const metadata: Metadata = {
-  title: 'Property Command Center - Remote Control for Your Property Portfolio',
-  description: 'Control rent, tenants, maintenance, expenses, contractors, CCTV, security and property performance from one operational command center.',
+  title: { absolute: BRAND.title },
+  description: BRAND.description,
   alternates: { canonical: '/' },
   openGraph: {
-    title: 'Property Command Center - Remote Control for Your Property Portfolio',
-    description: 'Know what is happening, what it costs and who did it across your property portfolio.',
+    title: BRAND.title,
+    siteName: BRAND.name,
+    description: BRAND.description,
     type: 'website',
     images: [{ url: '/marketing/portfolio-blue-hour.png', width: 1680, height: 945, alt: 'A connected residential property portfolio at blue hour' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Property Command Center',
-    description: 'A command center for your bricks and mortar.',
+    title: BRAND.title,
+    description: BRAND.description,
     images: ['/marketing/portfolio-blue-hour.png'],
   },
 };
