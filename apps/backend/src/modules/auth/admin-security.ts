@@ -25,9 +25,39 @@ export function securityAudit(action: string, userId?: Types.ObjectId, meta: Aut
     ...(meta.ipAddress ? { ipAddress: meta.ipAddress.slice(0, 100) } : {}),
     ...(meta.userAgent ? { userAgent: describeClient(meta.userAgent) } : {}), metadata });
 }
+
+interface AdminSessionProof {
+  mfaChannel?: string | null;
+  passwordVerifiedAt?: Date | null;
+  emailVerifiedAt?: Date | null;
+  smsVerifiedAt?: Date | null;
+  mfaVerifiedAt?: Date | null;
+}
+export function hasDualAdminProof(proof: AdminSessionProof) {
+  return (proof.mfaChannel === 'DUAL' || proof.mfaChannel === undefined) &&
+    proof.emailVerifiedAt instanceof Date && proof.smsVerifiedAt instanceof Date;
+}
+export function hasAdminSessionProof(proof: AdminSessionProof) {
+  if (!(proof.passwordVerifiedAt instanceof Date) || !(proof.mfaVerifiedAt instanceof Date)) return false;
+  if (proof.mfaChannel === 'EMAIL') return proof.emailVerifiedAt instanceof Date;
+  if (proof.mfaChannel === 'SMS') return proof.smsVerifiedAt instanceof Date;
+  return hasDualAdminProof(proof);
+}
+// The same evidence predicate protects access and refresh. Historical dual-channel
+// sessions remain valid; an unlabeled single-channel session never qualifies.
+export function adminSessionProofQuery() {
+  const date = { $type: 'date' as const };
+  return { passwordVerifiedAt: date, mfaVerifiedAt: date, $or: [
+    { mfaChannel: 'EMAIL' as const, emailVerifiedAt: date },
+    { mfaChannel: 'SMS' as const, smsVerifiedAt: date },
+    { mfaChannel: 'DUAL' as const, emailVerifiedAt: date, smsVerifiedAt: date },
+    { mfaChannel: { $exists: false }, emailVerifiedAt: date, smsVerifiedAt: date }
+  ] };
+}
+
 export function assertFreshAdmin(auth: AuthenticatedUser) {
   if (!auth.isPlatformAdmin) throw new AppError(403, 'PLATFORM_ADMIN_REQUIRED', 'Platform administrator access is required');
-  if (!auth.sessionId || !auth.mfaVerifiedAt || Date.now() - auth.mfaVerifiedAt.getTime() >= env.ADMIN_STEP_UP_SECONDS * 1000)
+  if (!auth.sessionId || !auth.adminDualChannel || !auth.mfaVerifiedAt || Date.now() - auth.mfaVerifiedAt.getTime() >= env.ADMIN_STEP_UP_SECONDS * 1000)
     throw new AppError(403, 'FRESH_AUTH_REQUIRED', 'Verify your password, email and phone again before this security-sensitive action.');
 }
 export function assertAuthOrigin(origin: string | undefined, marker: string | undefined) {

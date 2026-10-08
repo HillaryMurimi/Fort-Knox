@@ -160,48 +160,22 @@ try {
     .fill("platform-browser@example.test");
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page
-    .getByRole("heading", { name: "Verify your email", exact: true })
-    .waitFor();
-  assert.equal(
-    await page.evaluate(() =>
-      localStorage.getItem("property-command-center.auth.session"),
-    ),
-    null,
-  );
+  await page.getByRole('heading', { name: 'Choose how to verify', exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem('property-command-center.auth.session')), null);
   const partial = await page.context().newPage();
-  await partial.goto(origin + "/platform");
-  await partial
-    .getByRole("button", { name: "Continue", exact: true })
-    .waitFor();
-  assert.ok(
-    partial.url().includes("/login"),
-    "Password-only navigation must not open platform screens",
-  );
+  await partial.goto(origin + '/platform');
+  await partial.getByRole('button', { name: 'Continue', exact: true }).waitFor();
+  assert.ok(partial.url().includes('/login'), 'Password-only navigation must not open platform screens');
   await partial.close();
-  await page
-    .getByLabel("Email verification code")
-    .fill(await deliveredCode("EMAIL"));
-  await page.getByRole("button", { name: "Verify email", exact: true }).click();
-  await page
-    .getByRole("heading", { name: "Verify your phone", exact: true })
-    .waitFor();
+  await page.getByRole('button', { name: "Send email code", exact: false }).click();
+  await page.getByRole('heading', { name: "Verify your email", exact: true }).waitFor();
   const incomplete = await page.context().newPage();
-  await incomplete.goto(origin + "/platform");
-  await incomplete
-    .getByRole("button", { name: "Continue", exact: true })
-    .waitFor();
-  assert.ok(
-    incomplete.url().includes("/login"),
-    "Email-only navigation must not open platform screens",
-  );
+  await incomplete.goto(origin + '/platform');
+  await incomplete.getByRole('button', { name: 'Continue', exact: true }).waitFor();
+  assert.ok(incomplete.url().includes('/login'), 'Pending OTP navigation must not open platform screens');
   await incomplete.close();
-  await page
-    .getByLabel("SMS verification code")
-    .fill(await deliveredCode("SMS"));
-  await page
-    .getByRole("button", { name: "Verify phone and sign in", exact: true })
-    .click();
+  await page.getByLabel("Email verification code").fill(await deliveredCode("EMAIL"));
+  await page.getByRole('button', { name: "Verify email and sign in", exact: true }).click();
   await page.waitForURL((url) => url.pathname !== "/login");
   const malformedAnalytics = (route) =>
     route.fulfill({
@@ -478,7 +452,7 @@ try {
     "The browser journey must have no uncaught runtime errors",
   );
   process.stdout.write(
-    `PASS browser E2E: SUPER_ADMIN password/email OTP/SMS OTP, bypass denial and logout → all sidebar destinations and malformed control-plane recovery → plan comparison/filter → retained Morning Brief → critical action → organization drill-down; desktop/mobile; local demo interception ${devDemoMode ? "enabled" : "disabled"}\n`,
+    `PASS browser E2E: SUPER_ADMIN password/selected OTP, bypass denial and logout → all sidebar destinations and malformed control-plane recovery → plan comparison/filter → retained Morning Brief → critical action → organization drill-down; desktop/mobile; local demo interception ${devDemoMode ? "enabled" : "disabled"}\n`,
   );
 } catch (error) {
   if (page) {

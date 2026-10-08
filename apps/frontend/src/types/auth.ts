@@ -19,7 +19,9 @@ export interface LoginEmailPayload { method: 'email'; email: string; password: s
 export interface LoginPhonePayload { method: 'phone'; phone: string; }
 export type LoginPayload = LoginEmailPayload | LoginPhonePayload;
 export interface LoginChallengeResponse { stepUpRequired: true; challenge: OtpRequestResponse; user: AuthUser; }
-export interface AdminMfaResponse { mfaRequired: true; flowToken: string; stage: 'EMAIL' | 'SMS'; challenge: { channel: 'EMAIL' | 'SMS'; destination: string; expiresAt: string; resendAt: string; delivery: 'PENDING' | 'SENT' | 'FAILED' }; }
+export interface AdminMfaChallenge { mfaRequired: true; flowToken: string; stage: 'EMAIL' | 'SMS'; requiredChannels: 'ONE' | 'BOTH'; challenge: { channel: 'EMAIL' | 'SMS'; destination: string; expiresAt: string; resendAt: string; delivery: 'PENDING' | 'SENT' | 'FAILED' }; }
+export interface AdminMfaChoice { mfaRequired: true; flowToken: string; stage: 'CHANNEL'; channels: Array<{ channel: 'EMAIL' | 'SMS'; destination: string }>; }
+export type AdminMfaResponse = AdminMfaChallenge | AdminMfaChoice;
 export type LoginResult = LoginChallengeResponse | AdminMfaResponse | LoginResponse;
 export interface LoginResponse extends AuthIdentity { accessToken: string; expiresAt: string; securityPolicy?: { idleTimeoutSeconds: number; absoluteTimeoutSeconds: number }; }
 export interface StoredAuthSession { accessToken: string; user: AuthUser; roles: SystemRoleKey[]; memberships: AuthMembership[]; authenticatedAt: string; expiresAt?: string; idleTimeoutSeconds?: number; }

@@ -7,9 +7,10 @@ import { Building2, ShieldCheck } from 'lucide-react';
 import { Alert, Button, Input, TabsList, TabsTrigger } from '@/components/ui';
 import { useAuth } from '@/hooks/use-auth';
 import { getRoleRedirect } from '@/lib/auth/role-redirect';
-import { resendAdminMfa } from '@/lib/auth/auth-api';
+import { selectAdminMfaChannel, resendAdminMfa } from '@/lib/auth/auth-api';
 import type { AdminMfaResponse } from '@/types/auth';
 import { SocialButtons } from '@/components/auth/social-buttons';
+import { AdminMfaChoicePanel } from '@/components/auth/admin-mfa-choice';
 import { AdminMfaPanel } from '@/components/auth/admin-mfa-panel';
 
 export default function LoginPage() {
@@ -21,6 +22,7 @@ export default function LoginPage() {
   const [code, setCode] = useState(''), [error, setError] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null), [mfa, setMfa] = useState<AdminMfaResponse | null>(null);
   const [busy, setBusy] = useState<'VERIFY' | 'RESEND' | null>(null), [now, setNow] = useState(() => Date.now());
+  const [sendingChannel, setSendingChannel] = useState<'EMAIL' | 'SMS' | null>(null);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   useEffect(() => { if (isAuthenticated) router.replace(roles.includes('SUPER_ADMIN') ? getRoleRedirect(roles) : new URLSearchParams(window.location.search).get('next') === '/onboarding' ? '/onboarding' : getRoleRedirect(roles)); }, [isAuthenticated, roles, router]);
   const redirect = (nextRoles: typeof roles) => router.replace(nextRoles.includes('SUPER_ADMIN') ? getRoleRedirect(nextRoles) : new URLSearchParams(window.location.search).get('next') === '/onboarding' ? '/onboarding' : getRoleRedirect(nextRoles));
@@ -42,13 +44,20 @@ export default function LoginPage() {
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to verify code.'); }
   }
   async function verifyAdministrator() {
-    if (!mfa) return; setBusy('VERIFY'); setError(null);
+    if (!mfa || mfa.stage === 'CHANNEL') return; setBusy('VERIFY'); setError(null);
     try {
       const result = await verifyAdmin(mfa.flowToken, mfa.stage, code);
       setCode('');
       if ('mfaRequired' in result) setMfa(result); else { setMfa(null); redirect(result.roles); }
     } catch (caught) { setCode(''); setError(caught instanceof Error ? caught.message : 'Unable to verify this channel.'); }
     finally { setBusy(null); }
+  }
+  async function chooseChannel(channel: 'EMAIL' | 'SMS') {
+    if (!mfa || mfa.stage !== 'CHANNEL' || sendingChannel) return;
+    setSendingChannel(channel); setError(null);
+    try { setMfa(await selectAdminMfaChannel(mfa.flowToken, channel)); setCode(''); setNow(Date.now()); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to send the verification code. Restart sign-in to try again.'); }
+    finally { setSendingChannel(null); }
   }
   async function resend() {
     if (!mfa) return; setBusy('RESEND'); setError(null);
@@ -69,7 +78,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md rounded-lg border border-[var(--border)] bg-card p-6 shadow-xl sm:p-8">
         <h1 className="text-3xl font-semibold">{BRAND.name}</h1><p className="mt-2 text-sm font-medium text-[var(--accent-strong)]">{BRAND.descriptor}</p>
         <p className="mt-2 text-sm text-muted-foreground">Sign in to your secure operations workspace.</p>
-        {step === 'ADMIN' && mfa ? <AdminMfaPanel key={mfa.stage} challenge={mfa} code={code} error={error} busy={busy}
+        {step === 'ADMIN' && mfa ? mfa.stage === 'CHANNEL' ? <AdminMfaChoicePanel choice={mfa} sending={sendingChannel} error={error}
+          onChoose={channel => void chooseChannel(channel)} onRestart={restart} /> : <AdminMfaPanel key={mfa.stage} challenge={mfa} code={code} error={error} busy={busy}
           seconds={Math.max(0, Math.ceil((Date.parse(mfa.challenge.resendAt) - now) / 1000))}
           onCode={setCode} onVerify={() => void verifyAdministrator()} onResend={() => void resend()} onRestart={restart} /> :
           step === 'CREDENTIALS' ? <form onSubmit={submit} className="mt-8 space-y-5">

@@ -24,11 +24,16 @@ bootstrap, and leaves new bootstrap accounts pending explicit channel enrollment
 
 ## Required flow and authoritative boundary
 
-POST /auth/login verifies the password. An administrator receives a random opaque
-password-bound flow credential and a masked EMAIL challenge, with no authenticated
-identity, access JWT or refresh cookie. Email verification advances to SMS, independently
-generates its challenge and delivers to the stored registered phone. SMS verification
-completes the proof. A MongoDB transaction consumes the completed flow, creates the
+As approved on 2026-10-08, routine SUPER_ADMIN login is password -> choose EMAIL
+or SMS -> verify that selected OTP -> privileged session. This supersedes the earlier
+requirement to verify both channels on every routine login.
+
+POST /auth/login verifies the password and returns a random opaque password-bound
+flow credential, CHANNEL stage and masked verified destinations. It sends no OTP and
+issues no identity, access JWT or refresh cookie. POST /auth/admin-mfa/channel atomically
+binds one selected channel and delivers its independent challenge. Verification of that
+channel completes LOGIN proof. STEP_UP and host ENROLLMENT still verify email then SMS;
+the choice endpoint cannot downgrade either purpose. A MongoDB transaction consumes the completed flow, creates the
 privileged RefreshSession, resets failure counters, records MFA/login audit and
 queues both security notices and their delivery jobs. Audit/outbox failure grants no
 session; start sign-in again after resolving the failure.
@@ -44,7 +49,7 @@ The central generic issuer refuses platform administrators. Phone login, legacy 
 request and legacy single-SMS verification cannot authenticate them. Social owner
 flows continue to exclude them. Every request for a platform administrator must have
 a signed privileged access JWT bound to a live RefreshSession carrying password,
-email and SMS evidence, a current contact snapshot and matching account security
+the actual selected-channel evidence (or dual-channel step-up), a current contact snapshot and matching account security
 version. Partial flow credentials, old bare JWTs, revoked sessions and promoted-user
 legacy tokens cannot grant platform access. RBAC/ABAC checks still execute after this
 boundary, and ordinary organization isolation is unchanged.
@@ -99,7 +104,8 @@ not cookie-only authorization. Tokens are never put into URLs. Frontend idle/abs
 timers sign out the administrator; the backend independently enforces session policy.
 
 Service-switch changes, administrator promotion and destructive DELETE actions require
-MFA completed within five minutes. A native accessible step-up dialog repeats password,
+both-channel MFA completed within five minutes. A routine single-channel login, even
+when recent, must step up before these changes. A native accessible step-up dialog repeats password,
 email and SMS, rotates the session without extending its absolute lifetime, then asks
 the operator to retry the intended action. Destructive operations are not replayed
 automatically. Organization user management cannot change a platform administrator.
@@ -115,7 +121,10 @@ They include UTC timestamp, MFA outcome, coarse browser/device classification fr
 an untrusted user-agent, observed network address with a proxy qualification, and unexpected-login
 instructions. There is no invented geolocation.
 
-Events cover initiation, password result, channel issuance, OTP result/resend, delivery
+Notices and completion audits identify only the channel(s) actually verified.
+No email timestamp is fabricated for SMS login, and no SMS timestamp for email login.
+
+Events cover initiation, password result, explicit channel selection, channel issuance, OTP result/resend, delivery
 failure, throttle/lockout, MFA/login completion, step-up, session reads, logout/revocation,
 expiry/revoked-access denial, refresh replay, bootstrap/promotion and enrollment/recovery.
 Metadata contains bounded actor/channel/purpose/request information, never passwords,
@@ -128,7 +137,8 @@ All paths use the existing /api/v1 prefix.
 
 | Endpoint | Authorization / purpose |
 | --- | --- |
-| POST /auth/login | Existing entry point; admin password starts EMAIL |
+| POST /auth/login | Existing entry point; admin password starts CHANNEL choice, no OTP/session |
+| POST /auth/admin-mfa/channel | flowToken + EMAIL/SMS; verified stored destination, one atomic choice, Origin/header |
 | POST /auth/admin-mfa/verify | flowToken, channel, code; permitted Origin/header |
 | POST /auth/admin-mfa/resend | flowToken; current-stage throttled resend |
 | POST /auth/admin-mfa/step-up | Live admin bearer session, current password, Origin/header |
@@ -171,7 +181,7 @@ Before enabling this release on a live environment:
    Password and both delivered codes are entered in a hidden interactive terminal.
    Enrollment proves both stored destinations, records the case and revokes old sessions.
    It does not create another administrator or grant a session.
-5. Sign in through /login and complete the required two channels. Verify worker delivery
+5. Sign in through /login, choose email or SMS and verify the selected code. Verify worker delivery
    of the security notification and inspect the non-secret audit evidence.
 
 For a genuinely empty platform only, the existing seed:super-admin uses securely
@@ -182,8 +192,9 @@ an additional administrator. Future accounts use the protected promotion workflo
 ## Explicit administrative recovery
 
 No security questions, secret admin URL, universal code, public recovery token or
-MFA-disable flag exists. Losing either channel cannot yield a session through normal
-login, OTP resend, refresh, social linking or organization user edits.
+MFA-disable flag exists. A password plus the remaining previously verified channel
+can complete routine login. Replacing a lost destination still requires this explicit
+recovery process; routine login cannot satisfy dual-channel sensitive step-up.
 
 Recovery requires authorized infrastructure/database access, an independently approved
 identity-review case and the existing administrator password. Verify the requesting
@@ -198,7 +209,7 @@ destinations without echoing them, confirms the case, and transactionally stages
 clears verification evidence, advances security version, revokes sessions/flows and
 records the recovery audit without contact values. It grants no access. Then run
 auth:enroll-admin for the same account/case: both replacement channels must receive
-and verify independent codes before normal password/email/SMS login is possible.
+and verify independent codes before normal password/chosen-channel login is possible.
 Notify the owner through approved out-of-band channels, inspect the resulting audit,
 and retain the case outside source control. If the password is also lost, stop this
 procedure and use a separately approved host/database credential-reset incident
@@ -213,7 +224,12 @@ compromised host/database operator is outside an application-only MFA trust boun
 User adds explicit email/phone verification, contact-proof hash, security/flow versions,
 failure/lockout and delivery-window counters. Sensitive counter/hash fields are excluded
 from normal projections. RefreshSession adds privileged proof, contact/security snapshot,
-MFA/activity timestamps and absolute expiry. OtpChallenge extends the existing collection
+MFA/activity timestamps and absolute expiry. Its mfaChannel records EMAIL, SMS or DUAL.
+AdminAuthFlow adds CHANNEL stage and selectedChannel for new LOGIN flows.
+Existing sessions without mfaChannel qualify only with both actual OTP timestamps;
+new single-channel sessions require their explicit channel and its proof on access
+and refresh. Old unfinished login flows require a new sign-in. No new index or data
+backfill is required for this choice change. OtpChallenge extends the existing collection
 with admin purpose, user/flow/channel/generation, delivery and verification-cooldown fields.
 
 AdminAuthFlow adds a unique hashed-credential lookup, user/purpose/stage lookup for

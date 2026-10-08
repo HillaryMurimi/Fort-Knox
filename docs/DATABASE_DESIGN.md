@@ -605,6 +605,8 @@ Added immutable PlatformBrief snapshots with unique environment/dataset/idempote
 
 ## Administrator authentication evidence
 
+Routine SUPER_ADMIN LOGIN workflows now begin at CHANNEL, persist selectedChannel (EMAIL/SMS), and record only the selected OTP timestamp. RefreshSession.mfaChannel (EMAIL/SMS/DUAL) preserves the actual assurance across rotation; legacy unlabeled sessions require both timestamps. Sensitive step-up/enrollment remain dual-channel. Existing hashed-flow/session lookups are sufficient: no new index, backfill or migration is needed for this login choice.
+
 AdminAuthFlow stores temporary hashed password-bound workflows; User/OtpChallenge/RefreshSession extend existing security authorities. Platform security Notification/Job rows are transactionally queued without a fabricated organization. Explicit index repair and retention rationale: [SUPER_ADMIN authentication](SUPER_ADMIN_AUTHENTICATION.md).
 
 

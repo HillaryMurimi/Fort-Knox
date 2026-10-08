@@ -32,6 +32,7 @@ export const statusGroups = {
     "AWAITING_DOCUMENTS",
     "PENDING_PROVIDER_SETUP",
     "OTP_SENT",
+    "CHANNEL",
     "EMAIL",
     "SMS",
   ],

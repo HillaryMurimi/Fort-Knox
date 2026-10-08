@@ -373,9 +373,9 @@ Business analytics, brief snapshots and financial/security drill-downs require a
 
 ## SUPER_ADMIN authentication assurance
 
-The existing platform security role (User.isPlatformAdmin) requires password, verified email OTP and verified SMS OTP before session issuance and on every privileged request. Organization role labels grant no platform authority. Sensitive changes require recent assurance; destination recovery cannot disable MFA. [Policy and recovery](SUPER_ADMIN_AUTHENTICATION.md).
+The existing platform security role (User.isPlatformAdmin) requires password plus its selected verified email/SMS OTP before session issuance and proof-bound privileged requests. Sensitive step-up and enrollment retain both channels. Organization role labels grant no platform authority. Sensitive changes require recent assurance; destination recovery cannot disable MFA. [Policy and recovery](SUPER_ADMIN_AUTHENTICATION.md).
 
 
 ## Pain-first sales demonstration and guided pilot (2026-10-02)
 
-sales.demo.manage is an explicitly delegated organization-wide salesperson permission. SUPER_ADMIN uses its existing completed dual-channel MFA. Sellers can access their own sessions; normal landlord accounts cannot access sales sessions. Only the verified pilot owner or SUPER_ADMIN can inspect guided-pilot progress; actual operations retain existing RBAC/ABAC. Expired unpaid pilots are read-only except commercial billing actions.
+sales.demo.manage is an explicitly delegated organization-wide salesperson permission. SUPER_ADMIN uses its existing completed role-based MFA. Sellers can access their own sessions; normal landlord accounts cannot access sales sessions. Only the verified pilot owner or SUPER_ADMIN can inspect guided-pilot progress; actual operations retain existing RBAC/ABAC. Expired unpaid pilots are read-only except commercial billing actions.

@@ -16,7 +16,7 @@ import { AdminAuthFlow } from '../../database/models/AdminAuthFlow.js';
 import { NotificationService } from '../notifications/notification.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { startAdminMfa, registerAdminFailure } from './admin-mfa.service.js';
-import { auditAdminSessionDenial, describeClient, authEvidence, contactsHash, securityAudit, type AuthMetadata } from './admin-security.js';
+import { auditAdminSessionDenial, describeClient, authEvidence, contactsHash, hasAdminSessionProof, securityAudit, type AuthMetadata } from './admin-security.js';
 import { getSmsProvider } from '../../core/integrations/messaging-providers.js';
 
 export const normalizePhone = (phone: string): string => phone.replace(/[\s()-]/g, '');
@@ -52,7 +52,7 @@ async function getIdentity(userId: Types.ObjectId) {
 
 export async function issueSession(userId: Types.ObjectId, meta?: { userAgent?: string; ipAddress?: string }) {
   const identity = await getIdentity(userId);
-  if (identity.user.isPlatformAdmin) throw new AppError(401, 'ADMIN_MFA_REQUIRED', 'Administrator password, email and SMS verification are required.');
+  if (identity.user.isPlatformAdmin) throw new AppError(401, 'ADMIN_MFA_REQUIRED', 'Administrator password and a selected verified-channel OTP are required.');
   if (identity.memberships.length === 0) throw new AppError(403, 'NO_ORGANIZATION_ACCESS', 'User has no active organization membership');
   const activeOrganizationId = identity.memberships[0]?.organizationId?.toString();
   const sessionId = new Types.ObjectId();
@@ -63,16 +63,18 @@ export async function issueSession(userId: Types.ObjectId, meta?: { userAgent?: 
 }
 
 
-async function mintAdminSession(userId: Types.ObjectId, proof: { contactsHash: string; authVersion: number; passwordVerifiedAt: Date; emailVerifiedAt: Date; smsVerifiedAt: Date; absoluteExpiresAt?: Date | null }, meta: AuthMetadata, session: ClientSession) {
+async function mintAdminSession(userId: Types.ObjectId, proof: { contactsHash: string; authVersion: number; passwordVerifiedAt: Date; mfaChannel: 'EMAIL' | 'SMS' | 'DUAL'; emailVerifiedAt?: Date; smsVerifiedAt?: Date; absoluteExpiresAt?: Date | null }, meta: AuthMetadata, session: ClientSession) {
   const identity = await getIdentity(userId), sessionId = new Types.ObjectId();
   if (!identity.user.isPlatformAdmin || !identity.user.email || contactsHash(identity.user.email, identity.user.phone) !== proof.contactsHash || (identity.user.authVersion ?? 0) !== proof.authVersion)
     throw new AppError(401, 'ADMIN_MFA_REQUIRED', 'Administrator authentication evidence no longer matches the account.');
+  if (!hasAdminSessionProof({ ...proof, mfaVerifiedAt: new Date() })) throw new AppError(401, 'ADMIN_MFA_REQUIRED', 'Password and required OTP evidence are missing.');
   const now = new Date(), expiresAt = proof.absoluteExpiresAt ?? new Date(Date.now() + env.ADMIN_SESSION_SECONDS * 1000);
   if (expiresAt <= now) throw new AppError(401, 'ADMIN_SESSION_EXPIRED', 'Administrator session has expired.');
   const refreshToken = jwt.sign({ sub: String(userId), sid: String(sessionId), type: 'refresh', privileged: true }, env.JWT_REFRESH_SECRET, { expiresIn: Math.max(1, Math.floor((expiresAt.getTime() - Date.now()) / 1000)) });
   await RefreshSession.create([{ _id: sessionId, userId, tokenHash: hashToken(refreshToken), expiresAt, absoluteExpiresAt: expiresAt,
     privileged: true, contactsHash: proof.contactsHash, authVersion: proof.authVersion, passwordVerifiedAt: proof.passwordVerifiedAt,
-    emailVerifiedAt: proof.emailVerifiedAt, smsVerifiedAt: proof.smsVerifiedAt, mfaVerifiedAt: now, lastActivityAt: now,
+    mfaChannel: proof.mfaChannel, ...(proof.emailVerifiedAt ? { emailVerifiedAt: proof.emailVerifiedAt } : {}),
+    ...(proof.smsVerifiedAt ? { smsVerifiedAt: proof.smsVerifiedAt } : {}), mfaVerifiedAt: now, lastActivityAt: now,
     ...(meta.userAgent ? { userAgent: describeClient(meta.userAgent) } : {}), ...(meta.ipAddress ? { ipAddress: meta.ipAddress.slice(0, 100) } : {}) }], { session });
   return { accessToken: signAccessToken(String(userId), identity.memberships[0]?.organizationId?.toString(), String(sessionId), true), refreshToken,
     user: identity.user, roles: identity.roles, memberships: identity.memberships, expiresAt, sessionId,
@@ -82,8 +84,12 @@ export async function finishAdminLogin(flowId: Types.ObjectId, meta: AuthMetadat
   let result: Awaited<ReturnType<typeof mintAdminSession>> | undefined;
   await mongoose.connection.transaction(async session => {
     const flow = await AdminAuthFlow.findOneAndUpdate({ _id: flowId, purpose: { $in: ['LOGIN', 'STEP_UP'] }, stage: 'VERIFIED',
-      emailVerifiedAt: { $exists: true }, smsVerifiedAt: { $exists: true }, expiresAt: { $gt: new Date() } }, { $set: { stage: 'COMPLETED' } }, { new: true, session });
-    if (!flow) throw new AppError(401, 'ADMIN_MFA_REQUIRED', 'Completed password, email and SMS verification is required.');
+      $or: [
+        { purpose: 'LOGIN', selectedChannel: 'EMAIL', emailVerifiedAt: { $type: 'date' } },
+        { purpose: 'LOGIN', selectedChannel: 'SMS', smsVerifiedAt: { $type: 'date' } },
+        { purpose: 'STEP_UP', emailVerifiedAt: { $type: 'date' }, smsVerifiedAt: { $type: 'date' } }
+      ], expiresAt: { $gt: new Date() } }, { $set: { stage: 'COMPLETED' } }, { new: true, session });
+    if (!flow) throw new AppError(401, 'ADMIN_MFA_REQUIRED', 'Completed password and required OTP verification is required.');
     const user = await User.findOne({ _id: flow.userId, status: 'ACTIVE', isPlatformAdmin: true }).select('+mfaContactsHash').session(session);
     if (!user || user.authFlowGeneration !== flow.userFlowGeneration || user.mfaContactsHash !== flow.contactsHash ||
       !user.emailVerifiedAt || !user.phoneVerifiedAt || (user.authLockedUntil && user.authLockedUntil > new Date()))
@@ -95,14 +101,17 @@ export async function finishAdminLogin(flowId: Types.ObjectId, meta: AuthMetadat
       if (!parent?.absoluteExpiresAt) throw new AppError(401, 'ADMIN_SESSION_EXPIRED', 'The original session is no longer active.');
       absoluteExpiresAt = parent.absoluteExpiresAt;
     }
-    result = await mintAdminSession(flow.userId, { contactsHash: flow.contactsHash, authVersion: flow.authVersion,
-      passwordVerifiedAt: flow.passwordVerifiedAt, emailVerifiedAt: authEvidence(flow.emailVerifiedAt), smsVerifiedAt: authEvidence(flow.smsVerifiedAt),
+    const mfaChannel = flow.purpose === 'LOGIN' ? authEvidence(flow.selectedChannel) : 'DUAL';
+    const channels = mfaChannel === 'DUAL' ? ['EMAIL', 'SMS'] : [mfaChannel];
+    result = await mintAdminSession(flow.userId, { contactsHash: flow.contactsHash, authVersion: flow.authVersion, mfaChannel,
+      passwordVerifiedAt: flow.passwordVerifiedAt, ...(flow.emailVerifiedAt ? { emailVerifiedAt: flow.emailVerifiedAt } : {}),
+      ...(flow.smsVerifiedAt ? { smsVerifiedAt: flow.smsVerifiedAt } : {}),
       ...(absoluteExpiresAt ? { absoluteExpiresAt } : {}) }, meta, session);
     await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date(), authFailureCount: 0 }, $unset: { authLockedUntil: 1, authFailureWindowAt: 1 } }, { session });
     for (const action of ['mfa_completed', flow.purpose === 'STEP_UP' ? 'step_up_completed' : 'login_completed'])
-      await AuditService.record({ actorUserId: user._id, actorRole: 'SUPER_ADMIN', action: 'auth.super_admin.' + action, resourceType: 'RefreshSession', resourceId: result.sessionId, ...meta, userAgent: describeClient(meta.userAgent), metadata: { channels: ['EMAIL', 'SMS'] } }, session);
+      await AuditService.record({ actorUserId: user._id, actorRole: 'SUPER_ADMIN', action: 'auth.super_admin.' + action, resourceType: 'RefreshSession', resourceId: result.sessionId, ...meta, userAgent: describeClient(meta.userAgent), metadata: { channels, purpose: flow.purpose } }, session);
     const body = 'Administrator authentication completed at ' + new Date().toISOString() +
-      '. Password, email and SMS verification succeeded. Browser/device report (unverified): ' + (describeClient(meta.userAgent)) +
+      '. Password and ' + channels.join(' + ') + ' OTP verification succeeded. Browser/device report (unverified): ' + (describeClient(meta.userAgent)) +
       '. Network address observed by the platform (may be a proxy): ' + (meta.ipAddress ?? 'Unavailable') +
       '. If this was unexpected, revoke your sessions and contact the authorized platform security operator immediately.';
     await NotificationService.enqueuePlatformSecurityLogin(user._id, result.sessionId, body, session);
@@ -123,7 +132,7 @@ export async function startAdminStepUp(userId: Types.ObjectId, sessionId: Types.
 
 export async function requestOtp(phoneInput: string, purpose: 'LOGIN' | 'ONBOARDING' | 'STEP_UP') {
   const phone = normalizePhone(phoneInput);
-  if (await User.exists({ phone, isPlatformAdmin: true })) throw new AppError(403, 'ADMIN_MFA_REQUIRED', 'This account must use password, email and SMS verification.');
+  if (await User.exists({ phone, isPlatformAdmin: true })) throw new AppError(403, 'ADMIN_MFA_REQUIRED', 'This account must use password and a selected verified-channel OTP.');
   const code = env.NODE_ENV === 'development' || env.NODE_ENV === 'test' ? '123456' : String(randomInt(100000, 1_000_000));
   const codeHash = await bcrypt.hash(code, 10);
   await OtpChallenge.deleteMany({ phone, purpose, consumedAt: { $exists: false } });
@@ -175,7 +184,7 @@ export async function verifyLoginOtp(phoneInput: string, code: string, meta?: { 
   challenge.consumedAt = new Date(); await challenge.save();
   const user = await User.findOne({ phone, status: 'ACTIVE' });
   if (!user) throw new AppError(403, 'USER_NOT_PROVISIONED', 'This phone number is not provisioned for access');
-  if (user.isPlatformAdmin) throw new AppError(403, 'ADMIN_MFA_REQUIRED', 'Administrator dual-channel verification is required.');
+  if (user.isPlatformAdmin) throw new AppError(403, 'ADMIN_MFA_REQUIRED', 'Administrator password and selected-channel verification are required.');
   user.lastLoginAt = new Date(); user.verifiedAt ??= new Date(); await user.save();
   return issueSession(user._id, meta);
 }
@@ -184,7 +193,7 @@ export async function verifyStepUp(emailInput: string, code: string, meta?: { us
   const email = emailInput.trim().toLowerCase();
   const user = await User.findOne({ email, status: 'ACTIVE' });
   if (!user) throw new AppError(401, 'OTP_INVALID', 'The OTP is invalid or expired');
-  if (user.isPlatformAdmin) throw new AppError(403, 'ADMIN_MFA_REQUIRED', 'Administrator dual-channel verification is required.');
+  if (user.isPlatformAdmin) throw new AppError(403, 'ADMIN_MFA_REQUIRED', 'Administrator password and selected-channel verification are required.');
   const challenge = await OtpChallenge.findOne({ phone: user.phone, purpose: 'STEP_UP', consumedAt: { $exists: false }, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 });
   if (!challenge) throw new AppError(401, 'OTP_INVALID', 'The OTP is invalid or expired');
   if (challenge.attempts >= env.OTP_MAX_ATTEMPTS) throw new AppError(429, 'OTP_LOCKED', 'Too many OTP attempts');
@@ -219,7 +228,7 @@ export async function refreshSession(refreshToken: string, meta: AuthMetadata = 
   const user = await User.findById(payload.sub).select('+mfaContactsHash').lean();
   if (!user || user.status !== 'ACTIVE') throw new AppError(401, 'ACCOUNT_INACTIVE', 'Account is inactive');
   if (user.isPlatformAdmin) {
-    if (!current.privileged || !current.passwordVerifiedAt || !current.emailVerifiedAt || !current.smsVerifiedAt || !current.mfaVerifiedAt ||
+    if (!current.privileged || !hasAdminSessionProof(current) ||
         !user.emailVerifiedAt || !user.phoneVerifiedAt || current.authVersion !== (user.authVersion ?? 0) ||
         !user.email || current.contactsHash !== contactsHash(user.email, user.phone) || current.contactsHash !== user.mfaContactsHash ||
         !current.lastActivityAt || current.lastActivityAt.getTime() <= Date.now() - env.ADMIN_IDLE_SECONDS * 1000 ||
@@ -233,7 +242,9 @@ export async function refreshSession(refreshToken: string, meta: AuthMetadata = 
       const parent = await RefreshSession.findOneAndUpdate({ _id: current._id, revokedAt: { $exists: false } }, { $set: { revokedAt: new Date() } }, { new: true, session });
       if (!parent) throw new AppError(401, 'REFRESH_TOKEN_REVOKED', 'Refresh session is no longer valid');
       result = await mintAdminSession(user._id, { contactsHash: authEvidence(current.contactsHash), authVersion: authEvidence(current.authVersion),
-        passwordVerifiedAt: authEvidence(current.passwordVerifiedAt), emailVerifiedAt: authEvidence(current.emailVerifiedAt), smsVerifiedAt: authEvidence(current.smsVerifiedAt),
+        passwordVerifiedAt: authEvidence(current.passwordVerifiedAt), mfaChannel: current.mfaChannel ?? 'DUAL',
+        ...(current.emailVerifiedAt ? { emailVerifiedAt: current.emailVerifiedAt } : {}),
+        ...(current.smsVerifiedAt ? { smsVerifiedAt: current.smsVerifiedAt } : {}),
         absoluteExpiresAt: authEvidence(current.absoluteExpiresAt) }, meta, session);
       await RefreshSession.updateOne({ _id: result.sessionId }, { $set: { mfaVerifiedAt: current.mfaVerifiedAt, lastActivityAt: current.lastActivityAt } }, { session });
       await RefreshSession.updateOne({ _id: current._id }, { $set: { replacedBySessionId: result.sessionId } }, { session });

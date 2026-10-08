@@ -7,6 +7,7 @@ const refreshSessionSchema = new Schema({
   privileged: { type: Boolean, default: false },
   authVersion: Number,
   contactsHash: String,
+  mfaChannel: { type: String, enum: ['EMAIL', 'SMS', 'DUAL'] },
   passwordVerifiedAt: Date,
   emailVerifiedAt: Date,
   smsVerifiedAt: Date,

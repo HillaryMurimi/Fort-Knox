@@ -17,6 +17,7 @@ import {
 } from '../modules/auth/auth.controller.js';
 
 export const authRouter = Router();
+authRouter.post('/admin-mfa/channel', admin.adminOrigin, asyncHandler(admin.selectChannel));
 authRouter.post('/admin-mfa/verify', admin.adminOrigin, asyncHandler(admin.verify));
 authRouter.post('/admin-mfa/resend', admin.adminOrigin, asyncHandler(admin.resend));
 authRouter.post('/admin-mfa/step-up', admin.adminOrigin, requireAuth, asyncHandler(admin.stepUp));

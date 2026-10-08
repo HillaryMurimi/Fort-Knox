@@ -35,7 +35,8 @@ import type {
  *
  * Email + password
  *       ↓
- * STEP_UP OTP
+ * SUPER_ADMIN: choose verified email or SMS OTP
+ * LANDLORD: existing SMS STEP_UP OTP
  *
  * FIELD TIER
  * ----------
@@ -49,6 +50,7 @@ import type {
  * LOGIN OTP
  */
 export function verifyAdminMfa(flowToken: string, channel: 'EMAIL' | 'SMS', code: string) { return api<AdminMfaResponse | LoginResponse>('/auth/admin-mfa/verify', { method: 'POST', authenticated: false, body: JSON.stringify({ flowToken, channel, code }) }); }
+export function selectAdminMfaChannel(flowToken: string, channel: 'EMAIL' | 'SMS') { return api<AdminMfaResponse>('/auth/admin-mfa/channel', { method: 'POST', authenticated: false, body: JSON.stringify({ flowToken, channel }) }); }
 export function resendAdminMfa(flowToken: string) { return api<AdminMfaResponse>('/auth/admin-mfa/resend', { method: 'POST', authenticated: false, body: JSON.stringify({ flowToken }) }); }
 
 export async function login(

@@ -30,7 +30,7 @@ export async function registerAdminFailure(userId: Types.ObjectId, meta: AuthMet
   ], { new: true, updatePipeline: true });
   await securityAudit(reason === 'PASSWORD' ? 'password_failed' : 'otp_failed', userId, meta, { reason, ...(channel ? { channel } : {}) });
   if (account?.authLockedUntil && account.authLockedUntil > now) {
-    await AdminAuthFlow.updateMany({ userId, stage: { $in: ['EMAIL', 'SMS', 'VERIFIED'] } }, { $set: { stage: 'INVALIDATED' } });
+    await AdminAuthFlow.updateMany({ userId, stage: { $in: ['CHANNEL', 'EMAIL', 'SMS', 'VERIFIED'] } }, { $set: { stage: 'INVALIDATED' } });
     await securityAudit('lockout', userId, meta, { seconds: env.ADMIN_LOCKOUT_SECONDS });
   }
 }
@@ -47,7 +47,7 @@ function assertAccount(account: Account, flow?: Flow) {
     throw new AppError(403, 'ADMIN_ENROLLMENT_REQUIRED', 'Both administrator channels require secure enrollment. Contact the authorized platform operator.');
 }
 async function getFlow(token: string) {
-  const flow = await AdminAuthFlow.findOne({ tokenHash: hashCredential(token), expiresAt: { $gt: new Date() }, stage: { $in: ['EMAIL', 'SMS', 'VERIFIED'] } });
+  const flow = await AdminAuthFlow.findOne({ tokenHash: hashCredential(token), expiresAt: { $gt: new Date() }, stage: { $in: ['CHANNEL', 'EMAIL', 'SMS', 'VERIFIED'] } });
   if (!flow) throw new AppError(401, 'MFA_EXPIRED', 'Authentication expired or was superseded. Sign in again.');
   const account = await User.findById(flow.userId).select('+mfaContactsHash');
   if (!account) throw new AppError(401, 'MFA_INVALID', 'Authentication is no longer valid.');
@@ -57,7 +57,7 @@ async function getFlow(token: string) {
 async function describe(flow: Flow, account: Account, token: string) {
   const channel = flow.stage === 'EMAIL' ? 'EMAIL' : 'SMS';
   const challenge = await OtpChallenge.findOne({ flowId: flow._id, channel, generation: flow.generation }).lean();
-  return { mfaRequired: true as const, flowToken: token, stage: flow.stage, challenge: {
+  return { mfaRequired: true as const, flowToken: token, stage: channel, requiredChannels: flow.purpose === 'LOGIN' ? 'ONE' as const : 'BOTH' as const, challenge: {
     channel, destination: channel === 'EMAIL' ? maskEmail(authEvidence(account.email)) : maskPhone(account.phone),
     expiresAt: challenge?.expiresAt?.toISOString() ?? flow.expiresAt.toISOString(),
     resendAt: flow.nextSendAt.toISOString(), delivery: challenge?.deliveryStatus ?? 'FAILED'
@@ -111,14 +111,27 @@ export async function startAdminMfa(userId: Types.ObjectId, meta: AuthMetadata =
       throw new AppError(403, 'ADMIN_ENROLLMENT_REQUIRED', 'An existing active administrator with both destinations is required.');
     if (account.authLockedUntil && account.authLockedUntil > new Date()) throw new AppError(429, 'ADMIN_LOCKED', 'Administrator temporarily locked.');
   } else assertAccount(account);
-  await AdminAuthFlow.updateMany({ userId, purpose, stage: { $in: ['EMAIL', 'SMS', 'VERIFIED'] } }, { $set: { stage: 'INVALIDATED' } });
+  await AdminAuthFlow.updateMany({ userId, purpose, stage: { $in: ['CHANNEL', 'EMAIL', 'SMS', 'VERIFIED'] } }, { $set: { stage: 'INVALIDATED' } });
   const generation = await User.findOneAndUpdate({ _id: userId }, { $inc: { authFlowGeneration: 1 } }, { new: true });
   const token = randomBytes(32).toString('base64url');
-  const flow = await AdminAuthFlow.create({ userId, tokenHash: hashCredential(token), purpose, stage: 'EMAIL',
+  const flow = await AdminAuthFlow.create({ userId, tokenHash: hashCredential(token), purpose, stage: purpose === 'LOGIN' ? 'CHANNEL' : 'EMAIL',
     contactsHash: contactsHash(authEvidence(account.email), account.phone), authVersion: account.authVersion ?? 0, userFlowGeneration: authEvidence(generation).authFlowGeneration,
     passwordVerifiedAt: new Date(), nextSendAt: new Date(), expiresAt: new Date(Date.now() + env.ADMIN_FLOW_SECONDS * 1000),
     ...(options.sessionId ? { sessionId: options.sessionId } : {}) });
+  if (purpose === 'LOGIN') return { mfaRequired: true as const, flowToken: token, stage: 'CHANNEL' as const, channels: [
+    { channel: 'EMAIL' as const, destination: maskEmail(authEvidence(account.email)) },
+    { channel: 'SMS' as const, destination: maskPhone(account.phone) }
+  ] };
   return send(flow, account, token, meta, false);
+}
+export async function selectAdminMfaChannel(token: string, channel: Channel, meta: AuthMetadata = {}) {
+  const { flow, account } = await getFlow(token);
+  const selected = await AdminAuthFlow.findOneAndUpdate({ _id: flow._id, purpose: 'LOGIN', stage: 'CHANNEL',
+    selectedChannel: { $exists: false }, expiresAt: { $gt: new Date() } },
+    { $set: { stage: channel, selectedChannel: channel } }, { new: true });
+  if (!selected) throw new AppError(409, 'MFA_STAGE_INVALID', 'Choose a channel once after password verification. Restart sign-in to change it.');
+  await securityAudit('otp_channel_selected', account._id, meta, { channel, purpose: 'LOGIN' });
+  return send(selected, account, token, meta, false);
 }
 export async function resendAdminMfa(token: string, meta: AuthMetadata = {}) {
   const { flow, account } = await getFlow(token);
@@ -127,7 +140,7 @@ export async function resendAdminMfa(token: string, meta: AuthMetadata = {}) {
 }
 export async function verifyAdminMfa(token: string, channel: Channel, code: string, meta: AuthMetadata = {}) {
   const { flow, account } = await getFlow(token);
-  if (flow.stage !== channel) throw new AppError(409, 'MFA_STAGE_INVALID', 'Complete the current authentication stage first.');
+  if (flow.stage !== channel || (flow.purpose === 'LOGIN' && flow.selectedChannel !== channel)) throw new AppError(409, 'MFA_STAGE_INVALID', 'Complete the current authentication stage first.');
   const now = new Date();
   const challenge = await OtpChallenge.findOneAndUpdate({ flowId: flow._id, userId: account._id, channel, generation: flow.generation,
     purpose: adminOtpPurpose(flow.purpose), deliveryStatus: 'SENT', consumedAt: { $exists: false }, expiresAt: { $gt: now },
@@ -149,10 +162,11 @@ export async function verifyAdminMfa(token: string, channel: Channel, code: stri
   const claimed = await OtpChallenge.findOneAndUpdate({ _id: challenge._id, consumedAt: { $exists: false }, expiresAt: { $gt: new Date() } }, { $set: { consumedAt: new Date() } });
   if (!claimed) throw new AppError(401, 'MFA_CODE_REUSED', 'This verification code has already been used.');
   const advanced = await AdminAuthFlow.findOneAndUpdate({ _id: flow._id, stage: channel, generation: challenge.generation },
-    { $set: channel === 'EMAIL' ? { stage: 'SMS', emailVerifiedAt: new Date(), nextSendAt: new Date(), resendCount: 0 } : { stage: 'VERIFIED', smsVerifiedAt: new Date() } }, { new: true });
+    { $set: flow.purpose === 'LOGIN' ? { stage: 'VERIFIED', ...(channel === 'EMAIL' ? { emailVerifiedAt: new Date() } : { smsVerifiedAt: new Date() }) } :
+      channel === 'EMAIL' ? { stage: 'SMS', emailVerifiedAt: new Date(), nextSendAt: new Date(), resendCount: 0 } : { stage: 'VERIFIED', smsVerifiedAt: new Date() } }, { new: true });
   if (!advanced) throw new AppError(401, 'MFA_INVALID', 'Authentication was superseded. Sign in again.');
   await securityAudit('otp_verified', account._id, meta, { channel, purpose: flow.purpose });
-  if (channel === 'EMAIL') return { complete: false as const, challenge: await send(advanced, account, token, meta, false) };
+  if (flow.purpose !== 'LOGIN' && channel === 'EMAIL') return { complete: false as const, challenge: await send(advanced, account, token, meta, false) };
   return { complete: true as const, flowId: flow._id, userId: account._id, purpose: flow.purpose };
 }
 export async function finishAdminEnrollment(flowId: Types.ObjectId, caseId: string, meta: AuthMetadata = {}) {

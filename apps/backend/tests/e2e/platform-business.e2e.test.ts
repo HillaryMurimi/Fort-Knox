@@ -139,11 +139,11 @@ describe.skipIf(!process.env.RUN_E2E)(
         password: "SecurePlatformDemo-2026!",
       });
       expect(login.body.data.mfaRequired).toBe(true);
-      const emailVerified = await request(app).post('/api/v1/auth/admin-mfa/verify').set('Origin', env.WEB_ORIGIN).set('X-PCC-Auth', '1').send({ flowToken: login.body.data.flowToken, channel: 'EMAIL', code: delivered.EMAIL });
-      expect(emailVerified.status).toBe(200);
+      const selected = await request(app).post('/api/v1/auth/admin-mfa/channel').set('Origin', env.WEB_ORIGIN).set('X-PCC-Auth', '1').send({ flowToken: login.body.data.flowToken, channel: 'EMAIL' });
+      expect(selected.status).toBe(200);
       const verified = await request(app)
         .post('/api/v1/auth/admin-mfa/verify').set('Origin', env.WEB_ORIGIN).set('X-PCC-Auth', '1')
-        .send({ flowToken: login.body.data.flowToken, channel: 'SMS', code: delivered.SMS });
+        .send({ flowToken: login.body.data.flowToken, channel: 'EMAIL', code: delivered.EMAIL });
       expect(verified.status, JSON.stringify(verified.body)).toBe(200);
       token = verified.body.data.accessToken;
       const data = await overview();

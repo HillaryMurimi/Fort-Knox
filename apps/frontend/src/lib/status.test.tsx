@@ -20,6 +20,7 @@ import {
 
 describe("domain-aware status semantics", () => {
   it.each([
+    ["CHANNEL", "auth", "pending"],
     ["PAYMENT_FAILED", "onboarding", "failed"],
     ["CHECKOUT_PREPARATION_FAILED", "onboarding", "failed"],
     ["PAYMENT_RECONCILIATION_REQUIRED", "onboarding", "review"],

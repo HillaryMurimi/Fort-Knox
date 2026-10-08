@@ -1054,3 +1054,95 @@ Production public regressions passed all 12 landing and 18 cinematic cases.
 Final review corrected access-point health to integration semantics while active
 alerts retain attention semantics; regression cases cover both meanings. Final
 frontend production/status gates were rerun after this context correction.
+
+
+## 2026-10-08 - SUPER_ADMIN login channel choice
+
+Continued the existing laptop checkout on main from 55b5f92; no clone, account reset,
+new identity/provider system or personal configuration. The existing role-based
+password, verified-contact enrollment, OTP provider/switch, audit/outbox and live
+server-bound session infrastructure was extended.
+
+Routine login now performs password -> choose verified EMAIL or SMS -> verify that
+one selected code -> privileged session. No OTP/session is issued before selection;
+selection is atomic and immutable within a flow, and cannot change STEP_UP or
+ENROLLMENT policy. Both sensitive purposes still require password/email/SMS.
+Contact masking, random hashed purpose-bound OTPs, limits, lockout, replay protection,
+short session/idle expiry, rotation, logout and backend authorization remain enforced.
+Session/audit/notifications retain only actual channel evidence; refresh cannot
+manufacture the other proof. Legacy unlabeled sessions need both timestamps.
+A recent single-channel login still cannot authorize protected sensitive operations.
+
+API: POST /api/v1/auth/admin-mfa/channel. Additive schema fields: LOGIN CHANNEL
+stage/selectedChannel and RefreshSession.mfaChannel (EMAIL/SMS/DUAL). No new index,
+backfill, environment variable, dependency, provider credential or deployment change.
+Existing pending old login flows restart; existing securely enrolled accounts use
+their stored destinations. No live account enrollment or production delivery occurred.
+Recovery remains the audited host procedure with dual-channel enrollment.
+
+Verification against the final change:
+- Backend/front-end typechecks and production builds PASS; operator enrollment,
+  recovery and index scripts also pass strict standalone TypeScript checking.
+- Lint PASS: zero errors, unchanged 432 backend / 27 frontend warnings.
+- Backend normal suite: 65 files / 348 tests PASS; the separately invoked Mongo
+  E2E suite: 6 files / 154 tests PASS, including 62 administrator-auth cases.
+- Frontend: 30 files / 255 tests PASS. Combined distinct Vitest tests: 757.
+- Real email-login platform/sidebar/analytics/brief/drill-down/logout browser PASS.
+  Real SMS-login sales/pilot/import/owner-activation browser PASS.
+  Password-only and chosen-code-pending direct navigation are denied in both.
+- Status regression: 55 tests (included in the 255) plus 12 light/dark
+  desktop/laptop/tablet/mobile contrast/layout cases PASS.
+- CERTIFIED_STATIC: 36 route files, 155 permissions, 10 critical paths.
+
+Added coverage includes both channel choices, no pre-choice delivery, immutable
+selection/concurrent choices, wrong channel, refresh evidence, missing-proof denial,
+legacy dual-proof compatibility, truthful login notices and dual-step-up downgrade
+denial. Existing failure/replay/expiry/lockout/provider/audit/role/tenant/session
+assertions remain. Only specific multi-stage E2E execution budgets increased to
+15 seconds while retaining production bcrypt and all assertions. One first browser
+attempt timed out on an existing navigation heading; its unchanged complete rerun
+passed. No test was removed or skipped in the required E2E gate.
+
+Sensitive-change step-up, provider availability, target-environment channel enrollment
+and live SendGrid/Twilio delivery remain operational requirements. This development
+does not deploy or certify live providers. Final diff/whitespace/secret/path review
+precedes commit; temporary/browser/build artifacts and the pre-existing .continue/
+remain excluded. Pushed hash, CI outcome and final Git status are in the delivery.
+
+Changed-file inventory (this task):
+
+- `apps/backend/scripts/enroll-admin-mfa.ts` (modified)
+- `apps/backend/scripts/recover-admin-channels.ts` (modified)
+- `apps/backend/src/core/api/openapi.ts` (modified)
+- `apps/backend/src/core/types/auth.ts` (modified)
+- `apps/backend/src/database/models/AdminAuthFlow.ts` (modified)
+- `apps/backend/src/database/models/RefreshSession.ts` (modified)
+- `apps/backend/src/middleware/auth.middleware.ts` (modified)
+- `apps/backend/src/modules/auth/admin-auth.controller.ts` (modified)
+- `apps/backend/src/modules/auth/admin-mfa.service.ts` (modified)
+- `apps/backend/src/modules/auth/admin-security.ts` (modified)
+- `apps/backend/src/modules/auth/auth.service.ts` (modified)
+- `apps/backend/src/routes/auth.routes.ts` (modified)
+- `apps/backend/tests/e2e/admin-auth.e2e.test.ts` (modified)
+- `apps/backend/tests/e2e/platform-business.e2e.test.ts` (modified)
+- `apps/backend/tests/unit/admin-security.test.ts` (modified)
+- `apps/frontend/scripts/verify-platform-business.mjs` (modified)
+- `apps/frontend/scripts/verify-sales-demo.mjs` (modified)
+- `apps/frontend/src/app/login/page.tsx` (modified)
+- `apps/frontend/src/components/auth/admin-mfa-choice.tsx` (added)
+- `apps/frontend/src/components/auth/admin-mfa-panel.tsx` (modified)
+- `apps/frontend/src/components/auth/admin-step-up.tsx` (modified)
+- `apps/frontend/src/lib/auth/admin-mfa-ui.test.ts` (modified)
+- `apps/frontend/src/lib/auth/auth-api.ts` (modified)
+- `apps/frontend/src/lib/status.test.tsx` (modified)
+- `apps/frontend/src/lib/status.ts` (modified)
+- `apps/frontend/src/types/auth.ts` (modified)
+- `docs/API_SPECIFICATION.md` (modified)
+- `docs/ARCHITECTURE.md` (modified)
+- `docs/CODEX_EXECUTION_TRACKER.md` (modified)
+- `docs/DATABASE_DESIGN.md` (modified)
+- `docs/FEATURES.md` (modified)
+- `docs/ROLES_PERMISSIONS.md` (modified)
+- `docs/SECURITY.md` (modified)
+- `docs/SUPER_ADMIN_AUTHENTICATION.md` (modified)
+- `docs/TESTING_STRATEGY.md` (modified)

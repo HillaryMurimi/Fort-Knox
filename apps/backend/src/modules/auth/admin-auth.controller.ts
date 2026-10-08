@@ -7,7 +7,7 @@ import { User } from '../../database/models/User.js';
 import { RefreshSession } from '../../database/models/RefreshSession.js';
 import { AdminAuthFlow } from '../../database/models/AdminAuthFlow.js';
 import { AuditService } from '../audit/audit.service.js';
-import { verifyAdminMfa, resendAdminMfa } from './admin-mfa.service.js';
+import { verifyAdminMfa, selectAdminMfaChannel, resendAdminMfa } from './admin-mfa.service.js';
 import { finishAdminLogin, startAdminStepUp } from './auth.service.js';
 import { hashCredential, assertAuthOrigin, assertFreshAdmin, securityAudit } from './admin-security.js';
 import { setRefreshCookie } from './auth.controller.js';
@@ -25,6 +25,10 @@ export const verify: RequestHandler = async (req, res) => {
   setRefreshCookie(res, result.refreshToken);
   const { refreshToken: _secret, sessionId: _sessionId, ...safe } = result;
   sendSuccess(res, safe);
+};
+export const selectChannel: RequestHandler = async (req, res) => {
+  const input = flowSchema.extend({ channel: z.enum(['EMAIL', 'SMS']) }).parse(req.body);
+  sendSuccess(res, await selectAdminMfaChannel(input.flowToken, input.channel, meta(req)));
 };
 export const resend: RequestHandler = async (req, res) => { const input = flowSchema.parse(req.body); sendSuccess(res, await resendAdminMfa(input.flowToken, meta(req))); };
 export const stepUp: RequestHandler = async (req, res) => {
@@ -51,7 +55,7 @@ export const revoke: RequestHandler = async (req, res) => {
 export const revokeAll: RequestHandler = async (req, res) => {
   if (!req.auth?.isPlatformAdmin) throw new AppError(403, 'PLATFORM_ADMIN_REQUIRED', 'Platform administration is required.');
   await RefreshSession.updateMany({ userId: req.auth.userId, revokedAt: { $exists: false } }, { $set: { revokedAt: new Date() } });
-  await AdminAuthFlow.updateMany({ userId: req.auth.userId, stage: { $in: ['EMAIL', 'SMS', 'VERIFIED'] } }, { $set: { stage: 'INVALIDATED' } });
+  await AdminAuthFlow.updateMany({ userId: req.auth.userId, stage: { $in: ['CHANNEL', 'EMAIL', 'SMS', 'VERIFIED'] } }, { $set: { stage: 'INVALIDATED' } });
   await securityAudit('sessions_revoked', req.auth.userId, meta(req));
   sendSuccess(res, { revoked: true });
 };

@@ -23,7 +23,7 @@ try {
   }
   await securityAudit('enrollment_initiated', user._id, {}, { caseId, mechanism: 'HOST_OPERATOR' });
   const flow = await startAdminMfa(user._id, {}, { purpose: 'ENROLLMENT' });
-  if (flow.challenge.delivery !== 'SENT') throw new Error('Email provider delivery failed.');
+  if (!('challenge' in flow) || flow.challenge.delivery !== 'SENT') throw new Error('Email provider delivery failed.');
   const email = await verifyAdminMfa(flow.flowToken, 'EMAIL', await secret('Email code (hidden): '));
   if (email.complete || email.challenge.challenge.delivery !== 'SENT') throw new Error('SMS provider delivery failed.');
   const sms = await verifyAdminMfa(flow.flowToken, 'SMS', await secret('SMS code (hidden): '));

@@ -21,6 +21,7 @@ export interface AuthenticatedUser {
   isPlatformAdmin: boolean;
   sessionId?: Types.ObjectId;
   mfaVerifiedAt?: Date;
+  adminDualChannel?: boolean;
   memberships: AuthenticatedMembership[];
   activeOrganizationId?: Types.ObjectId;
   readOnlyOrganizationIds?: Types.ObjectId[];

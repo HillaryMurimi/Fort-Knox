@@ -240,7 +240,7 @@ All platform intelligence endpoints independently enforce platform administrator
 
 ## SUPER_ADMIN privileged assurance
 
-Every platform-admin request requires a live, unrevoked, contact/version-bound session with password/email/SMS proof. Generic/legacy/social session paths cannot bypass it. Admin OTPs are purpose-bound HMAC/bcrypt hashes, atomic and rate-limited. Privileged tokens are memory-only; server idle/absolute expiry and sensitive step-up remain authoritative. See [security controls and audited recovery](SUPER_ADMIN_AUTHENTICATION.md).
+Every platform-admin request requires a live, unrevoked, contact/version-bound session with password and the explicit selected-channel proof; sensitive step-up still requires both channels. Generic/legacy/social session paths cannot bypass it. Admin OTPs are purpose-bound HMAC/bcrypt hashes, atomic and rate-limited. Privileged tokens are memory-only; server idle/absolute expiry and sensitive step-up remain authoritative. See [security controls and audited recovery](SUPER_ADMIN_AUTHENTICATION.md).
 
 
 ## Pain-first sales demonstration and guided pilot (2026-10-02)

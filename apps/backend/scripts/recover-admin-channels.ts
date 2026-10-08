@@ -31,7 +31,7 @@ try {
     }, { returnDocument: 'after', session });
     if (!updated) throw new Error('Account changed during recovery.');
     await RefreshSession.updateMany({ userId: account._id, revokedAt: { $exists: false } }, { $set: { revokedAt: new Date() } }, { session });
-    await AdminAuthFlow.updateMany({ userId: account._id, stage: { $in: ['EMAIL', 'SMS', 'VERIFIED'] } }, { $set: { stage: 'INVALIDATED' } }, { session });
+    await AdminAuthFlow.updateMany({ userId: account._id, stage: { $in: ['CHANNEL', 'EMAIL', 'SMS', 'VERIFIED'] } }, { $set: { stage: 'INVALIDATED' } }, { session });
     await AuditService.record({ actorUserId: account._id, actorRole: 'SUPER_ADMIN', action: 'auth.super_admin.recovery_destinations_staged',
       resourceType: 'User', resourceId: account._id, metadata: { caseId, mechanism: 'HOST_OPERATOR_AND_CURRENT_PASSWORD', dualChannelEnrollmentRequired: true } }, session);
   });

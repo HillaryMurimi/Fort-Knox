@@ -3,11 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Input } from '@/components/ui';
 import { api } from '@/lib/api';
 import { resendAdminMfa } from '@/lib/auth/auth-api';
-import type { AdminMfaResponse, LoginResponse } from '@/types/auth';
+import type { AdminMfaResponse, AdminMfaChallenge, LoginResponse } from '@/types/auth';
 import { AdminMfaPanel } from './admin-mfa-panel';
 export function AdminStepUp({ enabled, verify }: { enabled: boolean; verify: (flow: string, channel: 'EMAIL' | 'SMS', code: string) => Promise<AdminMfaResponse | LoginResponse> }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [open, setOpen] = useState(false), [mfa, setMfa] = useState<AdminMfaResponse | null>(null);
+  const [open, setOpen] = useState(false), [mfa, setMfa] = useState<AdminMfaChallenge | null>(null);
   const [password, setPassword] = useState(''), [code, setCode] = useState(''), [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<'VERIFY' | 'RESEND' | null>(null), [now, setNow] = useState(() => Date.now()), [complete, setComplete] = useState(false);
   useEffect(() => { if (!enabled) return; const show = () => { setOpen(true); setComplete(false); }; window.addEventListener('pcc:admin-step-up', show); return () => window.removeEventListener('pcc:admin-step-up', show); }, [enabled]);
@@ -16,19 +16,19 @@ export function AdminStepUp({ enabled, verify }: { enabled: boolean; verify: (fl
   const close = () => { setOpen(false); setPassword(''); setMfa(null); setCode(''); setError(null); };
   async function credentials() {
     setBusy('VERIFY'); setError(null);
-    try { setMfa(await api<AdminMfaResponse>('/auth/admin-mfa/step-up', { method: 'POST', body: JSON.stringify({ password }) })); }
+    try { setMfa(await api<AdminMfaChallenge>('/auth/admin-mfa/step-up', { method: 'POST', body: JSON.stringify({ password }) })); }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to verify password.'); }
     finally { setPassword(''); setBusy(null); }
   }
   async function submit() {
     if (!mfa) return; setBusy('VERIFY'); setError(null);
-    try { const result = await verify(mfa.flowToken, mfa.stage, code); setCode(''); if ('mfaRequired' in result) setMfa(result); else { setMfa(null); setComplete(true); } }
+    try { const result = await verify(mfa.flowToken, mfa.stage, code); setCode(''); if ('mfaRequired' in result) { if (result.stage === 'CHANNEL') throw new Error('Sensitive verification requires both channels.'); setMfa(result); } else { setMfa(null); setComplete(true); } }
     catch (caught) { setCode(''); setError(caught instanceof Error ? caught.message : 'Unable to verify.'); }
     finally { setBusy(null); }
   }
   async function resend() {
     if (!mfa) return; setBusy('RESEND'); setError(null);
-    try { setMfa(await resendAdminMfa(mfa.flowToken)); setCode(''); }
+    try { const result = await resendAdminMfa(mfa.flowToken); if (result.stage === 'CHANNEL') throw new Error('Restart sensitive verification.'); setMfa(result); setCode(''); }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to resend.'); }
     finally { setBusy(null); }
   }

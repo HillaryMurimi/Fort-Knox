@@ -410,7 +410,7 @@ Plan Performance independently compares Control/Fort Knox organizations, actual 
 
 ## SUPER_ADMIN secure login
 
-The normal login entry point guides administrators through password, masked email verification and masked SMS verification, with countdown, expiry, delivery/retry, error and lockout states. Ordinary-role policies are preserved. Platform security changes invoke accessible dual-channel step-up; sessions can be revoked through owned-session APIs. [Operator details](SUPER_ADMIN_AUTHENTICATION.md).
+The normal login entry point guides administrators through password, a choice of masked email or SMS destination, and verification of that selected code, with countdown, expiry, delivery/retry, error and lockout states. Ordinary-role policies are preserved. Platform security changes invoke accessible dual-channel step-up; sessions can be revoked through owned-session APIs. [Operator details](SUPER_ADMIN_AUTHENTICATION.md).
 
 
 ## Pain-first sales demonstration and guided pilot (2026-10-02)

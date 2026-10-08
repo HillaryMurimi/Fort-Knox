@@ -9,8 +9,9 @@ describe('SUPER_ADMIN security primitives', () => {
   it('requires fresh server-side assurance for sensitive actions', () => {
     const auth = { userId: new Types.ObjectId(), isPlatformAdmin: true, memberships: [] };
     expect(() => assertFreshAdmin(auth)).toThrow('Verify your password');
-    expect(() => assertFreshAdmin({ ...auth, sessionId: new Types.ObjectId(), mfaVerifiedAt: new Date() })).not.toThrow();
-    expect(() => assertFreshAdmin({ ...auth, sessionId: new Types.ObjectId(), mfaVerifiedAt: new Date(0) })).toThrow();
+    expect(() => assertFreshAdmin({ ...auth, sessionId: new Types.ObjectId(), mfaVerifiedAt: new Date(), adminDualChannel: true })).not.toThrow();
+    expect(() => assertFreshAdmin({ ...auth, sessionId: new Types.ObjectId(), mfaVerifiedAt: new Date(0), adminDualChannel: true })).toThrow();
+    expect(() => assertFreshAdmin({ ...auth, sessionId: new Types.ObjectId(), mfaVerifiedAt: new Date(), adminDualChannel: false })).toThrow();
   });
   it('rejects organization roles independent of their frontend labels', () => { expect(() => assertFreshAdmin({ userId: new Types.ObjectId(), isPlatformAdmin: false, memberships: [] })).toThrow('Platform administrator'); });
   it('requires configured Origin and the custom authentication header', () => {
