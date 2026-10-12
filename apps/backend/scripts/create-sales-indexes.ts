@@ -4,9 +4,10 @@ import {
   SalesValueEvent,
 } from "../src/database/models/SalesDemoSession.js";
 import { Organization } from "../src/database/models/Organization.js";
+import { AcquisitionJourney } from "../src/database/models/AcquisitionJourney.js";
 await connectDatabase();
 try {
-  for (const model of [SalesDemoSession, SalesValueEvent])
+  for (const model of [SalesDemoSession, SalesValueEvent, AcquisitionJourney])
     await model.createIndexes();
   for (const [key, options] of Organization.schema.indexes())
     if (options.name?.startsWith("guided_pilot_"))

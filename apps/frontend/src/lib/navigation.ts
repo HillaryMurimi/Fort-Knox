@@ -322,7 +322,12 @@ export function canPresentRoute(
    * Settings remains globally presentable for authenticated application
    * users. Backend APIs must still enforce access to privileged settings.
    */
-  if (normalizedPath === "/sales-demo" && permissions.includes("sales.demo.manage")) return true;
+  if (
+    normalizedPath === "/sales-demo" &&
+    permissions.includes("sales.demo.manage")
+  )
+    return true;
+  if (normalizedPath === "/get-started") return role === "LANDLORD";
   if (normalizedPath === "/settings") {
     return true;
   }
@@ -350,13 +355,23 @@ export function canPresentRoute(
 }
 
 /** Match sidebar destinations, including their selected control-plane tab. */
-export function isNavigationItemActive(href: string, path: string, search = ""): boolean {
+export function isNavigationItemActive(
+  href: string,
+  path: string,
+  search = "",
+): boolean {
   if (href.includes("#")) return false;
-  const root = normalizePath(href), current = normalizePath(path);
+  const root = normalizePath(href),
+    current = normalizePath(path);
   if (current !== root && !current.startsWith(root + "/")) return false;
   const expected = new URLSearchParams(href.split("?")[1] ?? "");
   const actual = new URLSearchParams(search);
-  return [...expected].every(([key, value]) => value === (actual.get(key) ?? (key === "tab" && root === "/platform" ? "plan performance" : null)));
+  return [...expected].every(
+    ([key, value]) =>
+      value ===
+      (actual.get(key) ??
+        (key === "tab" && root === "/platform" ? "plan performance" : null)),
+  );
 }
 
 /** Remove query/hash fragments and normalize trailing slashes. */

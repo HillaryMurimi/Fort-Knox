@@ -426,3 +426,10 @@ verified channels. Platform Security includes OTP provider receipt tests,
 configuration/readiness/availability, controlled switches and bounded history.
 Tenant activation verifies the registered email while preserving assigned unit.
 SMS can stay OFF during the initial Coolify launch. See OTP_AUTHENTICATION_CHANNELS.md.
+
+
+## Self-service landlord onboarding — 2026-10-12
+
+Public plan comparison, email-verified signup handoff, saved paid portfolio setup, 500-row atomic Excel/CSV import batches, actual-record first dashboard, self-service funnel/TTFV and consent-bound recovery hooks are implemented. Recovery remains OFF.
+
+See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.

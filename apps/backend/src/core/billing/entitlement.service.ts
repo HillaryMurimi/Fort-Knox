@@ -1,51 +1,167 @@
-import { Organization } from '../../database/models/Organization.js';
-import { SubscriptionPlan } from '../../database/models/SubscriptionPlan.js';
-import { OrganizationSubscription } from '../../database/models/OrganizationSubscription.js';
-import { Property } from '../../database/models/Property.js';
-import { Unit } from '../../database/models/Unit.js';
-import { Tenant } from '../../database/models/Tenant.js';
-import { OrganizationMembership } from '../../database/models/OrganizationMembership.js';
-import { AppError } from '../errors/AppError.js';
+import { type ClientSession } from "mongoose";
+import { Organization } from "../../database/models/Organization.js";
+import { SubscriptionPlan } from "../../database/models/SubscriptionPlan.js";
+import { OrganizationSubscription } from "../../database/models/OrganizationSubscription.js";
+import { Property } from "../../database/models/Property.js";
+import { Unit } from "../../database/models/Unit.js";
+import { Tenant } from "../../database/models/Tenant.js";
+import { OrganizationMembership } from "../../database/models/OrganizationMembership.js";
+import { AppError } from "../errors/AppError.js";
 
-export type LimitMetric = 'PROPERTIES' | 'UNITS' | 'USERS' | 'TENANTS';
+export type LimitMetric = "PROPERTIES" | "UNITS" | "USERS" | "TENANTS";
 
 export class EntitlementService {
-  static async getPlan(organizationId: string) {
-    const subscription = await OrganizationSubscription.findOne({ organizationId }).populate('planId').lean();
-    if (!subscription || !['ACTIVE', 'TRIALING'].includes(subscription.status) || (subscription.provider === 'PAYSTACK' && subscription.currentPeriodEnd <= new Date()) || (subscription.status === 'TRIALING' && subscription.trialEndsAt && subscription.trialEndsAt <= new Date())) {
-      const organization = await Organization.findById(organizationId).select('guidedPilot status onboarding').lean();
-      if (organization?.status === 'ACTIVE' && organization.onboarding?.state !== 'ACTIVE' && organization.guidedPilot && organization.guidedPilot.expiresAt > new Date()) {
-        const plan = await SubscriptionPlan.findOne({ key: organization.guidedPilot.planKey, active: true }).lean();
-        if (plan) return plan as unknown as { _id: unknown; key: string; entitlements: { maxProperties: number; maxUnits: number; maxUsers: number; maxTenants: number; features: string[] } };
+  static async getPlan(organizationId: string, session?: ClientSession) {
+    const subscription = await OrganizationSubscription.findOne({
+      organizationId,
+    })
+      .populate("planId")
+      .session(session ?? null)
+      .lean();
+    if (
+      !subscription ||
+      !["ACTIVE", "TRIALING"].includes(subscription.status) ||
+      (subscription.provider === "PAYSTACK" &&
+        subscription.currentPeriodEnd <= new Date()) ||
+      (subscription.status === "TRIALING" &&
+        subscription.trialEndsAt &&
+        subscription.trialEndsAt <= new Date())
+    ) {
+      const organization = await Organization.findById(organizationId)
+        .select("guidedPilot status onboarding")
+        .session(session ?? null)
+        .lean();
+      if (
+        organization?.status === "ACTIVE" &&
+        organization.onboarding?.state !== "ACTIVE" &&
+        organization.guidedPilot &&
+        organization.guidedPilot.expiresAt > new Date()
+      ) {
+        const plan = await SubscriptionPlan.findOne({
+          key: organization.guidedPilot.planKey,
+          active: true,
+        })
+          .session(session ?? null)
+          .lean();
+        if (plan)
+          return plan as unknown as {
+            _id: unknown;
+            key: string;
+            entitlements: {
+              maxProperties: number;
+              maxUnits: number;
+              maxUsers: number;
+              maxTenants: number;
+              features: string[];
+            };
+          };
       }
-      throw new AppError(402, 'SUBSCRIPTION_REQUIRED', 'An active subscription or unexpired guided pilot is required');
+      throw new AppError(
+        402,
+        "SUBSCRIPTION_REQUIRED",
+        "An active subscription or unexpired guided pilot is required",
+      );
     }
-    return subscription.planId as unknown as { _id: unknown; key: string; entitlements: { maxProperties: number; maxUnits: number; maxUsers: number; maxTenants: number; features: string[] } };
+    return subscription.planId as unknown as {
+      _id: unknown;
+      key: string;
+      entitlements: {
+        maxProperties: number;
+        maxUnits: number;
+        maxUsers: number;
+        maxTenants: number;
+        features: string[];
+      };
+    };
   }
 
   static async assertFeature(organizationId: string, feature: string) {
     const plan = await this.getPlan(organizationId);
-    if (!plan.entitlements.features.includes(feature)) throw new AppError(403, 'FEATURE_NOT_ENTITLED', `Subscription does not include feature: ${feature}`);
+    if (!plan.entitlements.features.includes(feature))
+      throw new AppError(
+        403,
+        "FEATURE_NOT_ENTITLED",
+        `Subscription does not include feature: ${feature}`,
+      );
   }
 
-  static async count(organizationId: string, metric: LimitMetric) {
-    if (metric === 'PROPERTIES') return Property.countDocuments({ organizationId, status: { $ne: 'ARCHIVED' } });
-    if (metric === 'UNITS') return Unit.countDocuments({ organizationId, status: { $ne: 'INACTIVE' } });
-    if (metric === 'TENANTS') return Tenant.countDocuments({ organizationId, status: { $ne: 'INACTIVE' } });
-    return OrganizationMembership.countDocuments({ organizationId, status: 'ACTIVE' });
+  static async count(
+    organizationId: string,
+    metric: LimitMetric,
+    session?: ClientSession,
+  ) {
+    if (metric === "PROPERTIES")
+      return Property.countDocuments({
+        organizationId,
+        status: { $ne: "ARCHIVED" },
+      }).session(session ?? null);
+    if (metric === "UNITS")
+      return Unit.countDocuments({
+        organizationId,
+        status: { $ne: "INACTIVE" },
+      }).session(session ?? null);
+    if (metric === "TENANTS")
+      return Tenant.countDocuments({
+        organizationId,
+        status: { $ne: "INACTIVE" },
+      }).session(session ?? null);
+    return OrganizationMembership.countDocuments({
+      organizationId,
+      status: "ACTIVE",
+    }).session(session ?? null);
   }
 
-  static async assertCapacity(organizationId: string, metric: LimitMetric, additional = 1) {
-    const plan = await this.getPlan(organizationId);
+  static async reserveCapacity(
+    organizationId: string,
+    metric: LimitMetric,
+    additional: number,
+    session: ClientSession,
+  ) {
+    // Serialize all unit creation paths with paid imports and subscription updates.
+    await Organization.updateOne(
+      { _id: organizationId },
+      { $inc: { __v: 1 } },
+      { session },
+    );
+    await OrganizationSubscription.updateOne(
+      { organizationId },
+      { $inc: { __v: 1 } },
+      { session },
+    );
+    await this.assertCapacity(organizationId, metric, additional, session);
+  }
+
+  static async assertCapacity(
+    organizationId: string,
+    metric: LimitMetric,
+    additional = 1,
+    session?: ClientSession,
+  ) {
+    const plan = await this.getPlan(organizationId, session);
     const limits: Record<LimitMetric, number> = {
       PROPERTIES: plan.entitlements.maxProperties,
       UNITS: plan.entitlements.maxUnits,
       USERS: plan.entitlements.maxUsers,
-      TENANTS: plan.entitlements.maxTenants
+      TENANTS: plan.entitlements.maxTenants,
     };
-    const limit = limits[metric];
+    let limit = limits[metric];
+    if (metric === "UNITS") {
+      const org = await Organization.findById(organizationId)
+        .select("onboarding")
+        .session(session ?? null)
+        .lean();
+      const purchased = org?.onboarding?.unitCount;
+      if (org?.onboarding?.state === "ACTIVE" && typeof purchased === "number")
+        limit = limit === -1 ? purchased : Math.min(limit, purchased);
+    }
     if (limit === -1) return;
-    const current = await this.count(organizationId, metric);
-    if (current + additional > limit) throw new AppError(403, 'PLAN_LIMIT_REACHED', `${metric.toLowerCase()} limit reached for ${plan.key} plan`, { metric, limit, current, requested: additional });
+    const current = await this.count(organizationId, metric, session);
+    if (current + additional > limit)
+      throw new AppError(
+        403,
+        "PLAN_LIMIT_REACHED",
+        `${metric.toLowerCase()} limit reached for ${plan.key} plan`,
+        { metric, limit, current, requested: additional },
+      );
   }
 }

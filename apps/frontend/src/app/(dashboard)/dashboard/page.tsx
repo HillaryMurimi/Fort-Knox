@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { StatusBadge, EmptyState, PageTitle, SectionHeader, Stat } from "@/components/ui";
+import {
+  StatusBadge,
+  EmptyState,
+  PageTitle,
+  SectionHeader,
+  Stat,
+} from "@/components/ui";
 import * as I from "@/components/icons";
 import { money, pct } from "@/lib/utils";
 import { useOrganization } from "@/hooks/use-organization";
@@ -15,6 +21,8 @@ import type { CommandCenterProperty } from "@/types/api";
 import { LandlordControlPanel } from "@/components/landlords/landlord-control-panel";
 import { WorkspaceScene } from "@/components/workspaces/workspace-scene";
 
+import { FirstPortfolio } from "@/components/landlords/first-portfolio";
+
 type Range = "7D" | "30D" | "90D";
 
 function isoDate(daysAgo: number) {
@@ -22,10 +30,6 @@ function isoDate(daysAgo: number) {
   date.setDate(date.getDate() - daysAgo);
   return date.toISOString();
 }
-
-
-
-
 
 function healthBar(score: number) {
   if (score >= 90) return "bg-[var(--status-success-text)]";
@@ -141,6 +145,27 @@ export default function Dashboard() {
     );
   }
 
+  if (
+    activeOrganization?.onboarding?.state === "ACTIVE" &&
+    p.cashCollected === 0 &&
+    p.expenses === 0 &&
+    p.outstandingRent === 0
+  ) {
+    return (
+      <div className="space-y-6">
+        <PageTitle
+          title="Command Center"
+          description="Your actual portfolio and the next useful setup actions."
+        />
+        <FirstPortfolio dashboardLoaded />
+        <p className="text-sm text-muted-foreground">
+          No financial activity recorded in this period. Record rent charges,
+          payments and expenses to build your operating history.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <PageTitle
@@ -183,6 +208,7 @@ export default function Dashboard() {
         }
       />
 
+      <FirstPortfolio dashboardLoaded />
       <WorkspaceScene role="landlord" />
 
       <section className="grid grid-cols-2 xl:grid-cols-5 gap-3">
@@ -355,7 +381,8 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <StatusBadge status={item.health.grade} domain="monitoring">
-                      {Math.round(item.health.score)} · {item.health.grade.replaceAll("_", " ")}
+                      {Math.round(item.health.score)} ·{" "}
+                      {item.health.grade.replaceAll("_", " ")}
                     </StatusBadge>
                   </div>
                   <div className="mt-3 h-1.5 rounded-full bg-muted">
@@ -619,11 +646,21 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MiniSignal({label,value,status}:{label:string;value:string;status:string}) {
+function MiniSignal({
+  label,
+  value,
+  status,
+}: {
+  label: string;
+  value: string;
+  status: string;
+}) {
   return (
     <div className="rounded-xl border border-border p-3 flex items-center justify-between gap-2">
       <span className="text-muted-foreground">{label}</span>
-      <StatusBadge status={status} domain="monitoring">{value} - {status.replaceAll("_", " ")}</StatusBadge>
+      <StatusBadge status={status} domain="monitoring">
+        {value} - {status.replaceAll("_", " ")}
+      </StatusBadge>
     </div>
   );
 }

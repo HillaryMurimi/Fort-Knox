@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": false,
     "skipLibCheck": true,
     "strict": true,
@@ -26,9 +22,7 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     }
   },
   "include": [
@@ -40,9 +34,9 @@
     ".next/browser-sales/types/**/*.ts",
     ".next/browser-sales/dev/types/**/*.ts",
     ".next/browser-platform/types/**/*.ts",
-    ".next/browser-platform/dev/types/**/*.ts"
+    ".next/browser-platform/dev/types/**/*.ts",
+    ".next/browser-self-service/types/**/*.ts",
+    ".next/browser-self-service/dev/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ]
+  "exclude": ["node_modules"]
 }

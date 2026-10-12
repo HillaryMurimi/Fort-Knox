@@ -4,7 +4,7 @@ export interface Organization {
   slug: string;
   createdAt?: string;
   updatedAt?: string;
-  status?: 'ACTIVE' | 'SUSPENDED';
+  status?: "ACTIVE" | "SUSPENDED";
   regionalProfile?: {
     countryCode: string;
     baseCurrency: string;
@@ -12,6 +12,12 @@ export interface Organization {
     locale: string;
     timeZone: string;
   };
+  onboarding?: {
+    state: string;
+    paymentVerifiedAt?: string;
+    activatedAt?: string;
+  };
+  portfolioOnboarding?: { firstDashboardAt?: string };
   settings?: {
     managementPhone?: string;
     managementEmail?: string;
@@ -33,7 +39,7 @@ export interface OrganizationMembership {
   roles: string[];
   permissions: string[];
   scope: OrganizationMembershipScope;
-  status: 'ACTIVE' | 'REMOVED';
+  status: "ACTIVE" | "REMOVED";
 }
 
 export interface OrganizationContextValue {

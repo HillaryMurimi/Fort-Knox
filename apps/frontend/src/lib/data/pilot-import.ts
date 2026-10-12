@@ -22,8 +22,8 @@ export const importColumns = [
 export const pilotCsvTemplate =
   importColumns.join(",") +
   "\nAcacia Court,ACACIA,Kilimani,Nairobi,APARTMENT,Block A,A,Ground Floor,0,A01,TWO_BEDROOM,2500000,0,0,,,,,\n";
-export function parsePilotCsv(text: string): Record<string, unknown>[] {
-  if (text.length > 1500000)
+export function parseCsvTable(text: string, maxBytes = 1500000): string[][] {
+  if (text.length > maxBytes)
     throw new Error("CSV is too large; import up to 500 units per batch.");
   const lines: string[][] = [];
   let row: string[] = [],
@@ -41,8 +41,7 @@ export function parsePilotCsv(text: string): Record<string, unknown>[] {
       } else if (quoted || cell === "") {
         closedQuote = quoted;
         quoted = !quoted;
-      }
-      else throw new Error("Malformed CSV quote.");
+      } else throw new Error("Malformed CSV quote.");
     } else if (!quoted && (c === "," || c === "\n")) {
       row.push(cell);
       cell = "";
@@ -58,6 +57,10 @@ export function parsePilotCsv(text: string): Record<string, unknown>[] {
     row.push(cell);
     lines.push(row);
   }
+  return lines;
+}
+export function parsePilotCsv(text: string): Record<string, unknown>[] {
+  const lines = parseCsvTable(text);
   const header = lines.shift()?.map((v) => v.replace(/^\uFEFF/, "").trim());
   if (!header || header.join(",") !== importColumns.join(","))
     throw new Error("Use the supplied column template in its original order.");

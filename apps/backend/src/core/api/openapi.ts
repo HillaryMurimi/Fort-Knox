@@ -1,114 +1,711 @@
-import { otpAuthenticationPaths } from '../../modules/auth/otp-authentication.openapi.js';
-import { PRODUCT_NAME } from '../../config/brand.js';
-import { salesDemoPaths } from '../../modules/sales/sales-demo.openapi.js';
-import { platformBusinessPaths } from '../../modules/platform-control/platform-business.openapi.js';
-import { landlordContractPaths } from '../../modules/onboarding/landlord-onboarding.openapi.js';
-import { API_CONTRACT_VERSION, API_VERSION } from './api-contract.js';
+import { otpAuthenticationPaths } from "../../modules/auth/otp-authentication.openapi.js";
+import { selfServicePaths } from "../../modules/onboarding/self-service.openapi.js";
+import { PRODUCT_NAME } from "../../config/brand.js";
+import { salesDemoPaths } from "../../modules/sales/sales-demo.openapi.js";
+import { platformBusinessPaths } from "../../modules/platform-control/platform-business.openapi.js";
+import { landlordContractPaths } from "../../modules/onboarding/landlord-onboarding.openapi.js";
+import { API_CONTRACT_VERSION, API_VERSION } from "./api-contract.js";
 
 export function buildOpenApiDocument() {
   return {
-    openapi: '3.1.0',
+    openapi: "3.1.0",
     info: {
       title: `${PRODUCT_NAME} Property Command Center API`,
       version: API_VERSION,
       description: `Versioned REST API for ${PRODUCT_NAME}, the property command center. Authentication uses Bearer access tokens. Mutating requests may use Idempotency-Key.`,
-      'x-contract-version': API_CONTRACT_VERSION,
+      "x-contract-version": API_CONTRACT_VERSION,
     },
-    servers: [{ url: '/api/v1' }],
+    servers: [{ url: "/api/v1" }],
     security: [{ bearerAuth: [] }],
     components: {
-      securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
+      securitySchemes: {
+        bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
+      },
       parameters: {
-        RequestId: { name: 'X-Request-ID', in: 'header', required: false, schema: { type: 'string' } },
-        IdempotencyKey: { name: 'Idempotency-Key', in: 'header', required: false, schema: { type: 'string', minLength: 16, maxLength: 200 } },
-        IfMatch: { name: 'If-Match', in: 'header', required: false, description: 'Optional entity version for optimistic concurrency.', schema: { type: 'string' } },
+        RequestId: {
+          name: "X-Request-ID",
+          in: "header",
+          required: false,
+          schema: { type: "string" },
+        },
+        IdempotencyKey: {
+          name: "Idempotency-Key",
+          in: "header",
+          required: false,
+          schema: { type: "string", minLength: 16, maxLength: 200 },
+        },
+        IfMatch: {
+          name: "If-Match",
+          in: "header",
+          required: false,
+          description: "Optional entity version for optimistic concurrency.",
+          schema: { type: "string" },
+        },
       },
       schemas: {
-        MonitorMetric: { type: 'object', required: ['key', 'label', 'value', 'source', 'window'], properties: { key: { type: 'string' }, label: { type: 'string' }, value: { type: ['number', 'string', 'null'] }, source: { type: 'string' }, window: { type: 'string' } } },
-        MonitorAlertReview: { type: 'object', additionalProperties: false, required: ['expectedRevision', 'owner', 'action', 'note'], properties: { expectedRevision: { type: 'integer', minimum: 0 }, owner: { type: 'string', maxLength: 120 }, action: { type: 'string', enum: ['ASSIGN', 'ACKNOWLEDGE', 'RESOLVE', 'REOPEN'] }, note: { type: 'string', minLength: 3, maxLength: 500 } } },
-        MonitorMaintenanceWindow: { type: 'object', additionalProperties: false, required: ['area', 'scope', 'startsAt', 'endsAt', 'reason', 'owner'], properties: { area: { type: 'string', enum: ['launch', 'switches', 'system', 'onboarding', 'queues', 'notifications', 'security'] }, scope: { type: 'string', pattern: '^(?:PLATFORM|[a-fA-F0-9]{24})$' }, startsAt: { type: 'string', format: 'date-time' }, endsAt: { type: 'string', format: 'date-time' }, reason: { type: 'string', minLength: 3, maxLength: 500 }, owner: { type: 'string', minLength: 1, maxLength: 120 } } },
+        MonitorMetric: {
+          type: "object",
+          required: ["key", "label", "value", "source", "window"],
+          properties: {
+            key: { type: "string" },
+            label: { type: "string" },
+            value: { type: ["number", "string", "null"] },
+            source: { type: "string" },
+            window: { type: "string" },
+          },
+        },
+        MonitorAlertReview: {
+          type: "object",
+          additionalProperties: false,
+          required: ["expectedRevision", "owner", "action", "note"],
+          properties: {
+            expectedRevision: { type: "integer", minimum: 0 },
+            owner: { type: "string", maxLength: 120 },
+            action: {
+              type: "string",
+              enum: ["ASSIGN", "ACKNOWLEDGE", "RESOLVE", "REOPEN"],
+            },
+            note: { type: "string", minLength: 3, maxLength: 500 },
+          },
+        },
+        MonitorMaintenanceWindow: {
+          type: "object",
+          additionalProperties: false,
+          required: ["area", "scope", "startsAt", "endsAt", "reason", "owner"],
+          properties: {
+            area: {
+              type: "string",
+              enum: [
+                "launch",
+                "switches",
+                "system",
+                "onboarding",
+                "queues",
+                "notifications",
+                "security",
+              ],
+            },
+            scope: {
+              type: "string",
+              pattern: "^(?:PLATFORM|[a-fA-F0-9]{24})$",
+            },
+            startsAt: { type: "string", format: "date-time" },
+            endsAt: { type: "string", format: "date-time" },
+            reason: { type: "string", minLength: 3, maxLength: 500 },
+            owner: { type: "string", minLength: 1, maxLength: 120 },
+          },
+        },
 
-        ReadinessReview: { type: 'object', additionalProperties: false, required: ['expectedRevision', 'onboarding', 'staging', 'responsibleOwner', 'targetDate', 'nextAction', 'blocker', 'severity', 'verificationNote'], properties: {
-          expectedRevision: { type: 'integer', minimum: 0 },
-          onboarding: { type: 'string', enum: ['NOT_STARTED', 'AWAITING_DOCUMENTS', 'SUBMITTED', 'APPROVED'] },
-          staging: { type: 'string', enum: ['NOT_TESTED', 'PASSED', 'FAILED', 'NOT_APPLICABLE'] },
-          responsibleOwner: { type: 'string', maxLength: 120 }, targetDate: { type: ['string', 'null'], format: 'date' },
-          nextAction: { type: 'string', maxLength: 300 }, blocker: { type: 'string', maxLength: 500 },
-          severity: { type: 'string', enum: ['NONE', 'LOW', 'HIGH', 'CRITICAL'] }, verificationNote: { type: 'string', maxLength: 500 },
-        } },
-        SuccessResponse: { type: 'object', required: ['success', 'data'], properties: { success: { const: true }, data: {} } },
-        ErrorResponse: { type: 'object', required: ['success', 'error', 'requestId'], properties: { success: { const: false }, error: { type: 'object' }, requestId: { type: 'string' } } },
-        PaginationMeta: { type: 'object', required: ['page', 'pageSize', 'total', 'totalPages', 'hasNextPage', 'hasPreviousPage'], properties: { page: { type: 'integer' }, pageSize: { type: 'integer' }, total: { type: 'integer' }, totalPages: { type: 'integer' }, hasNextPage: { type: 'boolean' }, hasPreviousPage: { type: 'boolean' } } },
+        ReadinessReview: {
+          type: "object",
+          additionalProperties: false,
+          required: [
+            "expectedRevision",
+            "onboarding",
+            "staging",
+            "responsibleOwner",
+            "targetDate",
+            "nextAction",
+            "blocker",
+            "severity",
+            "verificationNote",
+          ],
+          properties: {
+            expectedRevision: { type: "integer", minimum: 0 },
+            onboarding: {
+              type: "string",
+              enum: [
+                "NOT_STARTED",
+                "AWAITING_DOCUMENTS",
+                "SUBMITTED",
+                "APPROVED",
+              ],
+            },
+            staging: {
+              type: "string",
+              enum: ["NOT_TESTED", "PASSED", "FAILED", "NOT_APPLICABLE"],
+            },
+            responsibleOwner: { type: "string", maxLength: 120 },
+            targetDate: { type: ["string", "null"], format: "date" },
+            nextAction: { type: "string", maxLength: 300 },
+            blocker: { type: "string", maxLength: 500 },
+            severity: {
+              type: "string",
+              enum: ["NONE", "LOW", "HIGH", "CRITICAL"],
+            },
+            verificationNote: { type: "string", maxLength: 500 },
+          },
+        },
+        SuccessResponse: {
+          type: "object",
+          required: ["success", "data"],
+          properties: { success: { const: true }, data: {} },
+        },
+        ErrorResponse: {
+          type: "object",
+          required: ["success", "error", "requestId"],
+          properties: {
+            success: { const: false },
+            error: { type: "object" },
+            requestId: { type: "string" },
+          },
+        },
+        PaginationMeta: {
+          type: "object",
+          required: [
+            "page",
+            "pageSize",
+            "total",
+            "totalPages",
+            "hasNextPage",
+            "hasPreviousPage",
+          ],
+          properties: {
+            page: { type: "integer" },
+            pageSize: { type: "integer" },
+            total: { type: "integer" },
+            totalPages: { type: "integer" },
+            hasNextPage: { type: "boolean" },
+            hasPreviousPage: { type: "boolean" },
+          },
+        },
       },
     },
     paths: {
+      ...selfServicePaths,
       ...otpAuthenticationPaths,
       ...salesDemoPaths,
       ...platformBusinessPaths,
       ...landlordContractPaths,
-      '/platform-control/monitoring': { get: { summary: 'Platform monitoring overview (Super Admin only)', description: 'Seven priority areas with actual record/telemetry values, source/window metadata and null for unavailable data. In-process HTTP telemetry is not fleet uptime. Includes declared switch dependencies and enforcement limitations.', responses: { '200': { description: 'Current scoped environment snapshot; missing sources explicitly unavailable' }, '401': { description: 'Authentication required' }, '403': { description: 'Platform administration required' } } } },
-      '/platform-control/monitoring/alerts': { get: { summary: 'Paginated platform alert records', parameters: [{ name: 'page', in: 'query', schema: { type: 'integer', minimum: 1 } }, { name: 'pageSize', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100 } }, { name: 'area', in: 'query', schema: { type: 'string', enum: ['launch', 'switches', 'system', 'onboarding', 'queues', 'notifications', 'security'] } }, { name: 'status', in: 'query', schema: { type: 'string', enum: ['OPEN', 'ACKNOWLEDGED', 'RESOLVED'] } }, { name: 'scope', in: 'query', schema: { type: 'string' } }], responses: { '200': { description: 'Items, total, page and pageSize; current suppression flag' }, '403': { description: 'Platform administration required' } } } },
-      '/platform-control/monitoring/alerts/{id}': { patch: { summary: 'Assign, acknowledge, resolve or reopen an alert', description: 'Super Admin only. Requires expectedRevision, owner and action note. Validated status transitions, history and audit commit in one MongoDB transaction. An active measured condition can reopen a manually resolved alert.', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/MonitorAlertReview' } } } }, responses: { '200': { description: 'Updated alert status/revision' }, '400': { description: 'Invalid or credential-shaped input' }, '403': { description: 'Platform administration required' }, '404': { description: 'Alert not found in this deployment scope' }, '409': { description: 'Stale revision or invalid transition' }, '503': { description: 'Required unique monitoring indexes absent' } } } },
-      '/platform-control/monitoring/alerts/{id}/history': { get: { summary: 'Paginated acknowledgement and resolution history', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }, { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1 } }], responses: { '200': { description: 'Immutable system/operator events, actor, owner, timestamp and action note' }, '403': { description: 'Platform administration required' }, '404': { description: 'Alert not found in this deployment scope' } } } },
-      '/platform-control/monitoring/maintenance-windows': {
-        get: { summary: 'Pending and active monitoring maintenance windows', responses: { '200': { description: 'At most 100 windows in the current environment' }, '403': { description: 'Platform administration required' } } },
-        post: { summary: 'Create an audited alert-suppression window', description: 'Super Admin only. PLATFORM scope suppresses the selected area across organizations. A specific organization must exist. Duration is at most seven days; no services are toggled.', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/MonitorMaintenanceWindow' } } } }, responses: { '201': { description: 'Window created with atomic audit' }, '400': { description: 'Invalid, expired or credential-shaped input' }, '403': { description: 'Platform administration required' }, '409': { description: 'Pending/active window capacity reached' }, '503': { description: 'Required monitoring indexes absent' } } },
+      "/platform-control/monitoring": {
+        get: {
+          summary: "Platform monitoring overview (Super Admin only)",
+          description:
+            "Seven priority areas with actual record/telemetry values, source/window metadata and null for unavailable data. In-process HTTP telemetry is not fleet uptime. Includes declared switch dependencies and enforcement limitations.",
+          responses: {
+            "200": {
+              description:
+                "Current scoped environment snapshot; missing sources explicitly unavailable",
+            },
+            "401": { description: "Authentication required" },
+            "403": { description: "Platform administration required" },
+          },
+        },
       },
-      '/platform-control/monitoring/maintenance-windows/{id}/end': { post: { summary: 'End a pending/active maintenance window with audit', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Window ended; services unaffected' }, '403': { description: 'Platform administration required' }, '404': { description: 'Window not found in this environment' } } } },
+      "/platform-control/monitoring/alerts": {
+        get: {
+          summary: "Paginated platform alert records",
+          parameters: [
+            {
+              name: "page",
+              in: "query",
+              schema: { type: "integer", minimum: 1 },
+            },
+            {
+              name: "pageSize",
+              in: "query",
+              schema: { type: "integer", minimum: 1, maximum: 100 },
+            },
+            {
+              name: "area",
+              in: "query",
+              schema: {
+                type: "string",
+                enum: [
+                  "launch",
+                  "switches",
+                  "system",
+                  "onboarding",
+                  "queues",
+                  "notifications",
+                  "security",
+                ],
+              },
+            },
+            {
+              name: "status",
+              in: "query",
+              schema: {
+                type: "string",
+                enum: ["OPEN", "ACKNOWLEDGED", "RESOLVED"],
+              },
+            },
+            { name: "scope", in: "query", schema: { type: "string" } },
+          ],
+          responses: {
+            "200": {
+              description:
+                "Items, total, page and pageSize; current suppression flag",
+            },
+            "403": { description: "Platform administration required" },
+          },
+        },
+      },
+      "/platform-control/monitoring/alerts/{id}": {
+        patch: {
+          summary: "Assign, acknowledge, resolve or reopen an alert",
+          description:
+            "Super Admin only. Requires expectedRevision, owner and action note. Validated status transitions, history and audit commit in one MongoDB transaction. An active measured condition can reopen a manually resolved alert.",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/MonitorAlertReview" },
+              },
+            },
+          },
+          responses: {
+            "200": { description: "Updated alert status/revision" },
+            "400": { description: "Invalid or credential-shaped input" },
+            "403": { description: "Platform administration required" },
+            "404": { description: "Alert not found in this deployment scope" },
+            "409": { description: "Stale revision or invalid transition" },
+            "503": { description: "Required unique monitoring indexes absent" },
+          },
+        },
+      },
+      "/platform-control/monitoring/alerts/{id}/history": {
+        get: {
+          summary: "Paginated acknowledgement and resolution history",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+            {
+              name: "page",
+              in: "query",
+              schema: { type: "integer", minimum: 1 },
+            },
+          ],
+          responses: {
+            "200": {
+              description:
+                "Immutable system/operator events, actor, owner, timestamp and action note",
+            },
+            "403": { description: "Platform administration required" },
+            "404": { description: "Alert not found in this deployment scope" },
+          },
+        },
+      },
+      "/platform-control/monitoring/maintenance-windows": {
+        get: {
+          summary: "Pending and active monitoring maintenance windows",
+          responses: {
+            "200": {
+              description: "At most 100 windows in the current environment",
+            },
+            "403": { description: "Platform administration required" },
+          },
+        },
+        post: {
+          summary: "Create an audited alert-suppression window",
+          description:
+            "Super Admin only. PLATFORM scope suppresses the selected area across organizations. A specific organization must exist. Duration is at most seven days; no services are toggled.",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/MonitorMaintenanceWindow",
+                },
+              },
+            },
+          },
+          responses: {
+            "201": { description: "Window created with atomic audit" },
+            "400": {
+              description: "Invalid, expired or credential-shaped input",
+            },
+            "403": { description: "Platform administration required" },
+            "409": { description: "Pending/active window capacity reached" },
+            "503": { description: "Required monitoring indexes absent" },
+          },
+        },
+      },
+      "/platform-control/monitoring/maintenance-windows/{id}/end": {
+        post: {
+          summary: "End a pending/active maintenance window with audit",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            "200": { description: "Window ended; services unaffected" },
+            "403": { description: "Platform administration required" },
+            "404": { description: "Window not found in this environment" },
+          },
+        },
+      },
 
-      '/platform-control/launch-readiness': { get: { summary: 'Environment-scoped launch readiness (platform admin only)', description: 'Bounded provider and release-check catalog, review status, configuration presence and blockers. Does not expose credentials or enable services.', responses: { '200': { description: 'Catalog with derived readiness, owner and blocker counts; unsaved items default unreviewed' }, '401': { description: 'Authentication required' }, '403': { description: 'Platform admin required' } } } },
-      '/platform-control/launch-readiness/{key}': { patch: {
-        summary: 'Save an audited launch readiness review',
-        description: 'Platform admin only. Review and audit are atomic and require MongoDB transactions. expectedRevision prevents stale overwrites. APPROVED or PASSED requires an owner; PASSED requires a verification summary of at least 10 characters. Blocker text and non-NONE severity must occur together. Only business registration uses NOT_APPLICABLE staging. Credential-shaped notes and unknown fields are rejected.',
-        parameters: [{ name: 'key', in: 'path', required: true, schema: { type: 'string' } }],
-        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/ReadinessReview' } } } },
-        responses: { '200': { description: 'Refreshed readiness catalog' }, '400': { description: 'Invalid review' }, '401': { description: 'Authentication required' }, '403': { description: 'Platform admin required' }, '404': { description: 'Unknown readiness item' }, '409': { description: 'Revision changed; refresh before resubmitting' }, '503': { description: 'Full unique environment/key index must be initialized' } },
-      } },
-      '/platform-control/switches': { get: { summary: 'List platform switches (platform admin only)', responses: { '200': { description: 'Catalog; missing records default OFF' }, '403': { description: 'Platform admin required' } } } },
-      '/platform-control/switches/{key}': { patch: {
-        summary: 'Change a platform switch with atomic audit',
-        description: 'Platform admin only. State and before/after audit commit in one MongoDB transaction; requires a replica set or sharded cluster. Confirmation is an operator acknowledgement, not an automatic readiness check.',
-        parameters: [{ name: 'key', in: 'path', required: true, schema: { type: 'string', pattern: '^[A-Z0-9_]+$' } }],
-        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['mode', 'reason', 'confirm'], properties: { mode: { type: 'string', enum: ['ON', 'OFF', 'MAINTENANCE'] }, reason: { type: 'string', minLength: 3, maxLength: 1000 }, confirm: { const: true } } } } } },
-        responses: { '200': { description: 'Switch updated and audited' }, '403': { description: 'Platform admin required' }, '404': { description: 'Unknown switch' } },
-      } },
-      '/cctv/cameras/{cameraId}/live': { get: { summary: 'Get authorized camera live reference', description: 'Requires scoped cctv.view and security entitlement. NVR cameras use NVR_GATEWAY; other cameras use CCTV_GATEWAY.', parameters: [{ name: 'cameraId', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Existing gateway reference, not a new streaming session' }, '503': { description: 'Resolved gateway switch disabled or under maintenance' } } } },
-      '/cctv/cameras/{cameraId}/playback': { get: { summary: 'Get authorized camera playback reference', description: 'Requires scoped cctv.playback and security entitlement; checks only the resolved camera gateway switch.', parameters: [{ name: 'cameraId', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Existing playback reference' }, '503': { description: 'Resolved gateway switch disabled or under maintenance' } } } },
-      '/auth/login': { post: { security: [], summary: 'Role-based login: SUPER_ADMIN password, channel choice, then selected verified email or SMS OTP; no session before OTP' } },
-      '/auth/admin-mfa/channel': { post: { security: [], summary: 'Password-bound administrator login channel choice: flowToken and EMAIL/SMS; no destination overrides; configured Origin and X-PCC-Auth required' } },
-      '/auth/admin-mfa/verify': { post: { security: [], summary: 'Verify purpose-bound administrator OTP using flowToken, channel and code; requires configured Origin and X-PCC-Auth: 1' } },
-      '/auth/admin-mfa/resend': { post: { security: [], summary: 'Throttled current-stage administrator OTP resend; masked destination, never code' } },
-      '/auth/admin-mfa/step-up': { post: { summary: 'Authenticated administrator password followed by email and SMS; rotates session without extending lifetime' } },
-      '/auth/sessions': { get: { summary: 'Audited list of own active administrator sessions' } },
-      '/auth/sessions/{sessionId}/revoke': { post: { summary: 'Revoke own administrator session; server ownership enforced' } },
-      '/auth/logout-all': { post: { summary: 'Revoke own sessions and pending administrator flows' } },
-      '/auth/platform-admins': { post: { summary: 'Fresh dual-channel administrator authentication required to promote existing password account; audited, requires channel enrollment' } },
-      '/auth/social/providers': { get: { security: [], summary: 'Configured social sign-in providers' } },
-      '/auth/social/{provider}/start': { post: { security: [], summary: 'Start browser-bound social authorization' } },
-      '/auth/social/{provider}/callback': { get: { security: [], summary: 'Verify provider authorization and continue owner setup' } },
-      '/auth/social/session': { get: { security: [], summary: 'Get pending social owner setup status' } },
-      '/auth/social/challenge': { post: { security: [], summary: 'Send social owner phone verification code' } },
-      '/auth/social/finish': { post: { security: [], summary: 'Verify phone and issue owner session' } },
-      '/health/live': { get: { security: [], summary: 'Liveness probe', responses: { '200': { description: 'Process is alive' } } } },
-      '/health/ready': { get: { security: [], summary: 'Readiness probe', responses: { '200': { description: 'API and database are ready' }, '503': { description: 'Not ready' } } } },
-      '/operations/readiness': { get: { summary: 'Protected readiness diagnostics', responses: { '200': { description: 'Ready' }, '503': { description: 'Not ready' } } } },
-      '/organizations/{organizationId}/command-center': { get: { summary: 'Landlord command center', parameters: [{ name: 'organizationId', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Command center data' } } } },
-      '/organizations/{organizationId}/decision-automation': { get: { summary: 'Decision automation overview', parameters: [{ name: 'organizationId', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Decision automation data' } } } },
-      '/organizations/{organizationId}/model-serving/policy': { get: { summary: 'Model serving policy' }, patch: { summary: 'Update model serving policy' } },
-      '/billing/plans': { get: { summary: 'List subscription plans' }, post: { summary: 'Create subscription plan' } },
-      '/billing/organizations/{organizationId}/subscription': { get: { summary: 'Get organization subscription' }, post: { summary: 'Subscribe organization' } },
-      '/billing/organizations/{organizationId}/subscription/recover-checkout': { post: { summary: 'Verify or retry pending Paystack checkout' } },
-      '/billing/organizations/{organizationId}/subscription/change-plan': { post: { summary: 'Change subscription plan' } },
-      '/billing/organizations/{organizationId}/subscription/cancel': { post: { summary: 'Cancel subscription' } },
-      '/billing/organizations/{organizationId}/invoices': { get: { summary: 'List subscription invoices' } },
-      '/billing/organizations/{organizationId}/entitlements': { get: { summary: 'Get subscription entitlements' } },
-      '/integrations/payments/{paymentId}/provider-initiate': { post: { summary: 'Initiate an M-Pesa or Paystack payment' } },
-      '/integrations/payments/{paymentId}/provider-reconcile': { post: { summary: 'Reconcile provider payment' } },
-      '/integrations/organizations/{organizationId}/storage/signed-url': { post: { summary: 'Get provider storage URL' } },
-      '/maintenance/{maintenanceId}/evidence': { post: { summary: 'Attach tenant-authorized photo or video evidence to maintenance', requestBody: { required: true, content: { 'multipart/form-data': { schema: { type: 'object', properties: { media: { type: 'array', maxItems: 5, items: { type: 'string', format: 'binary' } } } } } } } } },
-      '/integrations/organizations/{organizationId}/cctv/provider-health': { get: { summary: 'Get external CCTV provider health' } },
-      '/integrations/integrations/health': { get: { summary: 'External integration health' } },
-      '/integrations/webhooks/{provider}': { post: { security: [], summary: 'Verified M-Pesa or Paystack webhook ingress' } },
+      "/platform-control/launch-readiness": {
+        get: {
+          summary: "Environment-scoped launch readiness (platform admin only)",
+          description:
+            "Bounded provider and release-check catalog, review status, configuration presence and blockers. Does not expose credentials or enable services.",
+          responses: {
+            "200": {
+              description:
+                "Catalog with derived readiness, owner and blocker counts; unsaved items default unreviewed",
+            },
+            "401": { description: "Authentication required" },
+            "403": { description: "Platform admin required" },
+          },
+        },
+      },
+      "/platform-control/launch-readiness/{key}": {
+        patch: {
+          summary: "Save an audited launch readiness review",
+          description:
+            "Platform admin only. Review and audit are atomic and require MongoDB transactions. expectedRevision prevents stale overwrites. APPROVED or PASSED requires an owner; PASSED requires a verification summary of at least 10 characters. Blocker text and non-NONE severity must occur together. Only business registration uses NOT_APPLICABLE staging. Credential-shaped notes and unknown fields are rejected.",
+          parameters: [
+            {
+              name: "key",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ReadinessReview" },
+              },
+            },
+          },
+          responses: {
+            "200": { description: "Refreshed readiness catalog" },
+            "400": { description: "Invalid review" },
+            "401": { description: "Authentication required" },
+            "403": { description: "Platform admin required" },
+            "404": { description: "Unknown readiness item" },
+            "409": {
+              description: "Revision changed; refresh before resubmitting",
+            },
+            "503": {
+              description:
+                "Full unique environment/key index must be initialized",
+            },
+          },
+        },
+      },
+      "/platform-control/switches": {
+        get: {
+          summary: "List platform switches (platform admin only)",
+          responses: {
+            "200": { description: "Catalog; missing records default OFF" },
+            "403": { description: "Platform admin required" },
+          },
+        },
+      },
+      "/platform-control/switches/{key}": {
+        patch: {
+          summary: "Change a platform switch with atomic audit",
+          description:
+            "Platform admin only. State and before/after audit commit in one MongoDB transaction; requires a replica set or sharded cluster. Confirmation is an operator acknowledgement, not an automatic readiness check.",
+          parameters: [
+            {
+              name: "key",
+              in: "path",
+              required: true,
+              schema: { type: "string", pattern: "^[A-Z0-9_]+$" },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["mode", "reason", "confirm"],
+                  properties: {
+                    mode: {
+                      type: "string",
+                      enum: ["ON", "OFF", "MAINTENANCE"],
+                    },
+                    reason: { type: "string", minLength: 3, maxLength: 1000 },
+                    confirm: { const: true },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": { description: "Switch updated and audited" },
+            "403": { description: "Platform admin required" },
+            "404": { description: "Unknown switch" },
+          },
+        },
+      },
+      "/cctv/cameras/{cameraId}/live": {
+        get: {
+          summary: "Get authorized camera live reference",
+          description:
+            "Requires scoped cctv.view and security entitlement. NVR cameras use NVR_GATEWAY; other cameras use CCTV_GATEWAY.",
+          parameters: [
+            {
+              name: "cameraId",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            "200": {
+              description:
+                "Existing gateway reference, not a new streaming session",
+            },
+            "503": {
+              description:
+                "Resolved gateway switch disabled or under maintenance",
+            },
+          },
+        },
+      },
+      "/cctv/cameras/{cameraId}/playback": {
+        get: {
+          summary: "Get authorized camera playback reference",
+          description:
+            "Requires scoped cctv.playback and security entitlement; checks only the resolved camera gateway switch.",
+          parameters: [
+            {
+              name: "cameraId",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            "200": { description: "Existing playback reference" },
+            "503": {
+              description:
+                "Resolved gateway switch disabled or under maintenance",
+            },
+          },
+        },
+      },
+      "/auth/login": {
+        post: {
+          security: [],
+          summary:
+            "Role-based login: SUPER_ADMIN password, channel choice, then selected verified email or SMS OTP; no session before OTP",
+        },
+      },
+      "/auth/admin-mfa/channel": {
+        post: {
+          security: [],
+          summary:
+            "Password-bound administrator login channel choice: flowToken and EMAIL/SMS; no destination overrides; configured Origin and X-PCC-Auth required",
+        },
+      },
+      "/auth/admin-mfa/verify": {
+        post: {
+          security: [],
+          summary:
+            "Verify purpose-bound administrator OTP using flowToken, channel and code; requires configured Origin and X-PCC-Auth: 1",
+        },
+      },
+      "/auth/admin-mfa/resend": {
+        post: {
+          security: [],
+          summary:
+            "Throttled current-stage administrator OTP resend; masked destination, never code",
+        },
+      },
+      "/auth/admin-mfa/step-up": {
+        post: {
+          summary:
+            "Authenticated administrator password followed by email and SMS; rotates session without extending lifetime",
+        },
+      },
+      "/auth/sessions": {
+        get: { summary: "Audited list of own active administrator sessions" },
+      },
+      "/auth/sessions/{sessionId}/revoke": {
+        post: {
+          summary:
+            "Revoke own administrator session; server ownership enforced",
+        },
+      },
+      "/auth/logout-all": {
+        post: {
+          summary: "Revoke own sessions and pending administrator flows",
+        },
+      },
+      "/auth/platform-admins": {
+        post: {
+          summary:
+            "Fresh dual-channel administrator authentication required to promote existing password account; audited, requires channel enrollment",
+        },
+      },
+      "/auth/social/providers": {
+        get: { security: [], summary: "Configured social sign-in providers" },
+      },
+      "/auth/social/{provider}/start": {
+        post: {
+          security: [],
+          summary: "Start browser-bound social authorization",
+        },
+      },
+      "/auth/social/{provider}/callback": {
+        get: {
+          security: [],
+          summary: "Verify provider authorization and continue owner setup",
+        },
+      },
+      "/auth/social/session": {
+        get: { security: [], summary: "Get pending social owner setup status" },
+      },
+      "/auth/social/challenge": {
+        post: {
+          security: [],
+          summary: "Send social owner phone verification code",
+        },
+      },
+      "/auth/social/finish": {
+        post: { security: [], summary: "Verify phone and issue owner session" },
+      },
+      "/health/live": {
+        get: {
+          security: [],
+          summary: "Liveness probe",
+          responses: { "200": { description: "Process is alive" } },
+        },
+      },
+      "/health/ready": {
+        get: {
+          security: [],
+          summary: "Readiness probe",
+          responses: {
+            "200": { description: "API and database are ready" },
+            "503": { description: "Not ready" },
+          },
+        },
+      },
+      "/operations/readiness": {
+        get: {
+          summary: "Protected readiness diagnostics",
+          responses: {
+            "200": { description: "Ready" },
+            "503": { description: "Not ready" },
+          },
+        },
+      },
+      "/organizations/{organizationId}/command-center": {
+        get: {
+          summary: "Landlord command center",
+          parameters: [
+            {
+              name: "organizationId",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          responses: { "200": { description: "Command center data" } },
+        },
+      },
+      "/organizations/{organizationId}/decision-automation": {
+        get: {
+          summary: "Decision automation overview",
+          parameters: [
+            {
+              name: "organizationId",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          responses: { "200": { description: "Decision automation data" } },
+        },
+      },
+      "/organizations/{organizationId}/model-serving/policy": {
+        get: { summary: "Model serving policy" },
+        patch: { summary: "Update model serving policy" },
+      },
+      "/billing/plans": {
+        get: { summary: "List subscription plans" },
+        post: { summary: "Create subscription plan" },
+      },
+      "/billing/organizations/{organizationId}/subscription": {
+        get: { summary: "Get organization subscription" },
+        post: { summary: "Subscribe organization" },
+      },
+      "/billing/organizations/{organizationId}/subscription/recover-checkout": {
+        post: { summary: "Verify or retry pending Paystack checkout" },
+      },
+      "/billing/organizations/{organizationId}/subscription/change-plan": {
+        post: { summary: "Change subscription plan" },
+      },
+      "/billing/organizations/{organizationId}/subscription/cancel": {
+        post: { summary: "Cancel subscription" },
+      },
+      "/billing/organizations/{organizationId}/invoices": {
+        get: { summary: "List subscription invoices" },
+      },
+      "/billing/organizations/{organizationId}/entitlements": {
+        get: { summary: "Get subscription entitlements" },
+      },
+      "/integrations/payments/{paymentId}/provider-initiate": {
+        post: { summary: "Initiate an M-Pesa or Paystack payment" },
+      },
+      "/integrations/payments/{paymentId}/provider-reconcile": {
+        post: { summary: "Reconcile provider payment" },
+      },
+      "/integrations/organizations/{organizationId}/storage/signed-url": {
+        post: { summary: "Get provider storage URL" },
+      },
+      "/maintenance/{maintenanceId}/evidence": {
+        post: {
+          summary:
+            "Attach tenant-authorized photo or video evidence to maintenance",
+          requestBody: {
+            required: true,
+            content: {
+              "multipart/form-data": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    media: {
+                      type: "array",
+                      maxItems: 5,
+                      items: { type: "string", format: "binary" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/integrations/organizations/{organizationId}/cctv/provider-health": {
+        get: { summary: "Get external CCTV provider health" },
+      },
+      "/integrations/integrations/health": {
+        get: { summary: "External integration health" },
+      },
+      "/integrations/webhooks/{provider}": {
+        post: {
+          security: [],
+          summary: "Verified M-Pesa or Paystack webhook ingress",
+        },
+      },
     },
   };
 }

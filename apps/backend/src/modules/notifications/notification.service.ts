@@ -1,25 +1,233 @@
-import { availableChannels } from '../auth/otp-policy.js';
-import { Types, type ClientSession } from 'mongoose';
-import { Job } from '../../database/models/Job.js';
-import { Notification } from '../../database/models/Notification.js'; import { NotificationPreference } from '../../database/models/NotificationPreference.js'; import { User } from '../../database/models/User.js'; import { OrganizationMembership } from '../../database/models/OrganizationMembership.js';
-import { AuthorizationService } from '../../core/authorization/authorization.service.js'; import { AppError } from '../../core/errors/AppError.js'; import type { AuthenticatedUser } from '../../core/types/auth.js'; import type { z } from 'zod'; import type { createNotificationSchema, notificationQuerySchema, preferenceSchema } from './notification.schemas.js'; import { AuditService } from '../audit/audit.service.js';
-type CreateInput=z.infer<typeof createNotificationSchema>; type QueryInput=z.infer<typeof notificationQuerySchema>; type PrefInput=z.infer<typeof preferenceSchema>;
+import { availableChannels } from "../auth/otp-policy.js";
+import { Types, type ClientSession } from "mongoose";
+import { Job } from "../../database/models/Job.js";
+import { Notification } from "../../database/models/Notification.js";
+import { NotificationPreference } from "../../database/models/NotificationPreference.js";
+import { User } from "../../database/models/User.js";
+import { OrganizationMembership } from "../../database/models/OrganizationMembership.js";
+import { AuthorizationService } from "../../core/authorization/authorization.service.js";
+import { AppError } from "../../core/errors/AppError.js";
+import type { AuthenticatedUser } from "../../core/types/auth.js";
+import type { z } from "zod";
+import type {
+  createNotificationSchema,
+  notificationQuerySchema,
+  preferenceSchema,
+} from "./notification.schemas.js";
+import { AuditService } from "../audit/audit.service.js";
+type CreateInput = z.infer<typeof createNotificationSchema>;
+type QueryInput = z.infer<typeof notificationQuerySchema>;
+type PrefInput = z.infer<typeof preferenceSchema>;
 export class NotificationService {
-  static async enqueuePlatformSecurityLogin(userId: Types.ObjectId, sessionId: Types.ObjectId, body: string, session: ClientSession) {
+  static async enqueuePlatformSecurityLogin(
+    userId: Types.ObjectId,
+    sessionId: Types.ObjectId,
+    body: string,
+    session: ClientSession,
+  ) {
     const channels = await availableChannels(session);
-    if (!channels.length) throw new AppError(503, 'SECURITY_NOTIFICATION_UNAVAILABLE', 'No configured security notification channel is available.');
-    const notices = await Notification.create(channels.map(channel => ({ recipientUserId: userId, channel,
-      type: 'SUPER_ADMIN_SECURITY_LOGIN', title: 'Administrator security notification', body, priority: 'URGENT', status: 'QUEUED',
-      scheduledFor: new Date(), dedupeKey: 'admin-login:' + sessionId + ':' + channel })), { session, ordered: true });
-    await Job.create(notices.map(notice => ({ type: 'notification.send', payload: { notificationId: String(notice._id) },
-      availableAt: new Date(), priority: 10, maxAttempts: 5, dedupeKey: 'notification:' + notice._id })), { session, ordered: true });
+    if (!channels.length)
+      throw new AppError(
+        503,
+        "SECURITY_NOTIFICATION_UNAVAILABLE",
+        "No configured security notification channel is available.",
+      );
+    const notices = await Notification.create(
+      channels.map((channel) => ({
+        recipientUserId: userId,
+        channel,
+        type: "SUPER_ADMIN_SECURITY_LOGIN",
+        title: "Administrator security notification",
+        body,
+        priority: "URGENT",
+        status: "QUEUED",
+        scheduledFor: new Date(),
+        dedupeKey: "admin-login:" + sessionId + ":" + channel,
+      })),
+      { session, ordered: true },
+    );
+    await Job.create(
+      notices.map((notice) => ({
+        type: "notification.send",
+        payload: { notificationId: String(notice._id) },
+        availableAt: new Date(),
+        priority: 10,
+        maxAttempts: 5,
+        dedupeKey: "notification:" + notice._id,
+      })),
+      { session, ordered: true },
+    );
   }
-  static async list(auth:AuthenticatedUser,organizationId:string,query:QueryInput){const org=new Types.ObjectId(organizationId);AuthorizationService.assertPermission(auth,'notification.view',org);const filter:Record<string,unknown>={organizationId:org,recipientUserId:auth.userId};if(query.status)filter.status=query.status;return Notification.find(filter).sort({createdAt:-1}).limit(query.limit).lean();}
-  static async create(auth:AuthenticatedUser,organizationId:string,data:CreateInput){const org=new Types.ObjectId(organizationId);AuthorizationService.assertPermission(auth,'notification.manage',org);const recipient=await User.findOne({_id:new Types.ObjectId(data.recipientUserId),status:'ACTIVE'}).lean();if(!recipient)throw new AppError(404,'RECIPIENT_NOT_FOUND','Notification recipient not found');const membership=await OrganizationMembership.exists({organizationId:org,userId:recipient._id,status:'ACTIVE'});if(!membership)throw new AppError(400,'RECIPIENT_NOT_IN_ORGANIZATION','Recipient is not an active member of this organization');const pref=await NotificationPreference.findOne({organizationId:org,userId:recipient._id,eventType:data.type}).lean();if(pref&&!pref.enabled)return null;if(pref&&!pref.channels.includes(data.channel))return null;const n=await Notification.create({organizationId:org,...data,recipientUserId:recipient._id,createdBy:auth.userId});await AuditService.record({organizationId:org,actorUserId:auth.userId,action:'notification.created',resourceType:'Notification',resourceId:n._id,after:n.toObject()});return n;}
-  static async markRead(auth:AuthenticatedUser,id:string){const n=await Notification.findOne({_id:id,recipientUserId:auth.userId});if(!n)throw new AppError(404,'NOTIFICATION_NOT_FOUND','Notification not found');if(n.status!=='READ'){n.status='READ';n.readAt=new Date();await n.save();}return n;}
-  static async upsertPreference(auth:AuthenticatedUser,organizationId:string,data:PrefInput){const org=new Types.ObjectId(organizationId);AuthorizationService.assertPermission(auth,'notification.manage',org);return NotificationPreference.findOneAndUpdate({organizationId:org,userId:auth.userId,eventType:data.eventType},{...data,organizationId:org,userId:auth.userId},{new:true,upsert:true,setDefaultsOnInsert:true});}
-  static async listPreferences(auth:AuthenticatedUser,organizationId:string){const org=new Types.ObjectId(organizationId);AuthorizationService.assertPermission(auth,'notification.view',org);return NotificationPreference.find({organizationId:org,userId:auth.userId}).lean();}
-  static async systemEnqueue(input:{organizationId:Types.ObjectId;recipientUserId:Types.ObjectId;channel:'IN_APP'|'EMAIL'|'SMS'|'PUSH'|'WHATSAPP';type:string;title:string;body:string;data?:Record<string,unknown>;priority?:'LOW'|'NORMAL'|'HIGH'|'URGENT';scheduledFor?:Date;dedupeKey?:string}){const pref=await NotificationPreference.findOne({organizationId:input.organizationId,userId:input.recipientUserId,eventType:input.type}).lean();if(pref&&!pref.enabled)return null;if(pref&&!pref.channels.includes(input.channel))return null;return Notification.create({...input,data:input.data??{},priority:input.priority??'NORMAL',status:'QUEUED'});}
-  static async markSent(id:Types.ObjectId){const n=await Notification.findById(id);if(!n)throw new AppError(404,'NOTIFICATION_NOT_FOUND','Notification not found');n.status='SENT';n.sentAt=new Date();await n.save();return n;}
-  static async markFailed(id:Types.ObjectId,reason:string){const n=await Notification.findById(id);if(!n)throw new AppError(404,'NOTIFICATION_NOT_FOUND','Notification not found');n.status='FAILED';n.failureReason=reason.slice(0,1000);await n.save();return n;}
+  static async list(
+    auth: AuthenticatedUser,
+    organizationId: string,
+    query: QueryInput,
+  ) {
+    const org = new Types.ObjectId(organizationId);
+    AuthorizationService.assertPermission(auth, "notification.view", org);
+    const filter: Record<string, unknown> = {
+      organizationId: org,
+      recipientUserId: auth.userId,
+    };
+    if (query.status) filter.status = query.status;
+    return Notification.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(query.limit)
+      .lean();
+  }
+  static async create(
+    auth: AuthenticatedUser,
+    organizationId: string,
+    data: CreateInput,
+  ) {
+    const org = new Types.ObjectId(organizationId);
+    AuthorizationService.assertPermission(auth, "notification.manage", org);
+    const recipient = await User.findOne({
+      _id: new Types.ObjectId(data.recipientUserId),
+      status: "ACTIVE",
+    }).lean();
+    if (!recipient)
+      throw new AppError(
+        404,
+        "RECIPIENT_NOT_FOUND",
+        "Notification recipient not found",
+      );
+    const membership = await OrganizationMembership.exists({
+      organizationId: org,
+      userId: recipient._id,
+      status: "ACTIVE",
+    });
+    if (!membership)
+      throw new AppError(
+        400,
+        "RECIPIENT_NOT_IN_ORGANIZATION",
+        "Recipient is not an active member of this organization",
+      );
+    const pref = await NotificationPreference.findOne({
+      organizationId: org,
+      userId: recipient._id,
+      eventType: data.type,
+    }).lean();
+    if (pref && !pref.enabled) return null;
+    if (pref && !pref.channels.includes(data.channel)) return null;
+    const n = await Notification.create({
+      organizationId: org,
+      ...data,
+      recipientUserId: recipient._id,
+      createdBy: auth.userId,
+    });
+    await AuditService.record({
+      organizationId: org,
+      actorUserId: auth.userId,
+      action: "notification.created",
+      resourceType: "Notification",
+      resourceId: n._id,
+      after: n.toObject(),
+    });
+    return n;
+  }
+  static async markRead(auth: AuthenticatedUser, id: string) {
+    const n = await Notification.findOne({
+      _id: id,
+      recipientUserId: auth.userId,
+    });
+    if (!n)
+      throw new AppError(
+        404,
+        "NOTIFICATION_NOT_FOUND",
+        "Notification not found",
+      );
+    if (n.status !== "READ") {
+      n.status = "READ";
+      n.readAt = new Date();
+      await n.save();
+    }
+    return n;
+  }
+  static async upsertPreference(
+    auth: AuthenticatedUser,
+    organizationId: string,
+    data: PrefInput,
+  ) {
+    const org = new Types.ObjectId(organizationId);
+    AuthorizationService.assertPermission(auth, "notification.manage", org);
+    return NotificationPreference.findOneAndUpdate(
+      { organizationId: org, userId: auth.userId, eventType: data.eventType },
+      { ...data, organizationId: org, userId: auth.userId },
+      { new: true, upsert: true, setDefaultsOnInsert: true },
+    );
+  }
+  static async listPreferences(
+    auth: AuthenticatedUser,
+    organizationId: string,
+  ) {
+    const org = new Types.ObjectId(organizationId);
+    AuthorizationService.assertPermission(auth, "notification.view", org);
+    return NotificationPreference.find({
+      organizationId: org,
+      userId: auth.userId,
+    }).lean();
+  }
+  static async systemEnqueue(
+    input: {
+      organizationId: Types.ObjectId;
+      recipientUserId: Types.ObjectId;
+      channel: "IN_APP" | "EMAIL" | "SMS" | "PUSH" | "WHATSAPP";
+      type: string;
+      title: string;
+      body: string;
+      data?: Record<string, unknown>;
+      priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+      scheduledFor?: Date;
+      dedupeKey?: string;
+    },
+    session?: ClientSession,
+  ) {
+    const pref = await NotificationPreference.findOne({
+      organizationId: input.organizationId,
+      userId: input.recipientUserId,
+      eventType: input.type,
+    })
+      .session(session ?? null)
+      .lean();
+    if (pref && !pref.enabled) return null;
+    if (pref && !pref.channels.includes(input.channel)) return null;
+    const entry = {
+      ...input,
+      data: input.data ?? {},
+      priority: input.priority ?? "NORMAL",
+      status: "QUEUED" as const,
+    };
+    if (session) {
+      const [notice] = await Notification.create([entry], { session });
+      return notice;
+    }
+    return Notification.create(entry);
+  }
+  static async markSent(id: Types.ObjectId) {
+    const n = await Notification.findById(id);
+    if (!n)
+      throw new AppError(
+        404,
+        "NOTIFICATION_NOT_FOUND",
+        "Notification not found",
+      );
+    n.status = "SENT";
+    n.sentAt = new Date();
+    await n.save();
+    return n;
+  }
+  static async markFailed(id: Types.ObjectId, reason: string) {
+    const n = await Notification.findById(id);
+    if (!n)
+      throw new AppError(
+        404,
+        "NOTIFICATION_NOT_FOUND",
+        "Notification not found",
+      );
+    n.status = "FAILED";
+    n.failureReason = reason.slice(0, 1000);
+    await n.save();
+    return n;
+  }
 }

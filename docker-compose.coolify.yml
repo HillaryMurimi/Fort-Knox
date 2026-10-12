@@ -10,6 +10,8 @@ x-backend-environment: &backend-environment
   JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set a unique refresh secret}
   REFRESH_COOKIE_SECURE: "true"
   EMAIL_ENABLED: "true"
+  ONBOARDING_RECOVERY_ENABLED: ${ONBOARDING_RECOVERY_ENABLED:-false}
+  ONBOARDING_RECOVERY_APPROVAL_CASE: ${ONBOARDING_RECOVERY_APPROVAL_CASE:-}
   EMAIL_PROVIDER: ${EMAIL_PROVIDER:-RESEND}
   EMAIL_FROM: ${EMAIL_FROM:?Set the verified email sender}
   EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Dapinni}
@@ -63,7 +65,13 @@ services:
     restart: unless-stopped
     expose: ["9000"]
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9000/api/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:9000/api/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -96,7 +104,13 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3

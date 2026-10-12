@@ -581,3 +581,10 @@ discrepancy.
 ## Platform operating intelligence
 
 SUPER_ADMIN operates across the SaaS platform; landlords retain their own organizations/property portfolios. The existing main control plane now has Plan Performance and retained Platform Morning Brief, with separate Control/Fort Knox and verified billing metrics. [Metric definitions and limitations](SUPER_ADMIN_BUSINESS_INTELLIGENCE.md) are authoritative for this capability.
+
+
+## Self-service landlord onboarding — 2026-10-12
+
+Self-service acquisition now connects public plan selection, minimal signup and owner email verification to the existing signed-agreement/Paystack authority. Verified activation opens guided real-property setup immediately; property setup remains separate from paid activation.
+
+See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.

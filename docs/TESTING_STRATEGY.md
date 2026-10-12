@@ -303,3 +303,10 @@ email verification, tenant activation/scope, readiness proof and channel-lockout
 prevention. UI coverage renders AccountOtpPanel states. Browser fixtures capture
 random ordinary OTPs over private IPC, with no developmentCode API response.
 Existing admin, finance, onboarding and platform assertions remain.
+
+
+## Self-service landlord onboarding — 2026-10-12
+
+Self-service acceptance extends the landlord replica-set HTTP suite and spreadsheet boundary tests. verify:self-service exercises mobile/desktop Chrome with private email IPC and signed test Paystack callbacks, SMS/storage/recovery OFF. Live provider and hosted Coolify smoke checks remain separate.
+
+See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.

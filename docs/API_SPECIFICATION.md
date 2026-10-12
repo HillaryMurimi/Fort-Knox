@@ -610,3 +610,10 @@ password proof. Admin login returns only policy-available choices. New tenant
 activation challenges require onboardingToken and channel; phone-only legacy
 payloads cannot consume them. OTP values are never returned. OpenAPI includes
 channel availability, account verification and platform receipt-test endpoints.
+
+
+## Self-service landlord onboarding — 2026-10-12
+
+New public /acquisition/plans and /acquisition/events boundaries, owner-only /organizations/:id/portfolio-onboarding progress/draft/import/dashboard-visit endpoints and SUPER_ADMIN /platform-control/acquisition-funnel are documented in self-service.openapi.ts.
+
+See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.

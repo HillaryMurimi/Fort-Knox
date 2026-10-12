@@ -1,49 +1,56 @@
 {
-    "name": "property-command-center-frontend",
-    "version": "1.0.0",
-    "private": true,
-    "scripts": {
-        "dev": "next dev",
-        "build": "next build",
-        "start": "next start",
-        "lint": "eslint src",
-        "test": "vitest run",
-        "verify:status-system": "vitest run src/lib/status.test.tsx && node scripts/verify-status-system.mjs",
-        "verify:landing": "node scripts/verify-landing.mjs",
-        "verify:workspace-scenes": "node scripts/verify-workspace-scenes.mjs",
-        "verify:cinematic-demo": "node scripts/verify-cinematic-demo.mjs",
-        "typecheck": "tsc --noEmit",
-        "verify:production": "npm run typecheck && npm run lint && npm test && npm run build",
-        "verify:platform-business": "node scripts/verify-platform-business.mjs",
-        "verify:sales-demo": "node scripts/verify-sales-demo.mjs"
-    },
-    "dependencies": {
-        "@tanstack/react-query": "^5.87.1",
-        "clsx": "^2.1.1",
-        "lucide-react": "^0.468.0",
-        "motion": "^13.4.0",
-        "next": "16.3.6",
-        "next-themes": "^0.4.6",
-        "react": "^19.1.1",
-        "react-dom": "^19.1.1",
-        "react-hook-form": "^7.88.0",
-        "recharts": "^3.2.1",
-        "tailwind-merge": "^3.3.1",
-        "three": "^0.186.1",
-        "zod": "^4.6.5"
-    },
-    "devDependencies": {
-        "@tailwindcss/postcss": "^4.1.13",
-        "@types/node": "^24.3.0",
-        "@types/react": "^19.1.12",
-        "@types/react-dom": "^19.1.9",
-        "@types/three": "^0.186.0",
-        "eslint": "9.39.5",
-        "eslint-config-next": "16.3.6",
-        "playwright": "^1.63.0",
-        "sharp": "^0.35.4",
-        "tailwindcss": "^4.1.13",
-        "typescript": "^5.9.2",
-        "vitest": "^5.0.1"
+  "name": "property-command-center-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "verify:status-system": "vitest run src/lib/status.test.tsx && node scripts/verify-status-system.mjs",
+    "verify:landing": "node scripts/verify-landing.mjs",
+    "verify:workspace-scenes": "node scripts/verify-workspace-scenes.mjs",
+    "verify:cinematic-demo": "node scripts/verify-cinematic-demo.mjs",
+    "typecheck": "tsc --noEmit",
+    "verify:production": "npm run typecheck && npm run lint && npm test && npm run build",
+    "verify:platform-business": "node scripts/verify-platform-business.mjs",
+    "verify:sales-demo": "node scripts/verify-sales-demo.mjs",
+    "verify:self-service": "node scripts/verify-self-service.mjs"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.87.1",
+    "clsx": "^2.1.1",
+    "exceljs": "4.4.0",
+    "lucide-react": "^0.468.0",
+    "motion": "^13.4.0",
+    "next": "16.3.8",
+    "next-themes": "^0.4.6",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-hook-form": "^7.88.0",
+    "recharts": "^3.2.1",
+    "tailwind-merge": "^3.3.1",
+    "three": "^0.186.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.13",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@types/three": "^0.186.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.8",
+    "playwright": "^1.63.0",
+    "sharp": "0.35.5",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.9.2",
+    "vitest": "^5.0.1"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "11.1.1"
     }
+  }
 }

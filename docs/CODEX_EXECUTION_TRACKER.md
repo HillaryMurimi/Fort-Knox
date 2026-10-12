@@ -1237,3 +1237,10 @@ Known limits: live DNS/provider receipt, secure existing-admin enrollment, index
 - `apps/frontend/src/lib/auth/account-otp-ui.test.tsx` (added)
 - `docs/OTP_AUTHENTICATION_CHANNELS.md` (added)
 - `docs/CODEX_EXECUTION_TRACKER.md` (modified)
+
+
+## Self-service landlord onboarding — 2026-10-12
+
+Self-service landlord acquisition, resumable paid portfolio onboarding/import, actual-record first value, admin funnel and disabled recovery support implemented in the existing checkout. Final certificate and manual deployment prerequisites are in the report.
+
+See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.

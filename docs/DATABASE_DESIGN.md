@@ -625,3 +625,10 @@ one serialized OTP policy revision. Partial unique tokenHash/otpTokenHash indexe
 serve direct challenge lookups without indexing legacy missing values. Initialize
 with auth:create-channel-indexes; pending old tenant challenges restart. No
 historical contact verification or account merge is inferred.
+
+
+## Self-service landlord onboarding — 2026-10-12
+
+Organization gains optional commercial preference/owner/journey and private portfolio draft/revision/milestone fields. AcquisitionJourney holds anonymous opaque-token hashes and milestones with anonymous-only 30-day TTL and partial unique token/org indexes. Run sales:create-indexes; no destructive migration or historical backfill.
+
+See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.

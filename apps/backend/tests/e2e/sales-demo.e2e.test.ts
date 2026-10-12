@@ -179,6 +179,7 @@ describe.skipIf(!process.env.RUN_E2E)(
         firstName: "Owner",
         lastName: "Fixture",
         verifiedAt: new Date(),
+        emailVerifiedAt: new Date(), // Previously verified owner fixture; real signup/email proof is covered by landlord HTTP journeys.
       });
       ownerId = owner._id;
       ownerToken = jwt.sign(
@@ -620,7 +621,9 @@ describe.skipIf(!process.env.RUN_E2E)(
         next_payment_date: input.startsAt.toISOString(),
       }));
       const commercial = `/api/v1/organizations/${org}/landlord-onboarding`;
-      const preparedStatus = await request(app).get(commercial).auth(ownerToken, { type: "bearer" });
+      const preparedStatus = await request(app)
+        .get(commercial)
+        .auth(ownerToken, { type: "bearer" });
       expect(preparedStatus.body.data.organization.pilotPrepared).toBe(true);
       expect(preparedStatus.body.data.state).not.toBe("ACTIVE");
       let r = await request(app)

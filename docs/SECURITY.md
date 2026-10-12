@@ -257,3 +257,10 @@ SUPER_ADMIN routine login retains password plus one available verified-channel
 OTP; sensitive actions/recovery/enrollment still require both channels. Field
 accounts cannot acquire platform authority or bypass landlord password policy.
 Verified account contacts cannot be overwritten through organization user edits.
+
+
+## Self-service landlord onboarding — 2026-10-12
+
+Paid portfolio setup requires organization-wide landlord scope and the existing signed/verified billing evidence. Drafts are excluded from ordinary organization serialization. Imported contacts remain unverified; existing identities are not silently reused. Recovery email is OFF, requires operational case/customer consent/preferences, is bounded, and rechecks authorization before delivery.
+
+See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.
