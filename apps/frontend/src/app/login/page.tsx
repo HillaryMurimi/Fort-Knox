@@ -7,31 +7,36 @@ import { Building2, ShieldCheck } from 'lucide-react';
 import { Alert, Button, Input, TabsList, TabsTrigger } from '@/components/ui';
 import { useAuth } from '@/hooks/use-auth';
 import { getRoleRedirect } from '@/lib/auth/role-redirect';
-import { selectAdminMfaChannel, resendAdminMfa } from '@/lib/auth/auth-api';
-import type { AdminMfaResponse } from '@/types/auth';
+import { otpAvailability, resendAccountOtp, selectAdminMfaChannel, resendAdminMfa } from '@/lib/auth/auth-api';
+import type { AdminMfaResponse, AccountOtpResponse } from '@/types/auth';
 import { SocialButtons } from '@/components/auth/social-buttons';
 import { AdminMfaChoicePanel } from '@/components/auth/admin-mfa-choice';
+import { AccountOtpPanel } from '@/components/auth/account-otp-panel';
 import { AdminMfaPanel } from '@/components/auth/admin-mfa-panel';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { isAuthenticated, roles, isLoading, login, verifyOtp, verifyStepUp, verifyAdmin } = useAuth();
-  const [method, setMethod] = useState<'email' | 'phone'>('email');
+  const { isAuthenticated, roles, isLoading, login, verifyAccount, verifyOtp, verifyStepUp, verifyAdmin } = useAuth();
+  const [method, setMethod] = useState<'email' | 'phone' | 'emailOtp'>('email');
+  const [channels, setChannels] = useState<Array<'EMAIL' | 'SMS'>>([]), [channel, setChannel] = useState<'EMAIL' | 'SMS'>('EMAIL');
+  const [accountOtp, setAccountOtp] = useState<AccountOtpResponse | null>(null);
   const [step, setStep] = useState<'CREDENTIALS' | 'OTP' | 'ADMIN'>('CREDENTIALS');
   const [email, setEmail] = useState(''), [password, setPassword] = useState(''), [phone, setPhone] = useState('');
   const [code, setCode] = useState(''), [error, setError] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null), [mfa, setMfa] = useState<AdminMfaResponse | null>(null);
   const [busy, setBusy] = useState<'VERIFY' | 'RESEND' | null>(null), [now, setNow] = useState(() => Date.now());
   const [sendingChannel, setSendingChannel] = useState<'EMAIL' | 'SMS' | null>(null);
+  useEffect(() => { void otpAvailability().then(result => { setChannels(result.channels); if (result.channels[0]) setChannel(result.channels[0]); }).catch(() => setError('Unable to check verification availability. Try sign-in again.')); }, []);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   useEffect(() => { if (isAuthenticated) router.replace(roles.includes('SUPER_ADMIN') ? getRoleRedirect(roles) : new URLSearchParams(window.location.search).get('next') === '/onboarding' ? '/onboarding' : getRoleRedirect(roles)); }, [isAuthenticated, roles, router]);
   const redirect = (nextRoles: typeof roles) => router.replace(nextRoles.includes('SUPER_ADMIN') ? getRoleRedirect(nextRoles) : new URLSearchParams(window.location.search).get('next') === '/onboarding' ? '/onboarding' : getRoleRedirect(nextRoles));
-  const restart = () => { setStep('CREDENTIALS'); setPassword(''); setMfa(null); setCode(''); setError(null); setDevCode(null); };
+  const restart = () => { setStep('CREDENTIALS'); setPassword(''); setMfa(null); setCode(''); setError(null); setDevCode(null); setAccountOtp(null); };
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(null); setDevCode(null);
     try {
-      const result = await login(method === 'email' ? { method: 'email', email: email.trim(), password } : { method: 'phone', phone: phone.trim() });
+      const result = await login(method === 'email' ? { method: 'email', email: email.trim(), password, channel } : method === 'emailOtp' ? { method: 'emailOtp', email: email.trim() } : { method: 'phone', phone: phone.trim(), channel });
       setPassword('');
+      if ('accountOtpRequired' in result) { setAccountOtp(result); setStep('OTP'); setCode(''); return; }
       if ('mfaRequired' in result) { setMfa(result); setStep('ADMIN'); setCode(''); return; }
       if ('accessToken' in result) { redirect(result.roles); return; }
       if ('challenge' in result && result.challenge.developmentCode) setDevCode(result.challenge.developmentCode);
@@ -42,6 +47,18 @@ export default function LoginPage() {
     event.preventDefault(); setError(null);
     try { const result = method === 'email' ? await verifyStepUp(email.trim(), code) : await verifyOtp(phone.trim(), code); setCode(''); redirect(result.roles); }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to verify code.'); }
+  }
+  async function verifyAccountCode() {
+    if (!accountOtp) return; setBusy('VERIFY'); setError(null);
+    try { const result = await verifyAccount(accountOtp.challengeToken, accountOtp.challenge.channel, code); setCode(''); redirect(result.roles); }
+    catch (caught) { setCode(''); setError(caught instanceof Error ? caught.message : 'Unable to verify this code.'); }
+    finally { setBusy(null); }
+  }
+  async function resendAccount(channel?: 'EMAIL' | 'SMS') {
+    if (!accountOtp) return; setBusy('RESEND'); setError(null);
+    try { setAccountOtp(await resendAccountOtp(accountOtp.challengeToken, channel)); setCode(''); setNow(Date.now()); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to send a new code.'); }
+    finally { setBusy(null); }
   }
   async function verifyAdministrator() {
     if (!mfa || mfa.stage === 'CHANNEL') return; setBusy('VERIFY'); setError(null);
@@ -78,16 +95,18 @@ export default function LoginPage() {
       <div className="w-full max-w-md rounded-lg border border-[var(--border)] bg-card p-6 shadow-xl sm:p-8">
         <h1 className="text-3xl font-semibold">{BRAND.name}</h1><p className="mt-2 text-sm font-medium text-[var(--accent-strong)]">{BRAND.descriptor}</p>
         <p className="mt-2 text-sm text-muted-foreground">Sign in to your secure operations workspace.</p>
-        {step === 'ADMIN' && mfa ? mfa.stage === 'CHANNEL' ? <AdminMfaChoicePanel choice={mfa} sending={sendingChannel} error={error}
+        {step === 'OTP' && accountOtp ? <AccountOtpPanel expired={Date.parse(accountOtp.challenge.expiresAt) <= now} challenge={accountOtp} channels={channels} code={code} error={error} busy={busy !== null || isLoading} seconds={Math.max(0, Math.ceil((Date.parse(accountOtp.challenge.resendAt) - now) / 1000))} onCode={setCode} onVerify={() => void verifyAccountCode()} onResend={channel => void resendAccount(channel)} onRestart={restart} /> : step === 'ADMIN' && mfa ? mfa.stage === 'CHANNEL' ? <AdminMfaChoicePanel choice={mfa} sending={sendingChannel} error={error}
           onChoose={channel => void chooseChannel(channel)} onRestart={restart} /> : <AdminMfaPanel key={mfa.stage} challenge={mfa} code={code} error={error} busy={busy}
           seconds={Math.max(0, Math.ceil((Date.parse(mfa.challenge.resendAt) - now) / 1000))}
           onCode={setCode} onVerify={() => void verifyAdministrator()} onResend={() => void resend()} onRestart={restart} /> :
           step === 'CREDENTIALS' ? <form onSubmit={submit} className="mt-8 space-y-5">
-            <TabsList className="grid grid-cols-2"><TabsTrigger type="button" active={method === 'email'} onClick={() => { setMethod('email'); setError(null); }}>Email + Password</TabsTrigger>
-              <TabsTrigger type="button" active={method === 'phone'} onClick={() => { setMethod('phone'); setError(null); }}>Phone OTP</TabsTrigger></TabsList>
+            <TabsList className="grid grid-cols-3"><TabsTrigger type="button" active={method === 'email'} onClick={() => { setMethod('email'); setError(null); }}>Email + Password</TabsTrigger>
+              <TabsTrigger type="button" active={method === 'phone'} onClick={() => { setMethod('phone'); setError(null); }}>Phone</TabsTrigger><TabsTrigger type="button" active={method === 'emailOtp'} onClick={() => { setMethod('emailOtp'); setError(null); }}>Email code</TabsTrigger></TabsList>
             {method === 'email' ? <><label className="block text-sm font-medium text-muted-foreground">Email<Input className="mt-2" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} required /></label>
               <label className="block text-sm font-medium text-muted-foreground">Password<Input className="mt-2" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required /></label></> :
-              <label className="block text-sm font-medium text-muted-foreground">Phone number<Input className="mt-2" type="tel" autoComplete="tel" value={phone} onChange={event => setPhone(event.target.value)} required minLength={7} /></label>}
+              method === 'emailOtp' ? <label className="block text-sm font-medium text-muted-foreground">Email<Input type="email" autoComplete="email" className="mt-2" value={email} onChange={event => setEmail(event.target.value)} required /></label> : <label className="block text-sm font-medium text-muted-foreground">Phone number<Input className="mt-2" type="tel" autoComplete="tel" value={phone} onChange={event => setPhone(event.target.value)} required minLength={7} /></label>}
+            {method !== 'emailOtp' && channels.length > 1 && <label className="block text-sm font-medium">Receive verification by<select className="mt-2 w-full rounded border border-border bg-background p-3" value={channel} onChange={event => setChannel(event.target.value as 'EMAIL' | 'SMS')}>{channels.map(option => <option key={option} value={option}>{option === 'EMAIL' ? 'Email (default)' : 'SMS'}</option>)}</select></label>}
+            {method === 'emailOtp' && <p className="text-xs text-muted-foreground">For invited staff and tenants. Owners and administrators use Email + Password.</p>}
             {error && <div role="alert"><Alert tone="destructive">{error}</Alert></div>}<Button type="submit" loading={isLoading} className="w-full">Continue</Button>
             <p className="text-center text-sm text-muted-foreground">New landlord? <Link className="font-semibold text-foreground hover:underline" href="/signup">Create an organization</Link></p>
           </form> : <form onSubmit={verify} className="mt-8 space-y-5">

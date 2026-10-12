@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import { assertAuthOrigin } from './admin-security.js';
 import type { RequestHandler, Response } from 'express';
 import { acceptInvitationSchema, bootstrapLandlordSchema, loginSchema, requestOtpSchema, verifyOtpSchema, verifyStepUpSchema } from './auth.schemas.js';
-import { bootstrapLandlord, loginByEmail, loginByPhone, refreshSession, requestOtp, revokeRefreshSession, verifyLoginOtp, verifyStepUp } from './auth.service.js';
+import { bootstrapLandlord, loginByEmail, loginByEmailOtp, loginByPhone, refreshSession, revokeRefreshSession, verifyLoginOtp, verifyStepUp } from './auth.service.js';
 import { sendSuccess } from '../../core/response/apiResponse.js';
 import { AppError } from '../../core/errors/AppError.js';
 import { InvitationService } from '../invitations/invitation.service.js';
@@ -18,14 +18,16 @@ const clearRefreshCookie = (res: Response) => res.clearCookie(env.REFRESH_COOKIE
 export const login: RequestHandler = async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) throw new AppError(400, 'VALIDATION_ERROR', 'Invalid login payload', parsed.error.flatten());
-  if (parsed.data.method === 'email') return sendSuccess(res, await loginByEmail(parsed.data.email, parsed.data.password, { userAgent: req.get('user-agent'), ipAddress: req.ip, requestId: req.requestId }));
-  return sendSuccess(res, await loginByPhone(parsed.data.phone));
+  const metadata = { userAgent: req.get('user-agent'), ipAddress: req.ip, requestId: req.requestId };
+  if (parsed.data.method === 'email') return sendSuccess(res, await loginByEmail(parsed.data.email, parsed.data.password, metadata, parsed.data.channel));
+  if (parsed.data.method === 'emailOtp') return sendSuccess(res, await loginByEmailOtp(parsed.data.email, metadata));
+  return sendSuccess(res, await loginByPhone(parsed.data.phone, parsed.data.channel, metadata));
 };
 
 export const requestLoginOtp: RequestHandler = async (req, res) => {
   const parsed = requestOtpSchema.safeParse(req.body);
   if (!parsed.success) throw new AppError(400, 'VALIDATION_ERROR', 'Invalid phone number', parsed.error.flatten());
-  sendSuccess(res, await requestOtp(parsed.data.phone, 'LOGIN'));
+  sendSuccess(res, await loginByPhone(parsed.data.phone, undefined, { userAgent: req.get('user-agent'), ipAddress: req.ip, requestId: req.requestId }, true));
 };
 
 export const verifyLogin: RequestHandler = async (req, res) => {

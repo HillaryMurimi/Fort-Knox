@@ -598,3 +598,15 @@ Existing authorization, plan/pricing, contract/signature, invoice, checkout and
 server-verified payment transitions are unchanged. The frontend retains prepared
 portfolio records during commercial setup and opens the populated operation after
 the existing backend completion step. No new endpoint or model/index is introduced.
+
+
+## Email-first OTP channel release
+
+Current route contracts and client compatibility changes are documented in
+[OTP_AUTHENTICATION_CHANNELS.md](OTP_AUTHENTICATION_CHANNELS.md). Ordinary login
+now returns accountOtpRequired/challengeToken; verify/resend use that opaque
+credential. emailOtp is a field-role method, while owner email login retains
+password proof. Admin login returns only policy-available choices. New tenant
+activation challenges require onboardingToken and channel; phone-only legacy
+payloads cannot consume them. OTP values are never returned. OpenAPI includes
+channel availability, account verification and platform receipt-test endpoints.

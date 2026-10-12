@@ -1,3 +1,4 @@
+import { setOtpTestDelivery } from '../../src/modules/auth/otp-delivery.js';
 import { completedAdminFixture } from '../helpers/admin-assurance.js';
 import { RefreshSession } from '../../src/database/models/RefreshSession.js';
 import { beforeAll, beforeEach, afterAll, afterEach, describe, expect, it, vi } from 'vitest';
@@ -38,6 +39,7 @@ import type { AuthenticatedUser } from '../../src/core/types/auth.js';
 const permissions = ['billing.subscription.view', 'billing.subscription.manage', 'billing.invoice.view', 'billing.invoice.manage', 'document.view', 'document.manage', 'property.view', 'property.create'];
 describe.skipIf(!process.env.RUN_E2E)('landlord onboarding replica-set / HTTP end-to-end certification', () => {
   let mongo: MongoMemoryReplSet;
+  let deliveredOtp = '';
   let org: string, token: string, owner: AuthenticatedUser, admin: AuthenticatedUser, adminToken: string;
   const app = createApp(), originalPaystack = { ...integrationConfig.paystack };
   const path = (suffix = '') => `/api/v1/organizations/${org}/landlord-onboarding${suffix}`;
@@ -48,6 +50,7 @@ describe.skipIf(!process.env.RUN_E2E)('landlord onboarding replica-set / HTTP en
     for (const model of [RefreshSession, Organization, ContractTemplate, OrganizationContract, OrganizationSubscription, SubscriptionInvoice, Document, Evidence, BillingEvent, Role, User, OrganizationMembership, AuditLog, mongoose.models.DomainEvent!, mongoose.models.EventCounter!, mongoose.models.EventOutbox!].filter(Boolean)) { await model.createCollection(); await model.createIndexes(); }
   }, 180000);
   beforeEach(async () => {
+    setOtpTestDelivery(async (_channel, _destination, code) => { deliveredOtp = code; });
     for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({});
     const role = await Role.create({ name: 'Landlord', key: 'LANDLORD', system: true, organizationId: null, permissions });
     const signup = await request(app).post('/api/v1/auth/bootstrap-landlord').send({ firstName: 'Jane', lastName: 'Landlord', phone: '+254700009001', email: 'owner@example.com', password: 'Secure-test-password-2026!', organization: { name: 'Acacia Portfolio', slug: 'acacia-test' } });
@@ -69,7 +72,7 @@ describe.skipIf(!process.env.RUN_E2E)('landlord onboarding replica-set / HTTP en
     vi.spyOn(PaystackBillingProvider.prototype, 'retryCheckout').mockImplementation(async (_plan, input) => ({ checkoutReference: input.checkoutReference ?? 'recovered-checkout', checkoutUrl: 'https://checkout.paystack.com/contract' }));
     vi.spyOn(PaystackBillingProvider.prototype, 'scheduleRenewal').mockImplementation(async input => ({ subscription_code: 'SUB_contract', email_token: 'test-private-token', next_payment_date: input.startsAt.toISOString() }));
   });
-  afterEach(() => { vi.restoreAllMocks(); Object.assign(integrationConfig.paystack, originalPaystack); });
+  afterEach(() => { setOtpTestDelivery(); vi.restoreAllMocks(); Object.assign(integrationConfig.paystack, originalPaystack); });
   afterAll(async () => { await mongoose.disconnect(); await mongo?.stop(); });
   async function generate() {
     const configured = await request(app).put(path('/details')).auth(token, { type: 'bearer' }).send({ legalName: 'Acacia Holdings Limited', legalIdentifier: 'REG-2026-001', billingEmail: 'owner@example.com', unitCount: 55 });
@@ -95,8 +98,8 @@ describe.skipIf(!process.env.RUN_E2E)('landlord onboarding replica-set / HTTP en
     expect(initialStatus.state).toBe('ACCOUNT_CREATED');
     expect(initialStatus.organization.pilotPrepared).toBe(false);
     const login = await request(app).post('/api/v1/auth/login').send({ method: 'email', email: 'owner@example.com', password: 'Secure-test-password-2026!' });
-    expect(login.body.data.stepUpRequired).toBe(true);
-    const verification = await request(app).post('/api/v1/auth/verify-step-up').send({ email: 'owner@example.com', code: '123456' });
+    expect(login.body.data.accountOtpRequired).toBe(true);
+    const verification = await request(app).post('/api/v1/auth/account-otp/verify').send({ challengeToken: login.body.data.challengeToken, channel: 'EMAIL', code: deliveredOtp });
     expect(verification.status).toBe(200); token = verification.body.data.accessToken;
     const propertyInput = { name: 'First Property', code: 'FIRST', propertyType: 'APARTMENT', address: { addressLine1: 'Test Road', city: 'Nairobi', country: 'Kenya' } };
     expect((await request(app).post(`/api/v1/organizations/${org}/properties`).auth(token, { type: 'bearer' }).send(propertyInput)).status).toBe(402);

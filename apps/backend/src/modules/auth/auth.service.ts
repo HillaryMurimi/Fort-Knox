@@ -1,4 +1,6 @@
-import { PRODUCT_NAME } from '../../config/brand.js';
+import { startAccountOtp } from './account-otp.service.js';
+import { assertOtpAvailable } from './otp-policy.js';
+import { deliverOtp } from './otp-delivery.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { randomUUID, createHash, randomInt } from 'node:crypto';
@@ -17,7 +19,7 @@ import { NotificationService } from '../notifications/notification.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { startAdminMfa, registerAdminFailure } from './admin-mfa.service.js';
 import { auditAdminSessionDenial, describeClient, authEvidence, contactsHash, hasAdminSessionProof, securityAudit, type AuthMetadata } from './admin-security.js';
-import { getSmsProvider } from '../../core/integrations/messaging-providers.js';
+
 
 export const normalizePhone = (phone: string): string => phone.replace(/[\s()-]/g, '');
 const hashToken = (token: string): string => createHash('sha256').update(token).digest('hex');
@@ -30,12 +32,15 @@ function signRefreshToken(userId: string, sessionId: string) {
   return jwt.sign({ sub: userId, sid: sessionId, type: 'refresh' }, env.JWT_REFRESH_SECRET, { expiresIn: env.JWT_REFRESH_EXPIRES_IN as jwt.SignOptions['expiresIn'] });
 }
 
-async function getIdentity(userId: Types.ObjectId) {
-  const user = await User.findById(userId).lean();
+async function getIdentity(userId: Types.ObjectId, session?: ClientSession) {
+  const userQuery = User.findById(userId);
+  const user = await (session ? userQuery.session(session) : userQuery).lean();
   if (!user || user.status !== 'ACTIVE') throw new AppError(401, 'ACCOUNT_INACTIVE', 'Account is inactive');
-  const memberships = await OrganizationMembership.find({ userId, status: 'ACTIVE' }).lean();
+  const membershipQuery = OrganizationMembership.find({ userId, status: 'ACTIVE' });
+  const memberships = await (session ? membershipQuery.session(session) : membershipQuery).lean();
   const roleIds = memberships.flatMap((m) => m.roleIds);
-  const roles = await Role.find({ _id: { $in: roleIds } }).lean();
+  const roleQuery = Role.find({ _id: { $in: roleIds } });
+  const roles = await (session ? roleQuery.session(session) : roleQuery).lean();
   const membershipData = memberships.map((m) => {
     const rs = roles.filter((r) => m.roleIds.some((id) => String(id) === String(r._id)));
     return {
@@ -50,15 +55,15 @@ async function getIdentity(userId: Types.ObjectId) {
   return { user, memberships: membershipData, roles: allRoles };
 }
 
-export async function issueSession(userId: Types.ObjectId, meta?: { userAgent?: string; ipAddress?: string }) {
-  const identity = await getIdentity(userId);
+export async function issueSession(userId: Types.ObjectId, meta?: { userAgent?: string; ipAddress?: string }, session?: ClientSession) {
+  const identity = await getIdentity(userId, session);
   if (identity.user.isPlatformAdmin) throw new AppError(401, 'ADMIN_MFA_REQUIRED', 'Administrator password and a selected verified-channel OTP are required.');
   if (identity.memberships.length === 0) throw new AppError(403, 'NO_ORGANIZATION_ACCESS', 'User has no active organization membership');
   const activeOrganizationId = identity.memberships[0]?.organizationId?.toString();
   const sessionId = new Types.ObjectId();
   const refreshToken = signRefreshToken(userId.toString(), sessionId.toString());
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  await RefreshSession.create({ _id: sessionId, userId, tokenHash: hashToken(refreshToken), expiresAt, ...(meta?.userAgent ? { userAgent: meta.userAgent } : {}), ...(meta?.ipAddress ? { ipAddress: meta.ipAddress } : {}) });
+  await RefreshSession.create([{ _id: sessionId, userId, tokenHash: hashToken(refreshToken), expiresAt, ...(meta?.userAgent ? { userAgent: meta.userAgent } : {}), ...(meta?.ipAddress ? { ipAddress: meta.ipAddress } : {}) }], { ...(session ? { session } : {}) });
   return { accessToken: signAccessToken(userId.toString(), activeOrganizationId, sessionId.toString()), refreshToken, user: identity.user, roles: identity.roles, memberships: identity.memberships, expiresAt };
 }
 
@@ -133,30 +138,27 @@ export async function startAdminStepUp(userId: Types.ObjectId, sessionId: Types.
 export async function requestOtp(phoneInput: string, purpose: 'LOGIN' | 'ONBOARDING' | 'STEP_UP') {
   const phone = normalizePhone(phoneInput);
   if (await User.exists({ phone, isPlatformAdmin: true })) throw new AppError(403, 'ADMIN_MFA_REQUIRED', 'This account must use password and a selected verified-channel OTP.');
-  const code = env.NODE_ENV === 'development' || env.NODE_ENV === 'test' ? '123456' : String(randomInt(100000, 1_000_000));
+  await assertOtpAvailable('SMS');
+  const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
   const codeHash = await bcrypt.hash(code, 10);
   await OtpChallenge.deleteMany({ phone, purpose, consumedAt: { $exists: false } });
   await OtpChallenge.create({ phone, codeHash, purpose, expiresAt: new Date(Date.now() + env.OTP_TTL_SECONDS * 1000) });
-  if (env.NODE_ENV === 'production') {
-    await getSmsProvider().send({
-      to: phone,
-      body: `Your ${PRODUCT_NAME} verification code is ${code}. It expires in ${Math.ceil(env.OTP_TTL_SECONDS / 60)} minutes. Do not share this code.`,
-    });
-  }
-  return { phone, expiresIn: env.OTP_TTL_SECONDS, ...(env.NODE_ENV !== 'production' ? { developmentCode: code } : {}) };
+  await deliverOtp('SMS', phone, code, env.OTP_TTL_SECONDS);
+  return { phone, expiresIn: env.OTP_TTL_SECONDS };
 }
 
-export async function loginByPhone(phoneInput: string) {
+export async function loginByPhone(phoneInput: string, channel?: 'EMAIL' | 'SMS', meta: AuthMetadata = {}, legacyRequest = false) {
   const phone = normalizePhone(phoneInput);
   const user = await User.findOne({ phone, status: 'ACTIVE' }).lean();
-  if (!user) throw new AppError(403, 'USER_NOT_PROVISIONED', 'This phone number is not provisioned for access');
+  if (!user) return startAccountOtp(undefined, false, channel, meta);
   const identity = await getIdentity(user._id);
   const fieldRoles: SystemRoleKey[] = ['PROPERTY_MANAGER', 'CARETAKER', 'CONTRACTOR', 'TENANT'];
-  if (user.isPlatformAdmin || !identity.roles.some((role) => fieldRoles.includes(role))) throw new AppError(400, 'WRONG_LOGIN_METHOD', 'This account must use email and password');
-  return requestOtp(phone, 'LOGIN');
+  if (user.isPlatformAdmin) throw new AppError(legacyRequest ? 403 : 400, legacyRequest ? 'ADMIN_MFA_REQUIRED' : 'WRONG_LOGIN_METHOD', 'Use the password and administrator OTP login flow.');
+  if (identity.roles.includes('LANDLORD') || !identity.roles.some((role) => fieldRoles.includes(role))) return startAccountOtp(undefined, false, channel, meta);
+  return startAccountOtp(user._id, false, channel, meta);
 }
 
-export async function loginByEmail(emailInput: string, password: string, meta: AuthMetadata = {}) {
+export async function loginByEmail(emailInput: string, password: string, meta: AuthMetadata = {}, channel?: 'EMAIL' | 'SMS') {
   const email = emailInput.trim().toLowerCase();
   const user = await User.findOne({ email, status: 'ACTIVE' }).select('+passwordHash').exec();
   if (!user?.passwordHash) throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
@@ -170,13 +172,20 @@ export async function loginByEmail(emailInput: string, password: string, meta: A
   const identity = await getIdentity(user._id);
   const adminRoles: SystemRoleKey[] = ['SUPER_ADMIN', 'LANDLORD'];
   if (!identity.roles.some((role) => adminRoles.includes(role)) && !user.isPlatformAdmin) throw new AppError(400, 'WRONG_LOGIN_METHOD', 'This account must use phone OTP');
-  const otp = await requestOtp(user.phone, 'STEP_UP');
-  return { stepUpRequired: true, challenge: otp, user: identity.user };
+  return startAccountOtp(user._id, true, channel, meta);
+}
+
+export async function loginByEmailOtp(emailInput: string, meta: AuthMetadata = {}) {
+  const user = await User.findOne({ email: emailInput.trim().toLowerCase(), status: 'ACTIVE', isPlatformAdmin: false });
+  if (!user) return startAccountOtp(undefined, false, 'EMAIL', meta);
+  const identity = await getIdentity(user._id);
+  if (!identity.roles.some(role => ['PROPERTY_MANAGER', 'CARETAKER', 'CONTRACTOR', 'TENANT'].includes(role)) || identity.roles.includes('LANDLORD')) return startAccountOtp(undefined, false, 'EMAIL', meta);
+  return startAccountOtp(user._id, false, 'EMAIL', meta);
 }
 
 export async function verifyLoginOtp(phoneInput: string, code: string, meta?: { userAgent?: string; ipAddress?: string }) {
   const phone = normalizePhone(phoneInput);
-  const challenge = await OtpChallenge.findOne({ phone, purpose: 'LOGIN', consumedAt: { $exists: false }, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 });
+  const challenge = await OtpChallenge.findOne({ phone, purpose: 'LOGIN', tokenHash: { $exists: false }, consumedAt: { $exists: false }, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 });
   if (!challenge) throw new AppError(401, 'OTP_INVALID', 'The OTP is invalid or expired');
   if (challenge.attempts >= env.OTP_MAX_ATTEMPTS) throw new AppError(429, 'OTP_LOCKED', 'Too many OTP attempts');
   challenge.attempts += 1;
@@ -194,7 +203,7 @@ export async function verifyStepUp(emailInput: string, code: string, meta?: { us
   const user = await User.findOne({ email, status: 'ACTIVE' });
   if (!user) throw new AppError(401, 'OTP_INVALID', 'The OTP is invalid or expired');
   if (user.isPlatformAdmin) throw new AppError(403, 'ADMIN_MFA_REQUIRED', 'Administrator password and selected-channel verification are required.');
-  const challenge = await OtpChallenge.findOne({ phone: user.phone, purpose: 'STEP_UP', consumedAt: { $exists: false }, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 });
+  const challenge = await OtpChallenge.findOne({ phone: user.phone, purpose: 'STEP_UP', tokenHash: { $exists: false }, consumedAt: { $exists: false }, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 });
   if (!challenge) throw new AppError(401, 'OTP_INVALID', 'The OTP is invalid or expired');
   if (challenge.attempts >= env.OTP_MAX_ATTEMPTS) throw new AppError(429, 'OTP_LOCKED', 'Too many OTP attempts');
   challenge.attempts += 1;
@@ -273,7 +282,7 @@ export async function bootstrapLandlord(data: { firstName: string; lastName: str
   const role = await Role.findOne({ key: 'LANDLORD', system: true, organizationId: null });
   if (!role) throw new AppError(500, 'SYSTEM_ROLE_MISSING', 'LANDLORD system role is not configured');
   const passwordHash = await bcrypt.hash(data.password, 12);
-  const user = await User.create({ phone, email, firstName: data.firstName, lastName: data.lastName, passwordHash, verifiedAt: new Date() });
+  const user = await User.create({ phone, email, firstName: data.firstName, lastName: data.lastName, passwordHash });
   try {
     const organization = await Organization.create({ name: data.organization.name, slug, onboarding: { state: 'ACCOUNT_CREATED' } });
     await OrganizationMembership.create({ userId: user._id, organizationId: organization._id, roleIds: [role._id], scope: { allProperties: true, propertyIds: [], buildingIds: [], unitIds: [] }, joinedAt: new Date() });

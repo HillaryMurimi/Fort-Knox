@@ -1,3 +1,4 @@
+import { otpAuthenticationPaths } from '../../modules/auth/otp-authentication.openapi.js';
 import { PRODUCT_NAME } from '../../config/brand.js';
 import { salesDemoPaths } from '../../modules/sales/sales-demo.openapi.js';
 import { platformBusinessPaths } from '../../modules/platform-control/platform-business.openapi.js';
@@ -41,6 +42,7 @@ export function buildOpenApiDocument() {
       },
     },
     paths: {
+      ...otpAuthenticationPaths,
       ...salesDemoPaths,
       ...platformBusinessPaths,
       ...landlordContractPaths,

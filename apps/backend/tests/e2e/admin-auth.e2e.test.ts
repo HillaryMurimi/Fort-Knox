@@ -9,6 +9,7 @@ import request from 'supertest';
 import { beforeAll, beforeEach, afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { env } from '../../src/config/env.js';
+import { PlatformSwitch } from '../../src/database/models/PlatformSwitch.js';
 import { User } from '../../src/database/models/User.js';
 import { Role } from '../../src/database/models/Role.js';
 import { OrganizationMembership } from '../../src/database/models/OrganizationMembership.js';
@@ -61,6 +62,7 @@ describe.skipIf(!process.env.RUN_E2E)('SUPER_ADMIN selectable login and dual-cha
   beforeEach(async () => {
     for (const ip of ['127.0.0.1', '::ffff:127.0.0.1', '::1']) { authRateLimit.resetKey(ipKeyGenerator(ip)); publicRateLimit.resetKey(ipKeyGenerator(ip)); }
     for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({});
+    for (const key of ['EMAIL_OTP', 'SMS_OTP', 'EMAIL_NOTIFICATIONS', 'SMS_NOTIFICATIONS']) await PlatformSwitch.create({ key, kind: 'FEATURE', name: key, description: 'Explicit test channel policy', enabled: true, mode: 'ON' });
     password = randomBytes(24).toString('base64url'); delivered = {}; deliveryFails = undefined;
     const now = new Date();
     const user = await User.create({ email: 'security-admin@example.test', phone: '+254700009801', firstName: 'Security', lastName: 'Fixture',

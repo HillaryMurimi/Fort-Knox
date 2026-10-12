@@ -1,3 +1,5 @@
+import { platformSwitchCatalog } from '../../src/modules/platform-control/platform-control.service.js';
+import { switchCoverage as otpSwitchCoverage } from '../../src/modules/platform-control/platform-monitoring.types.js';
 import mongoose, { Types } from 'mongoose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { env } from '../../src/config/env.js';
@@ -151,4 +153,16 @@ describe('platform monitoring authorization and audit', () => {
     expect(find).toHaveBeenCalledWith(expect.objectContaining({ area: { $in: ['launch'] } }));
     expect(observe).toHaveBeenCalledTimes(1);
   });
+});
+
+
+it('provides complete monitoring response fields for every service/feature switch', () => {
+  for (const [key] of platformSwitchCatalog) {
+    const row = otpSwitchCoverage[key];
+    expect(row, 'Missing enforcement manifest for ' + key).toBeDefined();
+    expect(row?.boundaries.trim().length).toBeGreaterThan(0);
+    expect(row?.limitation.trim().length).toBeGreaterThan(0);
+    expect(Array.isArray(row?.dependencies)).toBe(true);
+    expect(['PARTIAL', 'NOT_ENFORCED']).toContain(row?.coverage);
+  }
 });

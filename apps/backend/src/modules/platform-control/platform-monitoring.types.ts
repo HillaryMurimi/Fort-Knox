@@ -8,9 +8,11 @@ export function area(key: AreaKey, title: string, metrics: MonitorMetric[], cond
   return { key, title, metrics, conditions, notes, truncated, sourceAvailable: true, status: conditions.some(item => item.severity === 'CRITICAL') ? 'BLOCKED' : conditions.length ? 'NEEDS_ACTION' : metrics.some(item => item.value === null) ? 'NOT_CONFIGURED' : 'HEALTHY' };
 }
 export const switchCoverage: Record<string, { coverage: 'PARTIAL' | 'NOT_ENFORCED'; boundaries: string; dependencies: string[]; limitation: string }> = {
+  EMAIL_OTP: { coverage: 'PARTIAL', boundaries: 'Account/admin OTP issue, resend, verification and tenant activation', dependencies: ['EMAIL_NOTIFICATIONS'], limitation: 'Receipt verification is point-in-time; existing optional social sign-in still verifies phone.' },
+  SMS_OTP: { coverage: 'PARTIAL', boundaries: 'Account/admin OTP issue, resend, verification and tenant activation', dependencies: ['SMS_NOTIFICATIONS'], limitation: 'Requires configured sender, runtime permission and receipt proof; existing sessions are not revoked by delivery switches.' },
   MPESA_PAYMENTS: { coverage: 'PARTIAL', boundaries: 'HTTP payment initiation', dependencies: [], limitation: 'Internal payment entry points are not fully gated; callbacks and reconciliation remain enabled.' },
   PAYSTACK_PAYMENTS: { coverage: 'PARTIAL', boundaries: 'HTTP payment initiation', dependencies: [], limitation: 'Internal billing checkout paths require further enforcement; callbacks/reconciliation remain enabled.' },
-  EMAIL_NOTIFICATIONS: { coverage: 'PARTIAL', boundaries: 'SendGrid provider send', dependencies: [], limitation: 'Other providers/channels and delivery callbacks are not certified.' },
+  EMAIL_NOTIFICATIONS: { coverage: 'PARTIAL', boundaries: 'SendGrid / Resend provider send', dependencies: [], limitation: 'Other providers/channels and delivery callbacks are not certified.' },
   SMS_NOTIFICATIONS: { coverage: 'PARTIAL', boundaries: 'Twilio provider send, including production OTP', dependencies: [], limitation: 'Turning this OFF can block administrator step-up. Recovery bypass is not implemented.' },
   WHATSAPP_NOTIFICATIONS: { coverage: 'PARTIAL', boundaries: 'Meta provider send', dependencies: [], limitation: 'Live provider acceptance remains outstanding.' },
   CCTV_GATEWAY: { coverage: 'PARTIAL', boundaries: 'Camera live/playback service and gateway adapter', dependencies: [], limitation: 'Existing streaming sessions are not revoked; session/download flows remain incomplete.' },

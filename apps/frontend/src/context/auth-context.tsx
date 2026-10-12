@@ -18,6 +18,7 @@ import {
   refreshAuth,
   verifyLoginOtp,
   verifyAdminMfa,
+  verifyAccountOtp,
   verifyStepUp,
 } from '../lib/auth/auth-api';
 
@@ -39,7 +40,6 @@ import type {
   AuthUser,
   AdminMfaResponse,
   LoginResult,
-  LoginChallengeResponse,
   LoginPayload,
   LoginResponse,
   StoredAuthSession,
@@ -56,6 +56,7 @@ interface AuthContextValue {
   isDevMode: boolean;
 
   login: (payload: LoginPayload) => Promise<LoginResult>;
+  verifyAccount: (challengeToken: string, channel: 'EMAIL' | 'SMS', code: string) => Promise<LoginResponse>;
   verifyAdmin: (flowToken: string, channel: 'EMAIL' | 'SMS', code: string) => Promise<AdminMfaResponse | LoginResponse>;
 
   verifyOtp: (
@@ -89,10 +90,7 @@ const AuthContext =
   );
 
 function isLoginResponse(
-  value:
-    | LoginChallengeResponse
-    | AdminMfaResponse
-    | LoginResponse,
+  value: LoginResult,
 ): value is LoginResponse {
   return (
     typeof value === 'object' &&
@@ -242,11 +240,7 @@ export function AuthProvider({
   const doLogin = useCallback(
     async (
       payload: LoginPayload,
-    ): Promise<
-      | LoginChallengeResponse
-      | AdminMfaResponse
-      | LoginResponse
-    > => {
+    ): Promise<LoginResult> => {
       setIsLoading(true);
 
       try {
@@ -272,6 +266,11 @@ export function AuthProvider({
     [],
   );
 
+  const doVerifyAccount = useCallback(async (challengeToken: string, channel: 'EMAIL' | 'SMS', code: string) => {
+    setIsLoading(true);
+    try { const result = persist(await verifyAccountOtp(challengeToken, channel, code)); setSession(getStoredAuthSession()); return result; }
+    finally { setIsLoading(false); }
+  }, []);
   const doVerifyAdmin = useCallback(async (flowToken: string, channel: 'EMAIL' | 'SMS', code: string) => {
     const result = await verifyAdminMfa(flowToken, channel, code);
     if (isLoginResponse(result)) { persist(result); setSession(getStoredAuthSession()); }
@@ -455,6 +454,7 @@ export function AuthProvider({
 
         login: doLogin,
         verifyAdmin: doVerifyAdmin,
+        verifyAccount: doVerifyAccount,
 
         verifyOtp:
           doVerifyOtp,
@@ -476,6 +476,7 @@ export function AuthProvider({
         isDevMode,
         doLogin,
         doVerifyAdmin,
+        doVerifyAccount,
         doVerifyOtp,
         doVerifyStepUp,
         doLogout,

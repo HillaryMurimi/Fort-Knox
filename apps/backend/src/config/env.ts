@@ -12,7 +12,7 @@ const booleanValue = (defaultValue: boolean) =>
     return value;
   }, z.boolean());
 
-const envSchema = z.object({
+export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LAUNCH_READINESS_ENV: z.preprocess(value => value === '' ? undefined : value, z.enum(['development', 'test', 'staging', 'production']).optional()),
   MONITORING_QUEUE_AGE_SECONDS: z.coerce.number().int().min(60).default(900),
@@ -38,7 +38,7 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
-  OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
+  OTP_TTL_SECONDS: z.coerce.number().int().min(60).max(300).default(300),
   GUIDED_PILOT_DAYS: z.coerce.number().int().min(1).max(60).default(14),
   ADMIN_OTP_TTL_SECONDS: z.coerce.number().int().min(60).max(300).default(180),
   ADMIN_FLOW_SECONDS: z.coerce.number().int().min(300).max(1200).default(900),
@@ -70,7 +70,17 @@ const envSchema = z.object({
   PAYSTACK_BASE_URL: z.string().url().default('https://api.paystack.co'),
   PAYSTACK_SECRET_KEY: optionalValue(z.string().min(1)),
   PAYSTACK_CALLBACK_URL: optionalValue(z.string().url()),
-  EMAIL_PROVIDER: z.enum(['SENDGRID']).default('SENDGRID'),
+  EMAIL_ENABLED: booleanValue(true),
+  SMS_ENABLED: booleanValue(process.env.NODE_ENV !== 'production'),
+  MPESA_ENABLED: booleanValue(process.env.NODE_ENV !== 'production'),
+  PAYSTACK_ENABLED: booleanValue(process.env.NODE_ENV !== 'production'),
+  DOCUMENT_STORAGE_ENABLED: booleanValue(process.env.NODE_ENV !== 'production'),
+  CCTV_ENABLED: booleanValue(process.env.NODE_ENV !== 'production'),
+  EMAIL_PROVIDER: z.enum(['SENDGRID', 'RESEND']).default('SENDGRID'),
+  EMAIL_FROM_NAME: z.string().trim().min(1).max(80).regex(/^[^<>\r\n]+$/).default('Dapinni'),
+  RESEND_API_KEY: optionalValue(z.string().min(1)),
+  EMAIL_SENDING_DOMAIN: optionalValue(z.string().regex(/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i)),
+  EMAIL_DOMAIN_VERIFIED: booleanValue(false),
   EMAIL_FROM: optionalValue(z.string().email()),
   SENDGRID_API_KEY: optionalValue(z.string().min(1)),
   SMS_PROVIDER: z.enum(['TWILIO']).default('TWILIO'),
@@ -137,17 +147,36 @@ const envSchema = z.object({
     context.addIssue({ code: 'custom', path: ['MONGODB_URI'], message: 'Production database cannot use localhost' });
   }
 
+  if (value.MPESA_ENABLED) {
   for (const key of ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_SHORT_CODE', 'MPESA_PASSKEY', 'MPESA_CALLBACK_URL'] as const) requireValue(key);
   if (value.MPESA_BASE_URL.includes('sandbox')) context.addIssue({ code: 'custom', path: ['MPESA_BASE_URL'], message: 'Use the Safaricom production API URL' });
   requireHttps('MPESA_CALLBACK_URL');
+  }
+  if (value.PAYSTACK_ENABLED) {
   requireValue('PAYSTACK_SECRET_KEY');
   requireValue('PAYSTACK_CALLBACK_URL');
   requireHttps('PAYSTACK_CALLBACK_URL');
-  for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'SMS_FROM', 'SENDGRID_API_KEY', 'EMAIL_FROM'] as const) requireValue(key);
+  }
+  if (value.EMAIL_ENABLED) {
+    requireValue('EMAIL_FROM');
+    requireValue(value.EMAIL_PROVIDER === 'RESEND' ? 'RESEND_API_KEY' : 'SENDGRID_API_KEY');
+    requireValue('EMAIL_SENDING_DOMAIN');
+    if (!value.EMAIL_DOMAIN_VERIFIED) context.addIssue({ code: 'custom', path: ['EMAIL_DOMAIN_VERIFIED'], message: 'Verify the sender domain and DNS before enabling production email' });
+    if (value.EMAIL_FROM && value.EMAIL_SENDING_DOMAIN && value.EMAIL_FROM.split('@')[1]?.toLowerCase() !== value.EMAIL_SENDING_DOMAIN.toLowerCase()) context.addIssue({ code: 'custom', path: ['EMAIL_FROM'], message: 'Sender must belong to the verified sending domain' });
+  }
+  if (value.SMS_ENABLED) {
+    for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'SMS_FROM'] as const) requireValue(key);
+    if (!/^AC[a-f0-9]{32}$/i.test(value.TWILIO_ACCOUNT_SID ?? '') || !/^\+[1-9]\d{6,14}$/.test(value.SMS_FROM ?? '')) context.addIssue({ code: 'custom', path: ['SMS_FROM'], message: 'Configure a valid Twilio account and E.164 sender' });
+  }
+  if (!value.EMAIL_ENABLED && !value.SMS_ENABLED) context.addIssue({ code: 'custom', path: ['EMAIL_ENABLED'], message: 'At least one authentication delivery provider must be enabled' });
+  if (value.DOCUMENT_STORAGE_ENABLED) {
   for (const key of ['S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'] as const) requireValue(key);
+  }
+  if (value.CCTV_ENABLED) {
   requireValue('CCTV_PROVIDER_BASE_URL');
   requireValue('CCTV_PROVIDER_API_KEY');
   requireHttps('CCTV_PROVIDER_BASE_URL');
+  }
 });
 
 const parsed = envSchema.safeParse(process.env);

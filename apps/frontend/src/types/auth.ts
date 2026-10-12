@@ -15,13 +15,15 @@ export interface AuthIdentity { user: AuthUser; roles: SystemRoleKey[]; membersh
 export interface OtpRequestPayload { phone: string; }
 export interface OtpRequestResponse { phone: string; expiresIn: number; developmentCode?: string; }
 export interface OtpVerificationPayload { phone: string; code: string; }
-export interface LoginEmailPayload { method: 'email'; email: string; password: string; }
-export interface LoginPhonePayload { method: 'phone'; phone: string; }
-export type LoginPayload = LoginEmailPayload | LoginPhonePayload;
+export interface LoginEmailPayload { method: 'email'; email: string; password: string; channel?: 'EMAIL' | 'SMS'; }
+export interface LoginPhonePayload { method: 'phone'; phone: string; channel?: 'EMAIL' | 'SMS'; }
+export interface LoginEmailOtpPayload { method: 'emailOtp'; email: string; }
+export type LoginPayload = LoginEmailPayload | LoginPhonePayload | LoginEmailOtpPayload;
 export interface LoginChallengeResponse { stepUpRequired: true; challenge: OtpRequestResponse; user: AuthUser; }
 export interface AdminMfaChallenge { mfaRequired: true; flowToken: string; stage: 'EMAIL' | 'SMS'; requiredChannels: 'ONE' | 'BOTH'; challenge: { channel: 'EMAIL' | 'SMS'; destination: string; expiresAt: string; resendAt: string; delivery: 'PENDING' | 'SENT' | 'FAILED' }; }
 export interface AdminMfaChoice { mfaRequired: true; flowToken: string; stage: 'CHANNEL'; channels: Array<{ channel: 'EMAIL' | 'SMS'; destination: string }>; }
 export type AdminMfaResponse = AdminMfaChallenge | AdminMfaChoice;
-export type LoginResult = LoginChallengeResponse | AdminMfaResponse | LoginResponse;
+export interface AccountOtpResponse { accountOtpRequired: true; challengeToken: string; challenge: { channel: 'EMAIL' | 'SMS'; destination: string; expiresAt: string; resendAt: string; delivery: 'PENDING' | 'SENT' | 'FAILED' }; }
+export type LoginResult = LoginChallengeResponse | AdminMfaResponse | AccountOtpResponse | LoginResponse;
 export interface LoginResponse extends AuthIdentity { accessToken: string; expiresAt: string; securityPolicy?: { idleTimeoutSeconds: number; absoluteTimeoutSeconds: number }; }
 export interface StoredAuthSession { accessToken: string; user: AuthUser; roles: SystemRoleKey[]; memberships: AuthMembership[]; authenticatedAt: string; expiresAt?: string; idleTimeoutSeconds?: number; }

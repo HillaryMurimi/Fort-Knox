@@ -1,6 +1,6 @@
 export type PaymentProviderKey = 'MPESA' | 'PAYSTACK' | 'OTHER';
 export type PaystackChannel = 'card' | 'bank' | 'apple_pay' | 'ussd' | 'qr' | 'mobile_money' | 'bank_transfer' | 'eft' | 'capitec_pay' | 'payattitude';
-export type ProviderKey = PaymentProviderKey | 'SMTP' | 'SENDGRID' | 'TWILIO' | 'WHATSAPP_CLOUD' | 'CLOUDINARY' | 'S3' | 'GENERIC_CCTV' | 'NVR_HTTP';
+export type ProviderKey = PaymentProviderKey | 'SMTP' | 'SENDGRID' | 'RESEND' | 'TWILIO' | 'WHATSAPP_CLOUD' | 'CLOUDINARY' | 'S3' | 'GENERIC_CCTV' | 'NVR_HTTP';
 
 export interface PaymentInitiationInput { organizationId:string; paymentId?:string; amount:number; currency:string; phone?:string; email?:string; reference:string; description?:string; callbackUrl?:string; metadata?:Record<string,unknown>; paystackChannels?:PaystackChannel[]; paystackSubaccountCode?:string; }
 export interface PaymentInitiationResult { provider:string; providerTransactionId:string; status:'PENDING'|'CONFIRMED'|'FAILED'; checkoutRequestId?:string; checkoutUrl?:string; accessCode?:string; customerMessage?:string; amountMinorUnits?:number; currency?:string; paidAt?:Date; raw?:unknown; }
@@ -9,7 +9,7 @@ export type RefundStatus = 'PENDING' | 'PROCESSING' | 'NEEDS_ATTENTION' | 'FAILE
 export interface RefundResult { providerRefundId: number; transactionId?: number; amountMinorUnits: number; currency: string; status: RefundStatus; }
 export interface RefundProvider { createRefund(transactionReference: string, reason: string): Promise<RefundResult>; getRefund(providerRefundId: number): Promise<RefundResult>; }
 
-export interface MessageInput { to:string; subject?:string; body:string; from?:string; metadata?:Record<string,unknown>; }
+export interface MessageInput { to:string; subject?:string; body:string; html?:string; from?:string; metadata?:Record<string,unknown>; }
 export interface MessageResult { provider:string; providerMessageId:string; status:'QUEUED'|'SENT'|'DELIVERED'|'FAILED'; raw?:unknown; }
 export interface EmailProvider { readonly key:ProviderKey; send(input:MessageInput):Promise<MessageResult>; }
 export interface SmsProvider { readonly key:ProviderKey; send(input:MessageInput):Promise<MessageResult>; }

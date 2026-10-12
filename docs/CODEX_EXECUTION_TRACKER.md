@@ -1146,3 +1146,94 @@ Changed-file inventory (this task):
 - `docs/SECURITY.md` (modified)
 - `docs/SUPER_ADMIN_AUTHENTICATION.md` (modified)
 - `docs/TESTING_STRATEGY.md` (modified)
+
+
+## 2026-10-12 - Email-first OTP and optional Coolify services
+
+Continued the existing laptop main from 658d0e3 without cloning or replacing working authentication. Extended existing providers, auth/challenges/sessions, authorization, audit, notifications and PlatformSwitch authorities. No live account/contact/provider configuration changed; no second SUPER_ADMIN was created.
+
+Implemented ordinary email OTP with retained owner password proof, contact/channel/generation binding, atomic consume/contact verification/session/audit, resend/verification limits and temporary lockout. Admin choices use available channels; existing privileged sessions and dual-channel sensitive checks remain. Added provider receipt testing, readiness fingerprints, safe activation and last-channel/account-lockout prevention, audited host activation and explicit index commands.
+
+Tenant activation proves the registered email while preserving fixed unit scope. Staff/tenant contact entry is unverified. SMS-disabled admin login queues no SMS security notice. Resend and branded text/HTML extend the existing EmailProvider alongside SendGrid; Twilio remains available for later deliberate activation.
+
+Coolify API/worker/web Compose accepts absent SMS/payment/storage/CCTV credentials when runtime flags are OFF. HTTPS, secure cookies, separate strong secrets, verified email configuration and replica-set MongoDB remain required. Compose was validated without SMS credentials, with internal-only ports and public-only web build arguments. Docker daemon was unavailable; no container build/run or target Coolify deployment was certified.
+
+Verification: backend default 362 PASS; backend E2E 197 PASS; frontend 265 PASS. Seven configuration cases run in both backend commands: 824 executions / 817 distinct cases. Focused final OTP review 43 PASS. Both typechecks, strict operator-script typecheck, lint, both production builds, Compose parsing and static release certification PASS. Lint: 431 backend and 27 frontend warnings, zero errors. Static: 36 route files, 155 permissions and 10 critical paths.
+
+Real platform and sales browser journeys PASS: email/SMS admin sign-in, pending-stage bypass denial, memory-only privileged tokens, logout and owner email OTP. Sales checks include desktop/tablet/mobile, both themes, keyboard navigation and zero console errors. Browser dependencies used installed Chrome in a fresh isolated context.
+
+Review repaired the new switch enforcement manifest, preserved strict malformed-response validation, restored legacy admin denial semantics, fixed public activation route placement, retained transactional identity reads and removed the generated Next type change. No test assertion was weakened or existing test removed. Temporary scripts/logs and the pre-existing .continue/ folder are excluded.
+
+Known limits: live DNS/provider receipt, secure existing-admin enrollment, indexes, target deployment, backups/restores and provider certification remain manual acceptance. Sensitive operations stay dual-channel and unavailable during email-only operation; the audited host procedure enables SMS later. Optional social onboarding still verifies phone, so leave OAuth unconfigured for the initial email-only launch. Shared/edge IP limiting is needed before scaling API replicas. Readiness records a verified receipt at a point in time, not continuous provider/DNS monitoring.
+
+### Reviewed changed-file inventory
+
+- `apps/backend/.dockerignore` (modified)
+- `apps/backend/.env.example` (modified)
+- `apps/backend/package.json` (modified)
+- `apps/backend/scripts/run-e2e.mjs` (modified)
+- `apps/backend/scripts/serve-platform-business-test.ts` (modified)
+- `apps/backend/scripts/serve-sales-demo-test.ts` (modified)
+- `apps/backend/src/config/env.ts` (modified)
+- `apps/backend/src/core/api/openapi.ts` (modified)
+- `apps/backend/src/core/integrations/config.ts` (modified)
+- `apps/backend/src/core/integrations/messaging-providers.ts` (modified)
+- `apps/backend/src/core/integrations/provider.types.ts` (modified)
+- `apps/backend/src/database/models/OtpChallenge.ts` (modified)
+- `apps/backend/src/database/models/PlatformSwitch.ts` (modified)
+- `apps/backend/src/database/models/TenantOnboarding.ts` (modified)
+- `apps/backend/src/modules/auth/admin-mfa.service.ts` (modified)
+- `apps/backend/src/modules/auth/auth.controller.ts` (modified)
+- `apps/backend/src/modules/auth/auth.schemas.ts` (modified)
+- `apps/backend/src/modules/auth/auth.service.ts` (modified)
+- `apps/backend/src/modules/invitations/invitation.service.ts` (modified)
+- `apps/backend/src/modules/notifications/notification.service.ts` (modified)
+- `apps/backend/src/modules/onboarding/onboarding.controller.ts` (modified)
+- `apps/backend/src/modules/onboarding/onboarding.routes.ts` (modified)
+- `apps/backend/src/modules/onboarding/onboarding.schemas.ts` (modified)
+- `apps/backend/src/modules/onboarding/onboarding.service.ts` (modified)
+- `apps/backend/src/modules/platform-control/launch-readiness.catalog.ts` (modified)
+- `apps/backend/src/modules/platform-control/platform-control.guard.ts` (modified)
+- `apps/backend/src/modules/platform-control/platform-control.routes.ts` (modified)
+- `apps/backend/src/modules/platform-control/platform-control.service.ts` (modified)
+- `apps/backend/src/modules/platform-control/platform-monitoring.types.ts` (modified)
+- `apps/backend/src/modules/users/user.service.ts` (modified)
+- `apps/backend/src/routes/auth.routes.ts` (modified)
+- `apps/backend/src/routes/index.ts` (modified)
+- `apps/backend/tests/e2e/admin-auth.e2e.test.ts` (modified)
+- `apps/backend/tests/e2e/landlord-onboarding.e2e.test.ts` (modified)
+- `apps/backend/tests/unit/platform-monitoring.test.ts` (modified)
+- `apps/frontend/Dockerfile` (modified)
+- `apps/frontend/scripts/verify-sales-demo.mjs` (modified)
+- `apps/frontend/src/app/(dashboard)/platform/page.tsx` (modified)
+- `apps/frontend/src/app/login/page.tsx` (modified)
+- `apps/frontend/src/components/tenants/tenant-onboarding-form.tsx` (modified)
+- `apps/frontend/src/context/auth-context.tsx` (modified)
+- `apps/frontend/src/lib/auth/auth-api.ts` (modified)
+- `apps/frontend/src/types/auth.ts` (modified)
+- `docker-compose.coolify.yml` (modified)
+- `docs/API_SPECIFICATION.md` (modified)
+- `docs/ARCHITECTURE.md` (modified)
+- `docs/COOLIFY_DEPLOYMENT.md` (modified)
+- `docs/DATABASE_DESIGN.md` (modified)
+- `docs/FEATURES.md` (modified)
+- `docs/SECURITY.md` (modified)
+- `docs/SUPER_ADMIN_AUTHENTICATION.md` (modified)
+- `docs/TESTING_STRATEGY.md` (modified)
+- `apps/backend/scripts/configure-otp-channels.ts` (added)
+- `apps/backend/scripts/create-otp-channel-indexes.ts` (added)
+- `apps/backend/src/core/integrations/messaging-providers.test.ts` (added)
+- `apps/backend/src/modules/auth/account-otp.controller.ts` (added)
+- `apps/backend/src/modules/auth/account-otp.service.ts` (added)
+- `apps/backend/src/modules/auth/otp-authentication.openapi.ts` (added)
+- `apps/backend/src/modules/auth/otp-delivery.ts` (added)
+- `apps/backend/src/modules/auth/otp-policy.ts` (added)
+- `apps/backend/src/modules/auth/otp-settings.controller.ts` (added)
+- `apps/backend/src/modules/auth/otp-settings.service.ts` (added)
+- `apps/backend/tests/e2e/otp-channels.e2e.test.ts` (added)
+- `apps/frontend/src/app/activate-tenant/page.tsx` (added)
+- `apps/frontend/src/components/auth/account-otp-panel.tsx` (added)
+- `apps/frontend/src/components/otp-authentication-settings.tsx` (added)
+- `apps/frontend/src/lib/auth/account-otp-ui.test.tsx` (added)
+- `docs/OTP_AUTHENTICATION_CHANNELS.md` (added)
+- `docs/CODEX_EXECUTION_TRACKER.md` (modified)

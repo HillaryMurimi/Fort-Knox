@@ -1,3 +1,4 @@
+import * as otpSettings from '../auth/otp-settings.controller.js';
 import { salesIntelligence } from '../sales/sales-demo.controller.js';
 import { Router } from 'express';
 import { requireAuth } from '../../middleware/auth.middleware.js';
@@ -7,6 +8,9 @@ import * as business from './platform-business.controller.js';
 
 export const platformControlRouter = Router();
 platformControlRouter.use(requireAuth);
+platformControlRouter.get('/otp-authentication', asyncHandler(otpSettings.list));
+platformControlRouter.post('/otp-authentication/tests', asyncHandler(otpSettings.startTest));
+platformControlRouter.post('/otp-authentication/tests/verify', asyncHandler(otpSettings.verifyTest));
 platformControlRouter.get('/sales-intelligence',asyncHandler(salesIntelligence));
 platformControlRouter.get('/business-intelligence',asyncHandler(business.businessOverview));
 platformControlRouter.get('/business-intelligence/drill-down',asyncHandler(business.businessDrill));

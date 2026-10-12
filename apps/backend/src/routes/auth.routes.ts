@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import * as accountOtp from '../modules/auth/account-otp.controller.js';
 import * as admin from '../modules/auth/admin-auth.controller.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 
@@ -17,6 +18,9 @@ import {
 } from '../modules/auth/auth.controller.js';
 
 export const authRouter = Router();
+authRouter.get('/otp/availability', asyncHandler(accountOtp.availability));
+authRouter.post('/account-otp/resend', asyncHandler(accountOtp.resend));
+authRouter.post('/account-otp/verify', asyncHandler(accountOtp.verify));
 authRouter.post('/admin-mfa/channel', admin.adminOrigin, asyncHandler(admin.selectChannel));
 authRouter.post('/admin-mfa/verify', admin.adminOrigin, asyncHandler(admin.verify));
 authRouter.post('/admin-mfa/resend', admin.adminOrigin, asyncHandler(admin.resend));

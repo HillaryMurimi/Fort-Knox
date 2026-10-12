@@ -73,3 +73,37 @@ Do not expose port 9000/3000 directly in a firewall. Coolify's proxy should
 route the two domains to their internal service ports. The separate
 `infrastructure/docker-compose.production.yml` remains a non-Coolify
 reference deployment and is not the source for this Coolify application.
+
+
+## Email-only initial deployment
+
+The Compose deployment now defaults SMS, M-Pesa, Paystack, document storage and
+CCTV OFF. Disabled providers may have empty credentials and do not prevent
+API/worker startup. Email remains mandatory; Compose defaults to RESEND, with
+SENDGRID supported. Configure EMAIL_FROM, EMAIL_SENDING_DOMAIN, the selected
+provider key, and EMAIL_DOMAIN_VERIFIED=true only after actual domain/DNS checks.
+
+Runtime service flags: SMS_ENABLED, MPESA_ENABLED, PAYSTACK_ENABLED,
+DOCUMENT_STORAGE_ENABLED and CCTV_ENABLED. Enabling a flag requires that
+provider’s complete production configuration at startup. Stored platform
+switches and SMS receipt evidence must also permit use; flags alone never enable
+SMS authentication. Keep optional OAuth credentials empty for the email-only
+initial launch: existing social onboarding still verifies phone.
+
+Run auth:create-channel-indexes and the existing documented indexes from a
+trusted operator workstation before enabling this release. Existing saved OFF
+email switches need the audited auth:configure-otp procedure. No seeds or
+recovery scripts run on every deployment. See OTP_AUTHENTICATION_CHANNELS.md
+for the exact trusted bootstrap, provider tests and later SMS activation.
+
+Containers run without root, use init/graceful termination, expose only internal
+ports, and keep secrets at runtime. Web explicitly binds 0.0.0.0:3000. Backend
+Docker build context now excludes all .env variants. Worker runs the existing
+durable jobs/monitoring heartbeat loop. Observe its heartbeat and failed-job
+queue after deployment; a running process is not proof jobs are healthy.
+
+The source is compatible with the Git-backed Coolify Compose workflow described
+at https://coolify.io/docs/applications/builds/docker-compose. A successful
+Compose parse and application build do not certify a target server deployment.
+Live HTTPS, email receipt, MongoDB transactions/indexes, worker recovery, backups
+and restore acceptance remain required before opening production to customers.

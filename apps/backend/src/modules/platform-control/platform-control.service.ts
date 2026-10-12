@@ -1,4 +1,6 @@
 import mongoose, { Types } from 'mongoose';
+import { env } from '../../config/env.js';
+import { validateOtpSwitchChange } from '../auth/otp-policy.js';
 import { AuthorizationService } from '../../core/authorization/authorization.service.js';
 import { AppError } from '../../core/errors/AppError.js';
 import { PlatformSwitch } from '../../database/models/PlatformSwitch.js';
@@ -7,6 +9,8 @@ import type { AuthenticatedUser } from '../../core/types/auth.js';
 import type { UpdateSwitchInput } from './platform-control.schemas.js';
 
 export const platformSwitchCatalog = [
+  ['EMAIL_OTP', 'FEATURE', 'Email OTP', 'Email verification for authentication; enabled for the initial launch.'],
+  ['SMS_OTP', 'FEATURE', 'SMS OTP', 'Optional SMS authentication; requires verified delivery before activation.'],
   ['MPESA_PAYMENTS', 'SERVICE', 'M-Pesa payments', 'M-Pesa collection and settlement operations.'],
   ['PAYSTACK_PAYMENTS', 'SERVICE', 'Paystack payments', 'Paystack checkout and subscription payment operations.'],
   ['EMAIL_NOTIFICATIONS', 'SERVICE', 'Email notifications', 'Transactional email delivery.'],
@@ -26,7 +30,10 @@ export class PlatformControlService {
   static async ensureCatalog() {
     await Promise.all(platformSwitchCatalog.map(([key, kind, name, description]) => PlatformSwitch.updateOne(
       { key },
-      { $setOnInsert: { key, kind, name, description, environment: 'ALL', enabled: false, mode: 'OFF', reason: 'Disabled until release readiness is confirmed.' } },
+      { $setOnInsert: { key, kind, name, description, environment: 'ALL',
+        enabled: ['EMAIL_OTP', 'EMAIL_NOTIFICATIONS'].includes(key) && env.EMAIL_ENABLED,
+        mode: ['EMAIL_OTP', 'EMAIL_NOTIFICATIONS'].includes(key) && env.EMAIL_ENABLED ? 'ON' : 'OFF',
+        reason: ['EMAIL_OTP', 'EMAIL_NOTIFICATIONS'].includes(key) ? 'Initial email authentication channel.' : 'Disabled until release readiness is confirmed.' } },
       { upsert: true },
     )));
   }
@@ -44,6 +51,8 @@ export class PlatformControlService {
       return await session.withTransaction(async () => {
         const existing = await PlatformSwitch.findOne({ key }).session(session);
         if (!existing) throw new AppError(404, 'PLATFORM_SWITCH_NOT_FOUND', 'Platform switch not found');
+        if (['EMAIL_OTP', 'SMS_OTP', 'EMAIL_NOTIFICATIONS', 'SMS_NOTIFICATIONS'].includes(key)) await PlatformSwitch.updateOne({ key: 'EMAIL_OTP' }, { $inc: { otpPolicyRevision: 1 } }, { session });
+        await validateOtpSwitchChange(key, input.mode, session);
         const before = { mode: existing.mode, enabled: existing.enabled, reason: existing.reason };
         existing.mode = input.mode;
         existing.enabled = input.mode === 'ON';

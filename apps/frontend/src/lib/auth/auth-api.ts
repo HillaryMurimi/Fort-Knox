@@ -2,6 +2,7 @@ import { api } from '../api';
 
 import type {
   AdminMfaResponse,
+  AccountOtpResponse,
   LoginResult,
   LoginPayload,
   LoginResponse,
@@ -49,6 +50,9 @@ import type {
  *   ↓
  * LOGIN OTP
  */
+export function otpAvailability() { return api<{ channels: Array<'EMAIL' | 'SMS'>; defaultChannel: 'EMAIL' }>('/auth/otp/availability', { authenticated: false }); }
+export function verifyAccountOtp(challengeToken: string, channel: 'EMAIL' | 'SMS', code: string) { return api<LoginResponse>('/auth/account-otp/verify', { method: 'POST', authenticated: false, body: JSON.stringify({ challengeToken, channel, code }) }); }
+export function resendAccountOtp(challengeToken: string, channel?: 'EMAIL' | 'SMS') { return api<AccountOtpResponse>('/auth/account-otp/resend', { method: 'POST', authenticated: false, body: JSON.stringify({ challengeToken, ...(channel ? { channel } : {}) }) }); }
 export function verifyAdminMfa(flowToken: string, channel: 'EMAIL' | 'SMS', code: string) { return api<AdminMfaResponse | LoginResponse>('/auth/admin-mfa/verify', { method: 'POST', authenticated: false, body: JSON.stringify({ flowToken, channel, code }) }); }
 export function selectAdminMfaChannel(flowToken: string, channel: 'EMAIL' | 'SMS') { return api<AdminMfaResponse>('/auth/admin-mfa/channel', { method: 'POST', authenticated: false, body: JSON.stringify({ flowToken, channel }) }); }
 export function resendAdminMfa(flowToken: string) { return api<AdminMfaResponse>('/auth/admin-mfa/resend', { method: 'POST', authenticated: false, body: JSON.stringify({ flowToken }) }); }

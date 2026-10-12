@@ -11,6 +11,12 @@ const onboardingSchema = new Schema({
   unitId: { type: Schema.Types.ObjectId, ref: 'Unit', required: true, index: true },
   status: { type: String, enum: ['PRE_REGISTERED', 'OTP_SENT', 'VERIFIED', 'COMPLETED', 'REJECTED', 'EXPIRED'], default: 'PRE_REGISTERED', index: true },
   otpHash: { type: String },
+  otpTokenHash: String,
+  otpChannel: { type: String, enum: ['EMAIL', 'SMS'] },
+  otpDeliveryStatus: { type: String, enum: ['PENDING', 'SENT', 'FAILED'] },
+  otpNextSendAt: Date,
+  otpNextVerifyAt: Date,
+  otpSendCount: { type: Number, default: 0 },
   otpExpiresAt: { type: Date },
   otpAttempts: { type: Number, default: 0 },
   verifiedAt: Date,
@@ -23,6 +29,7 @@ const onboardingSchema = new Schema({
 }, { timestamps: true });
 
 onboardingSchema.index({ organizationId: 1, phone: 1, status: 1 });
+onboardingSchema.index({ otpTokenHash: 1 }, { unique: true, partialFilterExpression: { otpTokenHash: { $type: 'string' } } });
 onboardingSchema.index({ organizationId: 1, unitId: 1, status: 1 });
 
 export type TenantOnboardingDocument = InferSchemaType<typeof onboardingSchema>;

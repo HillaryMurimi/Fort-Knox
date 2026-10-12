@@ -9,30 +9,40 @@ x-backend-environment: &backend-environment
   JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set a unique access secret}
   JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set a unique refresh secret}
   REFRESH_COOKIE_SECURE: "true"
-  MPESA_BASE_URL: ${MPESA_BASE_URL:?Set the production Daraja base URL}
-  MPESA_CONSUMER_KEY: ${MPESA_CONSUMER_KEY:?Set the Daraja consumer key}
-  MPESA_CONSUMER_SECRET: ${MPESA_CONSUMER_SECRET:?Set the Daraja consumer secret}
-  MPESA_SHORT_CODE: ${MPESA_SHORT_CODE:?Set the Daraja shortcode}
-  MPESA_PASSKEY: ${MPESA_PASSKEY:?Set the Daraja passkey}
-  MPESA_CALLBACK_URL: ${MPESA_CALLBACK_URL:?Set the HTTPS M-Pesa callback URL}
-  MPESA_WEBHOOK_SECRET: ${MPESA_WEBHOOK_SECRET:-}
-  PAYSTACK_BASE_URL: https://api.paystack.co
-  PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:?Set the Paystack secret key}
-  PAYSTACK_CALLBACK_URL: ${PAYSTACK_CALLBACK_URL:?Set the HTTPS Paystack return URL}
-  SMS_PROVIDER: TWILIO
-  SMS_FROM: ${SMS_FROM:?Set the production SMS sender}
-  TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:?Set the Twilio account SID}
-  TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:?Set the Twilio auth token}
-  EMAIL_PROVIDER: SENDGRID
+  EMAIL_ENABLED: "true"
+  EMAIL_PROVIDER: ${EMAIL_PROVIDER:-RESEND}
   EMAIL_FROM: ${EMAIL_FROM:?Set the verified email sender}
-  SENDGRID_API_KEY: ${SENDGRID_API_KEY:?Set the SendGrid API key}
-  S3_BUCKET: ${S3_BUCKET:?Set the private object-storage bucket}
-  S3_REGION: ${S3_REGION:?Set the object-storage region}
-  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set the object-storage key ID}
-  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set the object-storage secret}
+  EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Dapinni}
+  EMAIL_SENDING_DOMAIN: ${EMAIL_SENDING_DOMAIN:?Set the verified sending domain}
+  EMAIL_DOMAIN_VERIFIED: ${EMAIL_DOMAIN_VERIFIED:-false}
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+  SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+  SMS_ENABLED: ${SMS_ENABLED:-false}
+  SMS_PROVIDER: TWILIO
+  SMS_FROM: ${SMS_FROM:-}
+  TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+  TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+  MPESA_ENABLED: ${MPESA_ENABLED:-false}
+  MPESA_BASE_URL: ${MPESA_BASE_URL:-https://api.safaricom.co.ke}
+  MPESA_CONSUMER_KEY: ${MPESA_CONSUMER_KEY:-}
+  MPESA_CONSUMER_SECRET: ${MPESA_CONSUMER_SECRET:-}
+  MPESA_SHORT_CODE: ${MPESA_SHORT_CODE:-}
+  MPESA_PASSKEY: ${MPESA_PASSKEY:-}
+  MPESA_CALLBACK_URL: ${MPESA_CALLBACK_URL:-}
+  MPESA_WEBHOOK_SECRET: ${MPESA_WEBHOOK_SECRET:-}
+  PAYSTACK_ENABLED: ${PAYSTACK_ENABLED:-false}
+  PAYSTACK_BASE_URL: https://api.paystack.co
+  PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
+  PAYSTACK_CALLBACK_URL: ${PAYSTACK_CALLBACK_URL:-}
+  DOCUMENT_STORAGE_ENABLED: ${DOCUMENT_STORAGE_ENABLED:-false}
+  S3_BUCKET: ${S3_BUCKET:-}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
   S3_ENDPOINT: ${S3_ENDPOINT:-}
-  CCTV_PROVIDER_BASE_URL: ${CCTV_PROVIDER_BASE_URL:?Set the HTTPS CCTV gateway URL}
-  CCTV_PROVIDER_API_KEY: ${CCTV_PROVIDER_API_KEY:?Set the CCTV gateway key}
+  CCTV_ENABLED: ${CCTV_ENABLED:-false}
+  CCTV_PROVIDER_BASE_URL: ${CCTV_PROVIDER_BASE_URL:-}
+  CCTV_PROVIDER_API_KEY: ${CCTV_PROVIDER_API_KEY:-}
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
   FACEBOOK_CLIENT_ID: ${FACEBOOK_CLIENT_ID:-}
@@ -49,22 +59,23 @@ services:
     build:
       context: ./apps/backend
     environment: *backend-environment
+    init: true
     restart: unless-stopped
-    expose:
-      - "9000"
+    expose: ["9000"]
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9000/api/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 20s
-    stop_grace_period: 20s
+      start_period: 30s
+    stop_grace_period: 30s
 
   worker:
     build:
       context: ./apps/backend
     command: ["node", "dist/jobs-worker.js"]
     environment: *backend-environment
+    init: true
     restart: unless-stopped
     stop_grace_period: 30s
 
@@ -76,9 +87,11 @@ services:
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set the HTTPS frontend origin}
     environment:
       NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    init: true
     restart: unless-stopped
-    expose:
-      - "3000"
+    expose: ["3000"]
     depends_on:
       api:
         condition: service_healthy
@@ -88,3 +101,4 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    stop_grace_period: 30s

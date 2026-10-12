@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { availableChannels } from '../auth/otp-policy.js';
 import { Types } from 'mongoose';
 import { Invitation } from '../../database/models/Invitation.js';
 import { OrganizationMembership } from '../../database/models/OrganizationMembership.js';
@@ -29,6 +30,7 @@ export class InvitationService {
       if (!tenancy) throw new AppError(404, 'TENANCY_NOT_FOUND', 'Tenancy not found in this organization');
       if (data.role === 'TENANT' && data.unitIds[0] && String(tenancy.unitId) !== data.unitIds[0]) throw new AppError(400, 'TENANCY_UNIT_MISMATCH', 'Tenancy does not belong to the invited unit');
     }
+    if (!(await availableChannels()).includes('SMS') && !data.email) throw new AppError(400, 'EMAIL_REQUIRED', 'Invitations require email while SMS authentication is unavailable.');
     const rawToken = randomBytes(32).toString('base64url');
     const invitation = await Invitation.create({ organizationId: orgId, invitedByUserId: auth.userId, ...(data.email ? { email: data.email.toLowerCase() } : {}), ...(data.phone ? { phone: normalizePhone(data.phone) } : {}), role: data.role, propertyIds: data.propertyIds.map((id) => new Types.ObjectId(id)), buildingIds: data.buildingIds.map((id) => new Types.ObjectId(id)), unitIds: data.unitIds.map((id) => new Types.ObjectId(id)), ...(data.tenancyId ? { tenancyId: new Types.ObjectId(data.tenancyId) } : {}), ...(data.contractorId ? { contractorId: new Types.ObjectId(data.contractorId) } : {}), tokenHash: hash(rawToken), expiresAt: new Date(Date.now() + data.expiresInDays * 86_400_000) });
     return { invitationId: invitation._id, role: invitation.role, expiresAt: invitation.expiresAt, token: rawToken };
@@ -44,7 +46,7 @@ export class InvitationService {
     if (await User.exists({ phone })) throw new AppError(409, 'USER_EXISTS', 'A user already exists for this phone number');
     if (email && await User.exists({ email })) throw new AppError(409, 'USER_EXISTS', 'A user already exists for this email address');
     if (invitation.role === 'TENANT' && invitation.unitIds.length !== 1) throw new AppError(400, 'TENANT_UNIT_REQUIRED', 'Tenant invitation is missing its assigned unit');
-    const user = await User.create({ phone, ...(email ? { email } : {}), firstName: data.firstName, lastName: data.lastName, verifiedAt: new Date() });
+    const user = await User.create({ phone, ...(email ? { email } : {}), firstName: data.firstName, lastName: data.lastName });
     try {
       const role = await Role.findOne({ key: invitation.role, system: true, organizationId: null }); if (!role) throw new AppError(500, 'SYSTEM_ROLE_MISSING', 'Invited system role is not configured');
       await OrganizationMembership.create({ userId: user._id, organizationId: invitation.organizationId, roleIds: [role._id], scope: { allProperties: false, propertyIds: invitation.propertyIds, buildingIds: invitation.buildingIds, unitIds: invitation.unitIds }, invitedBy: invitation.invitedByUserId, joinedAt: new Date() });

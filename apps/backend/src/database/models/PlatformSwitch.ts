@@ -11,6 +11,11 @@ const platformSwitchSchema = new Schema({
   reason: { type: String, required: true, default: 'Disabled until release readiness is confirmed.' },
   modifiedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   modifiedAt: { type: Date },
+  deliveryConfigHash: { type: String, select: false },
+  deliveryVerifiedAt: Date,
+  deliveryTestedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  deliveryEnvironment: String,
+  otpPolicyRevision: { type: Number, default: 0 },
 }, { timestamps: true });
 
 export type PlatformSwitchDocument = {

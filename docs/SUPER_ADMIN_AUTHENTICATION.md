@@ -269,3 +269,14 @@ security, transport/CSP controls or recovery identity-review discipline.
 Guidance: [OWASP Authentication](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html),
 [Multifactor Authentication](https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html)
 and [Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html).
+
+
+## Email-only launch and controlled SMS availability
+
+Routine password/selected-channel login uses the shared delivery policy and hides
+disabled or unready SMS. The sensitive dual-channel policy is unchanged. Existing
+accounts still need their original securely verified contacts; no new account or
+contact verification is inferred. During email-only operation, SMS-dependent
+step-up operations are unavailable. Use the audited host-operator password and
+both-channel receipt procedure to activate SMS later. Diagnostic test codes
+never establish MFA or a session. See [OTP_AUTHENTICATION_CHANNELS.md](OTP_AUTHENTICATION_CHANNELS.md).

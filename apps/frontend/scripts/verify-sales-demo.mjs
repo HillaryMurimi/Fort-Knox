@@ -417,6 +417,7 @@ try {
     .getByLabel("Email", { exact: true })
     .fill("pilot-browser@example.test");
   await ownerPage.getByLabel("Password", { exact: true }).fill(password);
+  deliveredCodes.delete("EMAIL");
   const ownerLogin = ownerPage.waitForResponse(
     (response) =>
       response.url().endsWith("/api/v1/auth/login") &&
@@ -429,24 +430,21 @@ try {
   assert.equal(ownerResponse.status(), 200);
   const ownerChallenge = (await ownerResponse.json()).data;
   assert.equal(
-    ownerChallenge.stepUpRequired,
+    ownerChallenge.accountOtpRequired,
     true,
     "Password alone must not grant landlord access",
   );
-  assert.ok(
-    ownerChallenge.challenge.developmentCode,
-    "Private test environment must provide its OTP",
-  );
+  assert.equal(ownerChallenge.challenge.developmentCode, undefined, "No OTP is exposed in the API response");
   await ownerPage
-    .getByLabel("Phone verification code")
-    .fill(ownerChallenge.challenge.developmentCode);
+    .getByLabel("Verification code", { exact: true })
+    .fill(await deliveredCode("EMAIL"));
   const ownerVerified = ownerPage.waitForResponse(
     (response) =>
-      response.url().endsWith("/api/v1/auth/verify-step-up") &&
+      response.url().endsWith("/api/v1/auth/account-otp/verify") &&
       response.request().method() === "POST",
   );
   await ownerPage
-    .getByRole("button", { name: "Enter Command Center", exact: true })
+    .getByRole("button", { name: "Verify and sign in", exact: true })
     .click();
   const verifiedResponse = await ownerVerified;
   assert.equal(verifiedResponse.status(), 200);

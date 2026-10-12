@@ -1,3 +1,4 @@
+import { availableChannels } from '../auth/otp-policy.js';
 import { Types, type ClientSession } from 'mongoose';
 import { Job } from '../../database/models/Job.js';
 import { Notification } from '../../database/models/Notification.js'; import { NotificationPreference } from '../../database/models/NotificationPreference.js'; import { User } from '../../database/models/User.js'; import { OrganizationMembership } from '../../database/models/OrganizationMembership.js';
@@ -5,7 +6,9 @@ import { AuthorizationService } from '../../core/authorization/authorization.ser
 type CreateInput=z.infer<typeof createNotificationSchema>; type QueryInput=z.infer<typeof notificationQuerySchema>; type PrefInput=z.infer<typeof preferenceSchema>;
 export class NotificationService {
   static async enqueuePlatformSecurityLogin(userId: Types.ObjectId, sessionId: Types.ObjectId, body: string, session: ClientSession) {
-    const notices = await Notification.create((['EMAIL', 'SMS'] as const).map(channel => ({ recipientUserId: userId, channel,
+    const channels = await availableChannels(session);
+    if (!channels.length) throw new AppError(503, 'SECURITY_NOTIFICATION_UNAVAILABLE', 'No configured security notification channel is available.');
+    const notices = await Notification.create(channels.map(channel => ({ recipientUserId: userId, channel,
       type: 'SUPER_ADMIN_SECURITY_LOGIN', title: 'Administrator security notification', body, priority: 'URGENT', status: 'QUEUED',
       scheduledFor: new Date(), dedupeKey: 'admin-login:' + sessionId + ':' + channel })), { session, ordered: true });
     await Job.create(notices.map(notice => ({ type: 'notification.send', payload: { notificationId: String(notice._id) },

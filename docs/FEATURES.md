@@ -416,3 +416,13 @@ The normal login entry point guides administrators through password, a choice of
 ## Pain-first sales demonstration and guided pilot (2026-10-02)
 
 Pain-first Sales demonstration, nine optional stories, six reusable templates, live simulated business outcomes, deterministic reset, actual-activity guided pilots, confirmed CSV import and SUPER_ADMIN prospect-cohort intelligence are implemented. Existing cinematic demos remain available. See SALES_RUNBOOK.md.
+
+
+## Email-first authentication and optional SMS
+
+Normal login supports email OTP for provisioned field users and email/password
+plus a selected OTP for owners. SUPER_ADMIN chooses only available enabled
+verified channels. Platform Security includes OTP provider receipt tests,
+configuration/readiness/availability, controlled switches and bounded history.
+Tenant activation verifies the registered email while preserving assigned unit.
+SMS can stay OFF during the initial Coolify launch. See OTP_AUTHENTICATION_CHANNELS.md.

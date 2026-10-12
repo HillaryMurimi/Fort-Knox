@@ -1,4 +1,6 @@
 // Test-only HTTP fixture server used by the real browser verification script.
+import { PlatformSwitch } from "../src/database/models/PlatformSwitch.js";
+import { setOtpTestDelivery } from "../src/modules/auth/otp-delivery.js";
 import { setAdminMfaTestDelivery } from '../src/modules/auth/admin-mfa.service.js';
 import { contactsHash } from '../src/modules/auth/admin-security.js';
 import { env } from "../src/config/env.js";
@@ -17,6 +19,8 @@ if (!mongoose.connection.name.endsWith("-test"))
 for (const model of Object.values(mongoose.models))
   await model.createCollection();
 await PlatformBrief.createIndexes();
+for (const key of ["EMAIL_OTP", "SMS_OTP", "EMAIL_NOTIFICATIONS", "SMS_NOTIFICATIONS"]) await PlatformSwitch.create({ key, kind: "FEATURE", name: key, description: "Explicit private browser test channel policy", enabled: true, mode: "ON" });
+setOtpTestDelivery(async (channel, _destination, code) => { if (!process.send) throw new Error("Private test IPC is required"); process.send({ type: "PCC_TEST_MFA_DELIVERY", channel, code }); });
 const admin = await User.create({
   phone: "+254700009130",
   email: "platform-browser@example.test",

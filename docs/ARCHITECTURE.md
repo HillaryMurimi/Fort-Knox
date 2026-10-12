@@ -431,3 +431,13 @@ The existing auth/provider/session/notification architecture now enforces passwo
 ## Pain-first sales demonstration and guided pilot (2026-10-02)
 
 Authenticated sales sessions extend the Sales module with isolated deterministic snapshots, revisioned transactional commands and append-only sales value events. Organization guided-pilot metadata supplies a bounded grant through the existing SubscriptionPlan/EntitlementService. Existing hierarchy, maintenance, import and commercial authorities remain in use. See SALES_DEMO_AUDIT.md and SALES_RUNBOOK.md.
+
+
+## Email-first authentication channels
+
+Existing OtpChallenge now retains ordinary password/contact/channel/generation
+proof and opaque token hashes. Existing PlatformSwitch stores OTP activation
+and provider receipt evidence. Resend extends the existing EmailProvider alongside
+SendGrid. Auth-critical delivery stays synchronous with short-lived codes;
+ordinary notifications retain their existing durable worker boundary. See
+[OTP_AUTHENTICATION_CHANNELS.md](OTP_AUTHENTICATION_CHANNELS.md).

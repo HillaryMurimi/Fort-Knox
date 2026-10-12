@@ -613,3 +613,15 @@ AdminAuthFlow stores temporary hashed password-bound workflows; User/OtpChalleng
 ## Pain-first sales demonstration and guided pilot (2026-10-02)
 
 SalesLead adds optional discovery profile/seller/pilot linkage. SalesDemoSession holds SALES_DEMO snapshot/profile/revision/generation. SalesValueEvent holds append-only command/outcome evidence with unique sessionId+commandId. Organization adds guidedPilot owner/lead/demo/plan/duration/expiry/milestone with partial unique demoSessionId and leadId indexes. Additional scenarios for the same prospect reuse the existing owner-bound pilot without extending expiry. MaintenanceRequest uses optimistic concurrency; transitions and business audit commit together. No simulated Payment, RentCharge, SubscriptionInvoice or subscription is created. Pilot imports use existing models. Run sales:create-indexes once.
+
+
+## OTP delivery-channel evidence and activation
+
+No new collection. OtpChallenge gains hashed ordinary challenge credentials,
+account security/contact snapshot, password proof, generation and cooldowns;
+TenantOnboarding gains channel, hashed activation credential and delivery limits.
+PlatformSwitch gains environment/configuration-bound receipt verification and
+one serialized OTP policy revision. Partial unique tokenHash/otpTokenHash indexes
+serve direct challenge lookups without indexing legacy missing values. Initialize
+with auth:create-channel-indexes; pending old tenant challenges restart. No
+historical contact verification or account merge is inferred.

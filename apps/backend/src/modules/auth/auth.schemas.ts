@@ -4,8 +4,9 @@ export const requestOtpSchema = z.object({ phone: z.string().trim().min(7).max(4
 export const verifyOtpSchema = z.object({ phone: z.string().trim().min(7).max(40), code: z.string().regex(/^\d{6}$/) });
 
 export const loginSchema = z.discriminatedUnion('method', [
-  z.object({ method: z.literal('email'), email: z.string().email(), password: z.string().min(8).max(200) }).strict(),
-  z.object({ method: z.literal('phone'), phone: z.string().trim().min(7).max(40) }).strict(),
+  z.object({ method: z.literal('email'), email: z.string().email(), password: z.string().min(8).max(200), channel: z.enum(['EMAIL', 'SMS']).optional() }).strict(),
+  z.object({ method: z.literal('phone'), phone: z.string().trim().min(7).max(40), channel: z.enum(['EMAIL', 'SMS']).optional() }).strict(),
+  z.object({ method: z.literal('emailOtp'), email: z.string().email() }).strict(),
 ]);
 
 export const verifyStepUpSchema = z.object({ email: z.string().email(), code: z.string().regex(/^\d{6}$/) }).strict();

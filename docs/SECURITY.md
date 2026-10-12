@@ -246,3 +246,14 @@ Every platform-admin request requires a live, unrevoked, contact/version-bound s
 ## Pain-first sales demonstration and guided pilot (2026-10-02)
 
 Sales simulation has no operational-provider dependency and never writes live domain finance. Server scopes sessions by seller, validates synthetic resource IDs, enforces plan capability and transactionally retains audit. Production unique-index checks fail closed. Guided-pilot operational provider/camera access is blocked until verified commercial ACTIVE; in-app and existing account/commercial verification remain available. Expiry is server-authoritative across write permissions and imports. Imports cannot overwrite global identities and rollback atomically. Client development demo interception cannot handle privileged sales endpoints.
+
+
+## Email-first role authentication and provider controls
+
+The current email/SMS policy, purpose-bound challenges, channel ownership, atomic
+session/audit writes, provider receipt evidence, lockout prevention and trusted
+operator activation are defined in [OTP_AUTHENTICATION_CHANNELS.md](OTP_AUTHENTICATION_CHANNELS.md).
+SUPER_ADMIN routine login retains password plus one available verified-channel
+OTP; sensitive actions/recovery/enrollment still require both channels. Field
+accounts cannot acquire platform authority or bypass landlord password policy.
+Verified account contacts cannot be overwritten through organization user edits.

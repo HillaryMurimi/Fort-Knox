@@ -292,3 +292,14 @@ real state-changing workflows. `verify:platform-business` checks incident and
 severity badges and computed contrast in both themes during the existing private
 SUPER_ADMIN journey. Existing workflow, malformed-response, sidebar, commercial
 control, isolation, keyboard and responsive assertions are retained.
+
+
+## Email/SMS channel certification
+
+The actual backend E2E runner includes otp-channels.e2e.test.ts, testing email-only
+production configuration, selected-channel authentication, expiry/replay/concurrent
+consumption, resend/switching, throttling/lockout, provider/audit failure, staff-role
+email verification, tenant activation/scope, readiness proof and channel-lockout
+prevention. UI coverage renders AccountOtpPanel states. Browser fixtures capture
+random ordinary OTPs over private IPC, with no developmentCode API response.
+Existing admin, finance, onboarding and platform assertions remain.

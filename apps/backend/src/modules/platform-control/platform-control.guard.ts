@@ -1,10 +1,14 @@
 import type { Request, Response, NextFunction } from 'express';
+import { env } from '../../config/env.js';
 import { recordSignal } from '../../core/observability/platform-telemetry.js';
 import { PlatformSwitch } from '../../database/models/PlatformSwitch.js';
 import { AppError } from '../../core/errors/AppError.js';
 
 export async function assertSwitchEnabled(key: string): Promise<void> {
+  const flag = ({ SMS_NOTIFICATIONS: env.SMS_ENABLED, EMAIL_NOTIFICATIONS: env.EMAIL_ENABLED, MPESA_PAYMENTS: env.MPESA_ENABLED, PAYSTACK_PAYMENTS: env.PAYSTACK_ENABLED, DOCUMENT_STORAGE: env.DOCUMENT_STORAGE_ENABLED, CCTV_GATEWAY: env.CCTV_ENABLED } as Record<string, boolean>)[key];
+  if (flag === false) throw new AppError(503, 'SERVICE_DISABLED', 'This service is disabled in this deployment.');
   const control = await PlatformSwitch.findOne({ key }).lean();
+  if (!control && key === 'EMAIL_NOTIFICATIONS' && env.EMAIL_ENABLED) return;
   if (!control?.enabled || control.mode !== 'ON') {
     void recordSignal('SWITCH_DENIED', 'PLATFORM', new Date(), key);
     throw new AppError(503, 'SERVICE_DISABLED', 'This operation is currently unavailable for maintenance.');

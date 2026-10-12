@@ -1,4 +1,6 @@
 import { PRODUCT_NAME } from '../../config/brand.js';
+import { otpMessage } from './otp-delivery.js';
+import { assertOtpAvailable, availableChannels } from './otp-policy.js';
 import bcrypt from 'bcryptjs';
 import { randomBytes, randomInt } from 'node:crypto';
 import mongoose, { type Types } from 'mongoose';
@@ -65,6 +67,7 @@ async function describe(flow: Flow, account: Account, token: string) {
 }
 async function send(flow: Flow, account: Account, token: string, meta: AuthMetadata, resend: boolean) {
   const channel: Channel = flow.stage === 'EMAIL' ? 'EMAIL' : 'SMS';
+  await assertOtpAvailable(channel);
   const now = new Date();
   const reserved = await AdminAuthFlow.findOneAndUpdate({ _id: flow._id, stage: flow.stage, generation: flow.generation,
     nextSendAt: { $lte: now }, resendCount: { $lt: env.ADMIN_MAX_RESENDS }, expiresAt: { $gt: now } },
@@ -89,7 +92,7 @@ async function send(flow: Flow, account: Account, token: string, meta: AuthMetad
     else {
       const body = 'Your ' + PRODUCT_NAME + ' administrator ' + channel.toLowerCase() + ' verification code is ' + code +
         '. It expires in ' + Math.ceil(env.ADMIN_OTP_TTL_SECONDS / 60) + ' minutes. Never share it.';
-      if (channel === 'EMAIL') await getEmailProvider().send({ to: destination, subject: `${PRODUCT_NAME} administrator sign-in verification`, body });
+      if (channel === 'EMAIL') await getEmailProvider().send({ to: destination, subject: `${PRODUCT_NAME} administrator sign-in verification`, body, html: otpMessage(code, env.ADMIN_OTP_TTL_SECONDS, 'administrator sign-in').html });
       else await getSmsProvider().send({ to: destination, body });
     }
     await OtpChallenge.updateOne({ _id: challenge._id, consumedAt: { $exists: false } }, { $set: { deliveryStatus: 'SENT' } });
@@ -118,13 +121,15 @@ export async function startAdminMfa(userId: Types.ObjectId, meta: AuthMetadata =
     contactsHash: contactsHash(authEvidence(account.email), account.phone), authVersion: account.authVersion ?? 0, userFlowGeneration: authEvidence(generation).authFlowGeneration,
     passwordVerifiedAt: new Date(), nextSendAt: new Date(), expiresAt: new Date(Date.now() + env.ADMIN_FLOW_SECONDS * 1000),
     ...(options.sessionId ? { sessionId: options.sessionId } : {}) });
-  if (purpose === 'LOGIN') return { mfaRequired: true as const, flowToken: token, stage: 'CHANNEL' as const, channels: [
-    { channel: 'EMAIL' as const, destination: maskEmail(authEvidence(account.email)) },
-    { channel: 'SMS' as const, destination: maskPhone(account.phone) }
-  ] };
+  if (purpose === 'LOGIN') {
+    const available = await availableChannels();
+    if (!available.length) throw new AppError(503, 'OTP_CHANNEL_UNAVAILABLE', 'No administrator authentication channel is currently available. Contact the authorized operator.');
+    return { mfaRequired: true as const, flowToken: token, stage: 'CHANNEL' as const, channels: available.map(channel => ({ channel, destination: channel === 'EMAIL' ? maskEmail(authEvidence(account.email)) : maskPhone(account.phone) })) };
+  }
   return send(flow, account, token, meta, false);
 }
 export async function selectAdminMfaChannel(token: string, channel: Channel, meta: AuthMetadata = {}) {
+  await assertOtpAvailable(channel);
   const { flow, account } = await getFlow(token);
   const selected = await AdminAuthFlow.findOneAndUpdate({ _id: flow._id, purpose: 'LOGIN', stage: 'CHANNEL',
     selectedChannel: { $exists: false }, expiresAt: { $gt: new Date() } },
@@ -139,6 +144,7 @@ export async function resendAdminMfa(token: string, meta: AuthMetadata = {}) {
   return send(flow, account, token, meta, true);
 }
 export async function verifyAdminMfa(token: string, channel: Channel, code: string, meta: AuthMetadata = {}) {
+  await assertOtpAvailable(channel);
   const { flow, account } = await getFlow(token);
   if (flow.stage !== channel || (flow.purpose === 'LOGIN' && flow.selectedChannel !== channel)) throw new AppError(409, 'MFA_STAGE_INVALID', 'Complete the current authentication stage first.');
   const now = new Date();
