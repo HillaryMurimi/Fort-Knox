@@ -37,6 +37,8 @@ export interface PlanPricing {
   baseMonthlyMinor: number;
   additionalUnitMinor: number;
   monthlyMinor: number;
+  recurringMinor: number;
+  intervalMonths: number;
   prepaidMonths: number;
   totalMinor: number;
   taxMinor: number;
@@ -49,6 +51,7 @@ export interface PublicPlanCatalog {
     pricing: PlanPricing;
     features: string[];
   }>;
+  unavailablePlans?: Array<{ key: AcquisitionPlanKey; name: string; reason: string }>;
   minimumPrepaidMonths: number;
   terms: {
     taxPolicy: string;

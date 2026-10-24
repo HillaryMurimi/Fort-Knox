@@ -18,6 +18,11 @@ describe('contract commercial snapshots', () => {
     expect(() => priceSnapshot({ ...plan, amount: 0.001 }, 50, 3)).toThrow();
     expect(() => priceSnapshot({ ...plan, currency: 'USD' }, 50, 3)).toThrow();
     expect(() => priceSnapshot({ ...plan, metadata: { ...plan.metadata, includedUnits: -1 } }, 50, 3)).toThrow();
+    expect(() => priceSnapshot({ ...plan, metadata: undefined }, 55, 3)).toThrow('Plan unit pricing is not configured');
+    expect(() => priceSnapshot({ ...plan, metadata: { includedUnits: 50 } }, 55, 3)).toThrow('Plan unit pricing is not configured');
+    expect(() => priceSnapshot({ ...plan, metadata: { ...plan.metadata, additionalUnitAmount: undefined } }, 55, 3)).toThrow('Plan unit pricing is not configured');
+    expect(() => priceSnapshot({ ...plan, metadata: { ...plan.metadata, additionalUnitAmount: 0.001 } }, 55, 3)).toThrow('Plan amount is not valid currency precision');
+    expect(() => priceSnapshot(plan, 100001, 3)).toThrow();
   });
   it('interpolates organization-specific values as literal text, with no executable or recursive substitution', () => {
     expect(interpolate('{{legalName}} / {{organizationId}}', ['legalName', 'organizationId'], { legalName: '{{monthlyPrice}} <script>x</script>', organizationId: 'org-1' })).toBe('{{monthlyPrice}} <script>x</script> / org-1');

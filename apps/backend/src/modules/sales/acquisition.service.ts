@@ -33,14 +33,19 @@ export class AcquisitionService {
       .sort({ amount: 1 })
       .limit(2)
       .lean();
+    const available = [] as Array<{ key: string; name: string; description?: string; pricing: ReturnType<typeof priceSnapshot>; features: string[] }>;
+    const unavailablePlans = [] as Array<{ key: string; name: string; reason: string }>;
+    for (const plan of plans) {
+      try {
+        available.push({ key: plan.key, name: plan.name, ...(plan.description ? { description: plan.description } : {}), pricing: priceSnapshot(plan, input.units, input.months), features: plan.entitlements?.features ?? [] });
+      } catch (error) {
+        if (!(error instanceof AppError) || !['PLAN_PRICING_NOT_CONFIGURED', 'INVALID_PLAN_PRICE', 'UNSUPPORTED_ONBOARDING_PLAN'].includes(error.code)) throw error;
+        unavailablePlans.push({ key: plan.key, name: plan.name, reason: 'Pricing is not configured for this plan.' });
+      }
+    }
     return {
-      plans: plans.map((plan) => ({
-        key: plan.key,
-        name: plan.name,
-        description: plan.description,
-        pricing: priceSnapshot(plan, input.units, input.months),
-        features: plan.entitlements?.features ?? [],
-      })),
+      plans: available,
+      unavailablePlans,
       minimumPrepaidMonths: 3,
       terms: {
         taxPolicy:

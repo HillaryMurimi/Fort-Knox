@@ -16,6 +16,11 @@ No second auth, billing, CRM, predictive model or replacement application was in
 
 ## Customer journey and shipped behavior
 
+The plans comparison now shows every catalog entitlement, has a mobile-specific
+layout and carries the selected unit count and term through signup. An active
+tier with missing or invalid base-plus-unit pricing metadata appears
+unavailable, never as an invented zero-extra-unit quote.
+
 `/plans` shows current server-calculated prices, included and additional units, monthly equivalent, prepaid invoice estimate, later billing interval and retained agreement terms. Current billing policy calculates no tax; hardware/provider charges are excluded unless agreed. Three months remains the minimum prepaid term, with the existing 3–24 month backend policy. The public demo stays fictional and cannot reach operational data or create money.
 
 The public demo links to plan comparison. Chosen plan, estimated unit count, prepaid term and source travel into minimal signup. Signup collects owner names, email, international phone and password, plus an optional workspace name and unchecked setup-reminder opt-in. No property address or tenant is needed before purchase. Bootstrap commits owner, organization, membership and safe audit together. Contacts stay unverified.

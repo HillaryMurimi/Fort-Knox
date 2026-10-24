@@ -30,7 +30,7 @@ export const selfServicePaths = {
       security: [],
       summary: "Public active Control and Fort Knox commercial quotes",
       description:
-        "Uses existing billing price snapshots. No tenant, organization, credential or provider details.",
+        "Uses existing billing price snapshots. Invalid or missing unit-pricing metadata makes only that tier unavailable; unavailablePlans reports the tier without inventing a quote. No tenant, organization, credential or provider details.",
       parameters: [
         {
           name: "units",

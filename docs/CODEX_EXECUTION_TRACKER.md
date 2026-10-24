@@ -1,5 +1,13 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Plans acquisition audit and pricing integrity (2026-10-25)
+
+- Audited the existing public plans -> signup -> verified owner -> signed agreement -> invoice -> Paystack checkout -> property onboarding sequence in `docs/PLANS_PAGE_AUDIT.md`. This work does not create another checkout or claim live provider certification.
+- `/plans` now has server-quoted unit and prepaid-term controls, selectable Control/Fort Knox summaries, full catalog-driven entitlement comparison, distinct upfront and subsequent interval totals, mobile-specific comparison rows, loading/error/unavailable states and a single selected signup continuation. Pricing remains server-authoritative.
+- `priceSnapshot` rejects absent/invalid base-plus-unit configuration and unsafe totals. The public catalog reports an invalid tier in `unavailablePlans` while keeping a valid tier purchasable. This avoids silently including all units at no extra charge.
+- Manual gates: approve and configure actual catalog prices and entitlements; confirm tax/hardware terms, publish the reviewed contract, and run real Paystack and Coolify checkout/renewal acceptance. See `docs/SELF_SERVICE_LANDLORD_ONBOARDING.md`.
+- Verification: typecheck, backend/frontend lint (warnings only), root unit suites (364 backend passed, 198 opt-in skipped; 285 frontend passed), build, and static release certification passed. Focused pricing/catalog tests passed (11 backend, 1 frontend). The onboarding replica-set E2E passed all 23 cases with a 30-second per-test timeout; its initial run had 22 passes and one default five-second timeout, and the timed-out scenario passed on isolated rerun. The browser plans check passed at 320px, 390px, 768px and 1440px with mocked catalog responses, including selection, unit and prepaid-term updates, signup context and horizontal overflow. This does not certify real Paystack settlement or a deployed Coolify environment.
+
 ## Repository reconstruction and platform-control repair (2026-10-01)
 
 Repository checkpoint: main at 6d0cfb2 before this change, following 49f1406 (sales lead capture) and 068e31a (landlord prepaid onboarding). The only pre-existing untracked directory was .continue/; it is preserved. No restart or parallel application was created.

@@ -614,6 +614,6 @@ channel availability, account verification and platform receipt-test endpoints.
 
 ## Self-service landlord onboarding — 2026-10-12
 
-New public /acquisition/plans and /acquisition/events boundaries, owner-only /organizations/:id/portfolio-onboarding progress/draft/import/dashboard-visit endpoints and SUPER_ADMIN /platform-control/acquisition-funnel are documented in self-service.openapi.ts.
+New public /acquisition/plans and /acquisition/events boundaries, owner-only /organizations/:id/portfolio-onboarding progress/draft/import/dashboard-visit endpoints and SUPER_ADMIN /platform-control/acquisition-funnel are documented in self-service.openapi.ts. The public plans response returns server-calculated quotes in `plans` and lists active but unpriceable tiers in `unavailablePlans`; no quote or signup CTA is offered for a tier missing valid base-plus-unit pricing configuration. Signed contracts and invoices still reprice server-side.
 
 See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.

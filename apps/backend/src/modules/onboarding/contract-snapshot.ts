@@ -19,18 +19,23 @@ export function interpolate(body: string, variables: string[], values: Record<st
   });
 }
 export function priceSnapshot(plan: { key: string; name: string; currency: string; amount: number; billingInterval: string; metadata?: unknown }, units: number, months: number) {
+  if (!Number.isSafeInteger(units) || units < 0 || units > 100000 || !Number.isSafeInteger(months) || months < 3 || months > 24) throw new AppError(400, 'INVALID_PLAN_PRICE', 'Portfolio size or prepaid term is invalid');
   const intervalMonths = { MONTH: 1, QUARTER: 3, YEAR: 12 }[plan.billingInterval];
   if (!intervalMonths || plan.currency !== 'KES') throw new AppError(400, 'UNSUPPORTED_ONBOARDING_PLAN', 'Onboarding requires a KES monthly, quarterly or annual plan');
   const metadata = plan.metadata as Record<string, unknown> | undefined;
-  const baseIntervalMinor = toPaystackMinorUnits(plan.amount, plan.currency);
+  if (metadata?.pricingModel !== 'BASE_PLUS_ACTIVE_UNITS') throw new AppError(409, 'PLAN_PRICING_NOT_CONFIGURED', 'Plan unit pricing is not configured');
+  if (!Number.isSafeInteger(metadata.includedUnits) || Number(metadata.includedUnits) < 0 || typeof metadata.additionalUnitAmount !== 'number' || !Number.isFinite(metadata.additionalUnitAmount) || metadata.additionalUnitAmount <= 0) throw new AppError(409, 'PLAN_PRICING_NOT_CONFIGURED', 'Plan unit pricing is not configured');
+  let baseIntervalMinor: number, additionalUnitMinor: number;
+  try {
+    baseIntervalMinor = toPaystackMinorUnits(plan.amount, plan.currency);
+    additionalUnitMinor = toPaystackMinorUnits(metadata.additionalUnitAmount, plan.currency);
+  } catch { throw new AppError(409, 'INVALID_PLAN_PRICE', 'Plan amount is not valid currency precision'); }
   if (baseIntervalMinor % intervalMonths) throw new AppError(400, 'INVALID_PLAN_PRICE', 'Plan price cannot be allocated to whole monthly minor units');
-  const includedUnits = metadata?.pricingModel === 'BASE_PLUS_ACTIVE_UNITS' ? Number(metadata.includedUnits) : units;
-  const additionalUnitMinor = metadata?.pricingModel === 'BASE_PLUS_ACTIVE_UNITS' ? toPaystackMinorUnits(Number(metadata.additionalUnitAmount), plan.currency) : 0;
-  if (!Number.isSafeInteger(includedUnits) || includedUnits < 0) throw new AppError(400, 'INVALID_PLAN_PRICE', 'Included unit count is invalid');
+  const includedUnits = Number(metadata.includedUnits);
   const extraUnits = Math.max(0, units - includedUnits), baseMonthlyMinor = baseIntervalMinor / intervalMonths;
-  const monthlyMinor = baseMonthlyMinor + extraUnits * additionalUnitMinor, totalMinor = monthlyMinor * months;
-  if (!Number.isSafeInteger(totalMinor) || totalMinor <= 0) throw new AppError(400, 'INVALID_PLAN_PRICE', 'The subscription total must be a positive safe integer');
-  return { planKey: plan.key, planName: plan.name, currency: plan.currency, billingCycle: plan.billingInterval, intervalMonths, unitCount: units, includedUnits, extraUnits, baseMonthlyMinor, additionalUnitMinor, monthlyMinor, recurringMinor: monthlyMinor * intervalMonths, prepaidMonths: months, subtotalMinor: totalMinor, taxMinor: 0, totalMinor,
+  const monthlyMinor = baseMonthlyMinor + extraUnits * additionalUnitMinor, totalMinor = monthlyMinor * months, recurringMinor = monthlyMinor * intervalMonths;
+  if (!Number.isSafeInteger(monthlyMinor) || !Number.isSafeInteger(totalMinor) || !Number.isSafeInteger(recurringMinor) || totalMinor <= 0) throw new AppError(400, 'INVALID_PLAN_PRICE', 'The subscription total must be a positive safe integer');
+  return { planKey: plan.key, planName: plan.name, currency: plan.currency, billingCycle: plan.billingInterval, intervalMonths, unitCount: units, includedUnits, extraUnits, baseMonthlyMinor, additionalUnitMinor, monthlyMinor, recurringMinor, prepaidMonths: months, subtotalMinor: totalMinor, taxMinor: 0, totalMinor,
     lineItems: [{ description: `${plan.name} base subscription`, quantity: months, unitAmountMinor: baseMonthlyMinor, totalMinor: baseMonthlyMinor * months }, ...(extraUnits ? [{ description: 'Additional portfolio units', quantity: extraUnits * months, unitAmountMinor: additionalUnitMinor, totalMinor: extraUnits * months * additionalUnitMinor }] : [])] };
 }
 export type CommercialSnapshot = ReturnType<typeof priceSnapshot> & { organizationId: string; legalName: string; legalIdentifier: string; billingEmail: string; landlordName: string; effectiveAt: string; issuedAt: string; planId: string };
