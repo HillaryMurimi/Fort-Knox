@@ -1,0 +1,55 @@
+.plan-feature-matrix {
+  --matrix-paper: var(--panel);
+  --matrix-surface: var(--muted);
+  --matrix-ink: var(--foreground);
+  --matrix-muted: var(--muted-foreground);
+  --matrix-line: var(--border);
+  --matrix-green: #365f52;
+  --matrix-bronze: #99774f;
+  color: var(--matrix-ink);
+}
+.dark .plan-feature-matrix { --matrix-green: #9cc5ad; --matrix-bronze: #d1ab7b; }
+.plans-page .plan-feature-matrix {
+  --matrix-paper: var(--plans-paper);
+  --matrix-surface: var(--plans-surface);
+  --matrix-ink: var(--plans-ink);
+  --matrix-muted: var(--plans-muted);
+  --matrix-line: var(--plans-line);
+  --matrix-green: var(--plans-green);
+  --matrix-bronze: var(--plans-bronze);
+}
+.plan-matrix-key { display: flex; align-items: center; gap: 8px 22px; flex-wrap: wrap; margin-bottom: 16px; color: var(--matrix-muted); font-size: 12px; }
+.plan-matrix-key > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+.plan-matrix-key svg { color: var(--matrix-green); }
+.plan-matrix-exclusive-key { width: 9px; height: 9px; border-radius: 2px; background: var(--matrix-bronze); }
+.plan-feature-matrix table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; border-top: 1px solid var(--matrix-line); }
+.plan-feature-matrix th:first-child { width: 48%; }
+.plan-feature-matrix thead th { position: sticky; top: 0; z-index: 1; border-bottom: 1px solid var(--matrix-line); padding: 18px 16px; background: var(--matrix-surface); text-align: left; font-size: 14px; }
+.plan-feature-matrix thead th.plan-matrix-fort-heading { background: #203b32; color: #edf2ec; }
+.plan-feature-matrix thead th:not(:first-child), .plan-feature-matrix td { text-align: center; }
+.plan-feature-matrix tbody tr:not(.plan-matrix-category) { border-top: 1px solid var(--matrix-line); }
+.plan-feature-matrix tbody tr:not(.plan-matrix-category) th, .plan-feature-matrix tbody td { padding: 15px 16px; font-size: 13px; }
+.plan-feature-matrix tbody th { text-align: left; white-space: normal; }
+.plan-matrix-description { display: block; margin-top: 4px; color: var(--matrix-muted); font-size: 11px; font-weight: 400; line-height: 1.5; }
+.plan-matrix-exclusive-row { background: color-mix(in srgb, var(--matrix-bronze) 8%, var(--matrix-paper)); }
+.plan-matrix-exclusive-row > th { border-left: 3px solid var(--matrix-bronze); }
+.plan-matrix-exclusive-label { display: inline-block; margin-left: 8px; color: var(--matrix-bronze); font-size: 10px; font-weight: 700; }
+.plan-matrix-category { background: var(--matrix-surface); }
+.plan-matrix-category th { border-top: 1px solid var(--matrix-line); padding: 13px 16px; color: var(--matrix-green); font-size: 11px; text-align: left; text-transform: uppercase; letter-spacing: 0; }
+.plan-matrix-status { display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px; font-weight: 650; }
+.plan-matrix-status--included { color: var(--matrix-green); }
+.plan-matrix-status--absent, .plan-matrix-status--terms { color: var(--matrix-muted); font-weight: 500; }
+.plan-matrix-status-short { display: none; }
+@media (max-width: 767px) {
+  .plan-feature-matrix th:first-child { width: 46%; }
+  .plan-feature-matrix thead th { padding: 12px 7px; font-size: 12px; }
+  .plan-feature-matrix tbody tr:not(.plan-matrix-category) th, .plan-feature-matrix tbody td { padding: 11px 7px; font-size: 12px; }
+  .plan-matrix-description { display: none; }
+  .plan-matrix-exclusive-label { display: block; margin: 3px 0 0; font-size: 9px; }
+  .plan-matrix-category th { padding: 11px 7px; }
+  .plan-matrix-status { gap: 3px; font-size: 11px; }
+  .plan-matrix-status svg { width: 12px; height: 12px; }
+  .plan-matrix-status-full { display: none; }
+  .plan-matrix-status-short { display: inline; }
+  .plan-matrix-status--terms { font-size: 10px; }
+}

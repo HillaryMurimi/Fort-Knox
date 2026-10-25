@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
   error: "",
   org: "org-one",
   progress: {} as Record<string, unknown>,
+  catalog: null as Record<string, unknown> | null,
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }));
 vi.mock("@/hooks/use-organization", () => ({
@@ -25,13 +26,10 @@ vi.mock("@/hooks/queries/use-landlord-onboarding", () => ({
     mutate: vi.fn(),
   }),
 }));
-vi.mock("@/hooks/queries/use-billing-queries", () => ({
-  useBillingPlansQuery: () => ({
-    data: [{ key: "CONTROL", name: "Control", description: "Core operations" }],
-  }),
-}));
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({ data: undefined, isFetching: false }),
+  useQuery: ({ queryKey }: { queryKey: string[] }) => queryKey[0] === "onboarding-plan-catalog"
+    ? { data: state.catalog, isPending: false, isFetching: false, error: null }
+    : { data: pricing, isPending: false, isFetching: false, error: null },
 }));
 const pricing = {
   planKey: "CONTROL",
@@ -95,8 +93,31 @@ afterEach(() => {
   state.loading = false;
   state.error = "";
   state.org = "org-one";
+  state.catalog = null;
 });
 describe("guided landlord onboarding screens", () => {
+  it("compares published tiers and prices before contract generation", () => {
+    const draft = progress("PLAN");
+    state.progress = { ...draft, contract: null, invoice: null, subscription: null };
+    state.catalog = { plans: [
+      { key: "CONTROL", name: "Control", features: ["command-center", "finance"], pricing: { currency: "KES", monthlyMinor: 1100000, totalMinor: 3300000, includedUnits: 50, extraUnits: 5, additionalUnitMinor: 20000 } },
+      { key: "FORT_KNOX", name: "Fort Knox", features: ["command-center", "finance", "security", "cctv"], pricing: { currency: "KES", monthlyMinor: 3150000, totalMinor: 9450000, includedUnits: 50, extraUnits: 5, additionalUnitMinor: 30000 } },
+    ] };
+    const html = renderToStaticMarkup(createElement(Page));
+    expect(html).toContain("Control vs Fort Knox");
+    expect(html).toContain("Authorized CCTV access");
+    expect(html).toContain("31,500.00");
+    expect(html).toContain("Compare all Control and Fort Knox features");
+    expect(html).toContain("Generate contract and invoice");
+  });
+  it("blocks contract generation when the saved tier is no longer offered", () => {
+    const draft = progress("PLAN");
+    state.progress = { ...draft, contract: null, invoice: null, subscription: null, organization: { ...draft.organization, selectedPlanKey: "FORT_KNOX" } };
+    state.catalog = { plans: [{ key: "CONTROL", name: "Control", features: ["command-center"], pricing: { currency: "KES", monthlyMinor: 1000000, totalMinor: 3000000, includedUnits: 50, extraUnits: 0, additionalUnitMinor: 20000 } }] };
+    const html = renderToStaticMarkup(createElement(Page));
+    expect(html).toContain("previously selected tier is not available");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Generate contract and invoice<\/button>/);
+  });
   it("renders the exact persisted contract version and explicit signature/authority controls", () => {
     state.progress = progress("SIGNATURE");
     const html = renderToStaticMarkup(createElement(Page));

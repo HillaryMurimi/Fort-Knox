@@ -32,17 +32,47 @@ export function fortKnoxOnlyFeatures(plans: PublicPlanCatalog['plans']) {
 }
 
 const categories = [
-  { title: 'Property management', rows: [['command-center', 'Portfolio, buildings and units']] },
-  { title: 'Tenant management', rows: [['command-center', 'Tenant and tenancy workflows']] },
-  { title: 'Financial management', rows: [['finance', 'Rent, payments and balances']] },
-  { title: 'Maintenance management', rows: [['maintenance', 'Requests and work tracking']] },
-  { title: 'Staff and operations', rows: [['command-center', 'Role-scoped workspaces'], ['notifications', 'Operational notifications']] },
-  { title: 'Reporting and intelligence', rows: [['command-center', 'Portfolio operating view'], ['advanced-reporting', 'Advanced reporting'], ['decision-intelligence', 'Decision intelligence']] },
-  { title: 'Security and monitoring', rows: [['security', 'Security operations']] },
-  { title: 'CCTV integration', rows: [['cctv', 'Authorized camera access']] },
-  { title: 'Audit and accountability', rows: [['documents', 'Controlled documents'], ['evidence', 'Incident and maintenance evidence']] },
-  { title: 'Automation and risk intelligence', rows: [['decision-automation', 'Decision automation'], ['predictive-intelligence', 'Predictive intelligence'], ['model-serving', 'Model serving']] },
+  { title: 'Property & portfolio', rows: [
+    ['command-center', 'Centralized portfolio dashboard'], ['command-center', 'Multiple properties and buildings'],
+    ['command-center', 'Floors, units and unit categories'], ['finance', 'Individual unit asking rent'],
+    ['command-center', 'Occupancy and vacancy records'], ['command-center', 'Property and unit records'],
+  ] },
+  { title: 'Rent & financial management', rows: [
+    ['finance', 'Rent charges and payment history'], ['finance', 'Outstanding balances and arrears'],
+    ['finance', 'Payment reconciliation and reversals'], ['finance', 'Expenses and service charges'],
+    ['finance', 'Financial reports and periods'], ['notifications', 'Operational payment notices'],
+  ] },
+  { title: 'Tenant management', rows: [
+    ['command-center', 'Tenant profiles and assigned tenancies'], ['command-center', 'Controlled tenant onboarding'],
+    ['command-center', 'Move-out workflow'], ['finance', 'Tenant rent and payment records'],
+    ['maintenance', 'Tenant service requests'], ['documents', 'Authorized tenancy documents'],
+  ] },
+  { title: 'Maintenance & operations', rows: [
+    ['maintenance', 'Maintenance request submission'], ['maintenance', 'Ticket status and work history'],
+    ['maintenance', 'Contractor assignment and quotations'], ['maintenance', 'Approval and verification workflow'],
+    ['maintenance', 'Maintenance evidence and costs'], ['notifications', 'Operational notifications'],
+  ] },
+  { title: 'Staff & access', rows: [
+    ['command-center', 'Role-based workspaces'], ['command-center', 'Role and property-scoped access'],
+    ['command-center', 'Staff invitations and account management'],
+  ] },
+  { title: 'Reporting & intelligence', rows: [
+    ['command-center', 'Portfolio operating view'], ['advanced-reporting', 'Advanced reporting'],
+    ['decision-intelligence', 'Decision intelligence'],
+  ] },
+  { title: 'Security & monitoring', rows: [['security', 'Security incidents and escalation'], ['cctv', 'Authorized CCTV access']] },
+  { title: 'Documents & accountability', rows: [['documents', 'Controlled documents'], ['evidence', 'Incident and maintenance evidence']] },
+  { title: 'Automation & risk intelligence', rows: [['decision-automation', 'Decision automation'], ['predictive-intelligence', 'Predictive intelligence'], ['model-serving', 'Model serving']] },
 ] as const;
+
+const conditionalNotes: Record<string, string> = {
+  cctv: 'Requires supported hardware and a configured streaming gateway.',
+  notifications: 'Delivery channels depend on configured providers.',
+  'decision-intelligence': 'Views depend on available portfolio data and service readiness.',
+  'decision-automation': 'Subject to configured policies and service readiness.',
+  'predictive-intelligence': 'Requires a trained, ready model and sufficient data.',
+  'model-serving': 'Requires an available, authorized model.',
+};
 
 export function comparisonCategories(plans: PublicPlanCatalog['plans']) {
   const offered = new Set(comparisonFeatures(plans));
@@ -51,7 +81,7 @@ export function comparisonCategories(plans: PublicPlanCatalog['plans']) {
   return [
     ...categories.map(category => ({
       title: category.title,
-      rows: category.rows.filter(([feature]) => offered.has(feature)).map(([feature, label]) => ({ feature, label, description: featurePresentation(feature).description })),
+      rows: category.rows.filter(([feature]) => offered.has(feature)).map(([feature, label]) => ({ feature, label, description: conditionalNotes[feature] ?? '' })),
     })).filter(category => category.rows.length > 0),
     ...(unclassified.length ? [{ title: 'Other included capabilities', rows: unclassified.map(feature => ({ feature, label: featurePresentation(feature).label, description: featurePresentation(feature).description })) }] : []),
     { title: 'Support', rows: [{ feature: null, label: 'Service support', description: 'Scope and response commitments are defined in the signed agreement.' }] },

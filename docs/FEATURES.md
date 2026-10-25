@@ -436,4 +436,6 @@ The public Plans page now presents Control and Fort Knox as one product with dif
 
 The Plans comparison keeps Control and Fort Knox in adjacent columns on desktop and mobile, highlights only Fort Knox additions derived from the published entitlement list, and links directly from the price cards to the full matrix. Availability is informational; backend role, scope, entitlement and provider-readiness checks remain authoritative.
 
+The authenticated landlord onboarding plan step now uses the same public catalog for adjacent, current-price tier choices and the same expanded comparison matrix below the form. Its selected quote, contract, invoice and payment continue through the authenticated backend workflow. Matrix rows describe implemented route-backed workflows under their published entitlement keys, not separate guarantees of provider readiness. The pasted target specification is incomplete after the Staff & Access section; unverified anomaly, churn-risk and similar aspirational rows are not advertised as available.
+
 See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.

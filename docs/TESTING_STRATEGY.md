@@ -311,4 +311,6 @@ Self-service acceptance extends the landlord replica-set HTTP suite and spreadsh
 
 `npm --prefix apps/frontend run verify:plans` exercises the public Plans page at 320, 390, 768 and 1440px in both themes with an isolated API-shaped plan catalog. It checks backend-supplied money values, unit-count repricing, selected signup context, category visibility, theme switching, runtime errors and horizontal overflow. The catalog and onboarding replica-set tests separately prove Fort Knox entitlement inheritance and rejection of invalid plan writes or legacy misconfiguration. Browser fixtures do not certify live merchant prices or payment settlement.
 
+The shared feature-matrix render test checks tier column order, Fort-only highlights, configuration notes and absence of unverified anomaly claims. Authenticated onboarding render tests check catalog-priced choices and that an unavailable saved tier cannot proceed to contract generation. The public browser check still covers narrow side-by-side columns after the matrix extraction.
+
 See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.

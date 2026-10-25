@@ -12,8 +12,9 @@ import {
   Download,
 } from "lucide-react";
 import { StatusBadge, Alert, Button, Input } from "@/components/ui";
+import { PlanFeatureMatrix } from "@/components/plans/plan-feature-matrix";
+import { publicPlanCatalog } from "@/lib/acquisition";
 import { useOrganization } from "@/hooks/use-organization";
-import { useBillingPlansQuery } from "@/hooks/queries/use-billing-queries";
 import {
   useLandlordProgress,
   useLandlordCommand,
@@ -84,8 +85,7 @@ function GuidedOnboarding({
   org: string;
   progress: LandlordProgress;
 }) {
-  const action = useLandlordCommand(org),
-    plans = useBillingPlansQuery();
+  const action = useLandlordCommand(org);
   const [legalName, setLegalName] = useState(
     progress.organization.legalName ?? progress.organization.name,
   );
@@ -109,10 +109,17 @@ function GuidedOnboarding({
     [accepted, setAccepted] = useState(false);
   const [replacementReason, setReplacementReason] = useState("");
   const [editingDetails, setEditingDetails] = useState(false);
+  const catalog = useQuery({
+    queryKey: ["onboarding-plan-catalog", progress.organization.unitCount ?? 0, months],
+    queryFn: () => publicPlanCatalog(progress.organization.unitCount ?? 0, months),
+    enabled: progress.nextStep === "PLAN" && !editingDetails,
+  });
+  const availablePlans = catalog.data?.plans ?? [];
+  const selectedAvailable = availablePlans.some(plan => plan.key === planKey);
   const quote = useQuery({
     queryKey: ["landlord-quote", org, planKey, months, progress.revision],
     queryFn: () => client.quote(org, planKey, months),
-    enabled: progress.nextStep === "PLAN",
+    enabled: progress.nextStep === "PLAN" && selectedAvailable,
   });
   const pricing = progress.contract?.snapshot ?? quote.data,
     current = onboardingStepIndex(progress);
@@ -249,39 +256,44 @@ function GuidedOnboarding({
                 of {progress.organization.unitCount} units.
               </p>
               <Button type="button" variant="link" className="mt-2 px-0" onClick={() => setEditingDetails(true)}>Edit organization and unit count</Button>
-              {plans.isLoading && (
+              {catalog.isPending && (
                 <p className="mt-4" role="status">
-                  Loading plans…
+                  Loading current plans...
                 </p>
               )}
-              {plans.error && (
+              {catalog.error && (
                 <Alert tone="destructive">
-                  {plans.error.message}
-                  <Button variant="link" onClick={() => void plans.refetch()}>
+                  {catalog.error.message}
+                  <Button variant="link" onClick={() => void catalog.refetch()}>
                     Retry plans
                   </Button>
                 </Alert>
               )}
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                {plans.data
-                  ?.filter((plan) =>
-                    ["CONTROL", "FORT_KNOX"].includes(plan.key),
-                  )
-                  .map((plan) => (
+              {catalog.data?.unavailablePlans?.map(plan => <Alert key={plan.key} tone="warning" className="mt-4">{plan.name}: {plan.reason}</Alert>)}
+              {catalog.data && availablePlans.length === 0 && <Alert tone="warning" className="mt-4">No tier has a published quote for this portfolio. Contact support before continuing.</Alert>}
+              {catalog.data && availablePlans.length > 0 && !selectedAvailable && <Alert tone="warning" className="mt-4">Your previously selected tier is not available for a new agreement. Choose one of the published plans below.</Alert>}
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                {availablePlans.map((plan) => (
                     <button
                       key={plan.key}
                       type="button"
                       aria-pressed={plan.key === planKey}
                       onClick={() => setPlanKey(plan.key)}
-                      className={`rounded-xl border p-5 text-left ${plan.key === planKey ? "border-primary ring-2 ring-primary/20" : "border-border"}`}
+                      className={`min-w-0 rounded-md border p-5 text-left transition-colors ${plan.key === planKey ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary"} ${plan.key === "FORT_KNOX" ? "bg-[#203b32] text-[#edf2ec]" : "bg-card"}`}
                     >
-                      <h3 className="font-semibold">{plan.name}</h3>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        {plan.description}
-                      </p>
+                      <span className={`text-xs font-semibold uppercase ${plan.key === "FORT_KNOX" ? "text-[#c7d9cc]" : "text-muted-foreground"}`}>{plan.key === "FORT_KNOX" ? "Advanced protection" : "Complete operations"}</span>
+                      <h3 className="mt-2 text-xl font-semibold">{plan.name}</h3>
+                      <p className="mt-4 text-2xl font-semibold tabular-nums">{money(plan.pricing.monthlyMinor, plan.pricing.currency)}<span className="ml-1 text-xs font-normal">/ month</span></p>
+                      <dl className={`mt-5 space-y-2 border-t pt-4 text-xs ${plan.key === "FORT_KNOX" ? "border-[#4a6559]" : "border-border"}`}>
+                        <div className="flex justify-between gap-2"><dt>Included units</dt><dd className="tabular-nums">{plan.pricing.includedUnits}</dd></div>
+                        <div className="flex justify-between gap-2"><dt>Extra units</dt><dd className="tabular-nums">{plan.pricing.extraUnits} at {money(plan.pricing.additionalUnitMinor, plan.pricing.currency)}</dd></div>
+                        <div className="flex justify-between gap-2 font-semibold"><dt>First {months} months</dt><dd className="tabular-nums">{money(plan.pricing.totalMinor, plan.pricing.currency)}</dd></div>
+                      </dl>
+                      <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold"><span aria-hidden="true" className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${plan.key === planKey ? "border-current" : "border-current/40"}`}>{plan.key === planKey && <Check size={13} />}</span>{plan.key === planKey ? "Selected" : `Select ${plan.name}`}</span>
                     </button>
                   ))}
               </div>
+              {availablePlans.length > 0 && <a href="#onboarding-plan-comparison" className="mt-4 inline-block text-sm font-semibold underline underline-offset-4">Compare all Control and Fort Knox features</a>}
               <label className="mt-6 block text-sm">
                 Initial prepaid term
                 <select
@@ -304,8 +316,8 @@ function GuidedOnboarding({
                   </Button>
                 </Alert>
               )}
-              {quote.isPending && <p className="mt-5 text-sm text-muted-foreground" role="status">Calculating your current quote...</p>}
-              {quote.data && <div className="mt-5 border-y border-border py-5" aria-live="polite">
+              {selectedAvailable && quote.isPending && <p className="mt-5 text-sm text-muted-foreground" role="status">Calculating your current quote...</p>}
+              {selectedAvailable && quote.data && <div className="mt-5 border-y border-border py-5" aria-live="polite">
                 <h3 className="text-sm font-semibold">Current server quote</h3>
                 <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                   <div><dt className="text-muted-foreground">Included units</dt><dd className="font-medium tabular-nums">{quote.data.includedUnits}</dd></div>
@@ -320,7 +332,7 @@ function GuidedOnboarding({
               <Button
                 className="mt-6"
                 loading={action.isPending || quote.isFetching}
-                disabled={!quote.data}
+                disabled={!quote.data || !selectedAvailable || catalog.isFetching}
                 onClick={() =>
                   run(() =>
                     client.generate(org, {
@@ -703,6 +715,11 @@ function GuidedOnboarding({
             )}
         </aside>
       </div>
+      {progress.nextStep === "PLAN" && !editingDetails && availablePlans.length > 0 && <section id="onboarding-plan-comparison" className="mt-10 min-w-0 scroll-mt-6" aria-labelledby="onboarding-comparison-heading">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase text-muted-foreground">Feature comparison</p><h2 id="onboarding-comparison-heading" className="mt-1 text-2xl font-semibold">Control vs Fort Knox</h2></div><p className="max-w-md text-sm text-muted-foreground">Both tiers share the operational foundation. Highlighted capabilities are additions in the currently published Fort Knox tier.</p></div>
+        <PlanFeatureMatrix plans={availablePlans} />
+        <p className="mt-4 text-xs leading-5 text-muted-foreground">Entitlement does not replace role and property permissions. CCTV requires configured hardware and a streaming gateway; intelligence depends on data and model readiness. Your signed agreement defines support commitments.</p>
+      </section>}
     </div>
   );
 }

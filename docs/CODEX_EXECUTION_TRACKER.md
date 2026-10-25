@@ -2,6 +2,8 @@
 
 ## Premium public subscription comparison (2026-10-25)
 
+- Authenticated onboarding now offers two catalog-priced, selectable tiers and the same responsive feature matrix used on `/plans`; unavailable tiers cannot advance to contract generation. The matrix expands route-backed operational workflows under published entitlement keys, uses check/dash states, and labels integration/model prerequisites. The supplied feature-table attachment was truncated in Staff & Access Management; unverified aspirational capabilities were not presented as live. Server quotes, agreement, invoice, RBAC/ABAC and payment authority remain unchanged.
+
 - Follow-up: the published-plan feature matrix now keeps Control and Fort Knox in adjacent columns at all viewport sizes, with a direct link from the pricing cards and Fort-only additions derived from actual catalog entitlements. No plan configuration, quote calculation, checkout, or backend authorization changed.
 
 - Rebuilt `/plans` within the existing Dapinni customer journey: property-image hero, responsive unit/term quote controls, two differentiated subscription surfaces, exact backend-provided base/extra/upfront/renewal breakdowns, categorized entitlement comparison, business-value narrative, agreement/provider disclosures, theme toggle and preserved selected-plan signup handoff. No client-submitted amount, new checkout, or pricing override was added. The three-month upfront option remains the default; existing supported longer prepayments remain selectable.

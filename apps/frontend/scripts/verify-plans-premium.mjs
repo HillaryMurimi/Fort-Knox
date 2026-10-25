@@ -39,10 +39,10 @@ try {
     await page.getByText(/(?:KES|Ksh)\s*37,500\.00/).first().waitFor();
     await page.getByRole('button', { name: 'Select Fort Knox' }).click();
     assert.match(await page.getByRole('link', { name: 'Continue with Fort Knox' }).getAttribute('href'), /plan=FORT_KNOX&units=75&months=3/);
-    assert.equal(await page.getByText('CCTV integration').count() > 0, true);
+    assert.equal(await page.getByText('Authorized CCTV access').count() > 0, true);
     const comparison = page.getByRole('table');
     assert.deepEqual(await comparison.locator('thead th').allTextContents(), ['Capability', 'Control', 'Fort Knox']);
-    assert.equal(await comparison.locator('tr.plans-exclusive-row').count() >= 3, true);
+    assert.equal(await comparison.locator('tr.plan-matrix-exclusive-row').count() >= 3, true);
     const columnsFit = await comparison.evaluate(table => {
       const cells = [...table.querySelectorAll('thead th')];
       return cells[0].getBoundingClientRect().right <= cells[1].getBoundingClientRect().left + 1

@@ -2,6 +2,8 @@
 
 ## Current implementation update
 
+The authenticated `/onboarding` plan step now reuses the public catalog and a shared, full-width Control/Fort Knox matrix. It displays both current monthly/upfront quotes from the backend, selected-plan authenticated quote details, and published-plan availability before contract generation. Comparison rows have been expanded only around implemented property, finance, tenant, maintenance, staff, security, document and intelligence surfaces; CCTV/provider/model prerequisites remain disclosed. The supplied target table ended mid-way through Staff & Access Management, so unsupported or unspecified feature claims were not inferred.
+
 The subsequent premium Plans page keeps the server quote and selected signup handoff while adding a property-image hero, mobile-first quote controls, complete tier breakdowns, domain-grouped entitlement comparison, business-value sections and light/dark treatment. The public catalog and onboarding now fail closed when Fort Knox omits an active Control entitlement. These changes do not make optional CCTV/model integrations live; the signed agreement and backend-verified payment remain authoritative.
 
 ## Existing journey
