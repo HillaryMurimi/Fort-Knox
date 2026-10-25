@@ -1,5 +1,12 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Premium public subscription comparison (2026-10-25)
+
+- Rebuilt `/plans` within the existing Dapinni customer journey: property-image hero, responsive unit/term quote controls, two differentiated subscription surfaces, exact backend-provided base/extra/upfront/renewal breakdowns, categorized entitlement comparison, business-value narrative, agreement/provider disclosures, theme toggle and preserved selected-plan signup handoff. No client-submitted amount, new checkout, or pricing override was added. The three-month upfront option remains the default; existing supported longer prepayments remain selectable.
+- Fort Knox inheritance is now checked on platform-admin plan writes, the public acquisition catalog, and authenticated onboarding quote/contract generation. A missing Control capability makes Fort Knox unavailable for new acquisition; no existing paid entitlement or signed commercial snapshot is rewritten. Support commitments remain agreement-defined, and CCTV/advanced intelligence copy states readiness and hardware dependencies.
+- Browser checks exercise 320/390/768/1440px light and dark, exact quote updates and signup continuation; focused frontend/backend tests and a replica-set admin API test cover catalog/entitlement integrity. Hosted Coolify and live Paystack acceptance are still manual launch gates, as is operator review of actual persisted prices and plan capabilities.
+- Commercial boundary: additional-unit quotes use the landlord's declared portfolio count captured in the signed snapshot. Automatic renewal repricing from the live active-unit inventory is not implemented; do not market this as metered active-unit billing without a separately reviewed finance/contract change.
+
 ## Configurable landlord subscription pricing (2026-10-25)
 
 - Control and Fort Knox base prices remain backend `SubscriptionPlan.amount`; their included-unit allowances and per-extra-unit KES rates are now accepted and validated by platform-admin plan create/PATCH instead of being stripped from requests. PATCH merges partial pricing metadata and locks any price-field change for in-use Paystack subscriptions. Plan writes and audit commit together in a MongoDB transaction.

@@ -432,4 +432,6 @@ SMS can stay OFF during the initial Coolify launch. See OTP_AUTHENTICATION_CHANN
 
 Public plan comparison, email-verified signup handoff, saved paid portfolio setup, 500-row atomic Excel/CSV import batches, actual-record first dashboard, self-service funnel/TTFV and consent-bound recovery hooks are implemented. Recovery remains OFF.
 
+The public Plans page now presents Control and Fort Knox as one product with differentiated capabilities. Its unit-count and prepaid-term controls render only current server-calculated quotes, including base, allowance, extra units, first payment and later cycle amount; no browser amount is accepted by checkout. The comparison is grouped by operational domain from the published entitlement list, with agreement-defined support and explicit CCTV hardware/service-readiness disclosures. Fort Knox must inherit every active Control entitlement before it is offered or quoted for new onboarding. The page does not certify that an optional provider or model is operational.
+
 See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.

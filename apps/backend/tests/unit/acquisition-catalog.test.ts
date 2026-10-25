@@ -41,4 +41,16 @@ describe('public plan catalog', () => {
       { key: 'FORT_KNOX', pricing: { includedUnits: 50, extraUnits, additionalUnitMinor: 30000, monthlyMinor: fortMonthly, totalMinor: fortMonthly * 3 } },
     ]);
   });
+
+  it('does not advertise or price Fort Knox when it omits a Control entitlement', async () => {
+    vi.spyOn(SubscriptionPlan, 'find').mockReturnValue({
+      select: () => ({ sort: () => ({ limit: () => ({ lean: async () => [
+        { key: 'CONTROL', name: 'Control', amount: 10000, currency: 'KES', billingInterval: 'MONTH', metadata: { pricingModel: 'BASE_PLUS_ACTIVE_UNITS', includedUnits: 50, additionalUnitAmount: 200 }, entitlements: { features: ['finance', 'maintenance'] } },
+        { key: 'FORT_KNOX', name: 'Fort Knox', amount: 30000, currency: 'KES', billingInterval: 'MONTH', metadata: { pricingModel: 'BASE_PLUS_ACTIVE_UNITS', includedUnits: 50, additionalUnitAmount: 300 }, entitlements: { features: ['finance', 'security'] } },
+      ] }) }) }),
+    } as never);
+    const result = await AcquisitionService.catalog({ units: '50', months: '3' });
+    expect(result.plans.map(plan => plan.key)).toEqual(['CONTROL']);
+    expect(result.unavailablePlans).toEqual([{ key: 'FORT_KNOX', name: 'Fort Knox', reason: 'Plan capabilities require administrator review.' }]);
+  });
 });

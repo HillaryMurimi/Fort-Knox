@@ -1,5 +1,9 @@
 # Plans page audit - 2026-10-25
 
+## Current implementation update
+
+The subsequent premium Plans page keeps the server quote and selected signup handoff while adding a property-image hero, mobile-first quote controls, complete tier breakdowns, domain-grouped entitlement comparison, business-value sections and light/dark treatment. The public catalog and onboarding now fail closed when Fort Knox omits an active Control entitlement. These changes do not make optional CCTV/model integrations live; the signed agreement and backend-verified payment remain authoritative.
+
 ## Existing journey
 
 The public `/plans` page fetches Control and Fort Knox quotes from

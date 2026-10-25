@@ -309,4 +309,6 @@ Existing admin, finance, onboarding and platform assertions remain.
 
 Self-service acceptance extends the landlord replica-set HTTP suite and spreadsheet boundary tests. verify:self-service exercises mobile/desktop Chrome with private email IPC and signed test Paystack callbacks, SMS/storage/recovery OFF. Live provider and hosted Coolify smoke checks remain separate.
 
+`npm --prefix apps/frontend run verify:plans` exercises the public Plans page at 320, 390, 768 and 1440px in both themes with an isolated API-shaped plan catalog. It checks backend-supplied money values, unit-count repricing, selected signup context, category visibility, theme switching, runtime errors and horizontal overflow. The catalog and onboarding replica-set tests separately prove Fort Knox entitlement inheritance and rejection of invalid plan writes or legacy misconfiguration. Browser fixtures do not certify live merchant prices or payment settlement.
+
 See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.

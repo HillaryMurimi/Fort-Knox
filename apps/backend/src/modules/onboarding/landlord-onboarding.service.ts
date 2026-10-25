@@ -5,6 +5,7 @@ import { Organization } from "../../database/models/Organization.js";
 import { OrganizationContract } from "../../database/models/OrganizationContract.js";
 import { ContractTemplate } from "../../database/models/ContractTemplate.js";
 import { SubscriptionPlan } from "../../database/models/SubscriptionPlan.js";
+import { assertPublishedFortKnoxInheritance } from "../billing/plan-inheritance.js";
 import { SubscriptionInvoice } from "../../database/models/SubscriptionInvoice.js";
 import { OrganizationSubscription } from "../../database/models/OrganizationSubscription.js";
 import { User } from "../../database/models/User.js";
@@ -145,6 +146,7 @@ export class LandlordOnboardingService {
     }).lean();
     if (!plan)
       throw new AppError(404, "PLAN_NOT_FOUND", "Active plan not found");
+    await assertPublishedFortKnoxInheritance(plan);
     return priceSnapshot(
       plan,
       organization.onboarding.unitCount,
@@ -320,6 +322,7 @@ export class LandlordOnboardingService {
         }).session(session);
         if (!plan)
           throw new AppError(404, "PLAN_NOT_FOUND", "Active plan not found");
+        await assertPublishedFortKnoxInheritance(plan, session);
         const template = await ContractTemplate.findOne({
           status: "ACTIVE",
           plans: input.planKey,

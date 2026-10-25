@@ -505,6 +505,8 @@ Paystack organization billing commands under `/api/v1/billing`:
 
 `GET /api/v1/acquisition/plans?units=55&months=3` is public and returns each active, priceable tier's `pricing` snapshot in integer minor units: `baseMonthlyMinor`, `includedUnits`, `extraUnits`, `additionalUnitMinor`, `monthlyMinor`, `totalMinor` for the initial term, and `recurringMinor` for the later billing cycle. Invalid or unpriceable tiers are listed separately in `unavailablePlans`. Signup, the signed contract, and checkout re-evaluate server pricing; the browser's quote is informational, not a payment claim.
 
+Fort Knox is published only when its configured entitlements include all Control features. Platform-admin edits cannot remove a Control capability from an active Fort Knox plan or deactivate Control while Fort Knox is active. A previously misconfigured Fort Knox plan is listed as unavailable by the public catalog and is rejected by authenticated quote/contract generation until reviewed; existing signed snapshots are not changed.
+
 ```text
 POST /organizations/:organizationId/subscription
 POST /organizations/:organizationId/subscription/recover-checkout

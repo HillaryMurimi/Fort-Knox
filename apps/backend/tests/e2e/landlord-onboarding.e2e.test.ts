@@ -324,11 +324,16 @@ describe.skipIf(!process.env.RUN_E2E)(
       expect((await SubscriptionPlan.findById(plan._id).orFail()).amount).toBe(10000);
       const create = await request(app).post('/api/v1/billing/plans').auth(adminToken, { type: 'bearer' }).send({
         key: 'FORT_KNOX', name: 'Fort Knox', amount: 30000, billingInterval: 'MONTH',
-        entitlements: { maxProperties: -1, maxUnits: -1, maxUsers: -1, maxTenants: -1, features: ['security'] },
+        entitlements: { maxProperties: -1, maxUnits: -1, maxUsers: -1, maxTenants: -1, features: ['documents', 'security'] },
         metadata: { pricingModel: 'BASE_PLUS_ACTIVE_UNITS', includedUnits: 50, additionalUnitAmount: 300 },
       });
       expect(create.status, JSON.stringify(create.body)).toBe(201);
       expect(await AuditLog.countDocuments({ action: 'BILLING_PLAN_CREATED' })).toBe(1);
+      const incomplete = await request(app).patch(`/api/v1/billing/plans/${create.body.data._id}`).auth(adminToken, { type: 'bearer' }).send({ entitlements: { maxProperties: -1, maxUnits: -1, maxUsers: -1, maxTenants: -1, features: ['security'] } });
+      expect(incomplete.status).toBe(409);
+      expect((await SubscriptionPlan.findById(create.body.data._id).orFail()).entitlements?.features).toContain('documents');
+      const deactivateControl = await request(app).patch(`/api/v1/billing/plans/${plan.id}`).auth(adminToken, { type: 'bearer' }).send({ active: false });
+      expect(deactivateControl.status).toBe(409);
       for (const [units, control, fort] of [[50, 1000000, 3000000], [55, 1125000, 3150000]]) {
         const response = await request(app).get(`/api/v1/acquisition/plans?units=${units}&months=3`);
         expect(response.status, JSON.stringify(response.body)).toBe(200);
@@ -337,6 +342,18 @@ describe.skipIf(!process.env.RUN_E2E)(
           { key: 'FORT_KNOX', pricing: { includedUnits: 50, additionalUnitMinor: 30000, monthlyMinor: fort, totalMinor: fort * 3 } },
         ]);
       }
+      const configured = await request(app).put(path('/details')).auth(token, { type: 'bearer' }).send({ legalName: 'Acacia Holdings Limited', legalIdentifier: 'REG-2026-001', billingEmail: 'owner@example.com', unitCount: 55 });
+      expect(configured.status).toBe(200);
+      const validQuote = await request(app).get(path('/quote?planKey=FORT_KNOX&prepaidMonths=3')).auth(token, { type: 'bearer' });
+      expect(validQuote.status).toBe(200);
+      await SubscriptionPlan.updateOne({ key: 'FORT_KNOX' }, { $set: { 'entitlements.features': ['security'] } });
+      const legacyCatalog = await request(app).get('/api/v1/acquisition/plans?units=55&months=3');
+      expect(legacyCatalog.body.data.plans.map((item: { key: string }) => item.key)).toEqual(['CONTROL']);
+      expect(legacyCatalog.body.data.unavailablePlans).toMatchObject([{ key: 'FORT_KNOX' }]);
+      const blockedQuote = await request(app).get(path('/quote?planKey=FORT_KNOX&prepaidMonths=3')).auth(token, { type: 'bearer' });
+      expect(blockedQuote.status).toBe(409);
+      const blockedContract = await call('/contract', { planKey: 'FORT_KNOX', prepaidMonths: 3, expectedRevision: configured.body.data.revision });
+      expect(blockedContract.status).toBe(409);
     });
     it("connects anonymous demo, chosen plan, real email verification, payment and actual first-value evidence", async () => {
       let journeyToken = "";

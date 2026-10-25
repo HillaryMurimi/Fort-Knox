@@ -21,6 +21,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { z } from 'zod';
 import mongoose from 'mongoose';
 import type { createPlanSchema, updatePlanSchema } from './billing.schemas.js';
+import { assertFortKnoxInheritsControl, assertPublishedFortKnoxInheritance } from './plan-inheritance.js';
 
 function addInterval(date: Date, interval: 'MONTH' | 'QUARTER' | 'YEAR') { const d = new Date(date); if (interval === 'YEAR') d.setUTCFullYear(d.getUTCFullYear() + 1); else d.setUTCMonth(d.getUTCMonth() + (interval === 'QUARTER' ? 3 : 1)); return d; }
 function invoiceNumber() { return `INV-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.random().toString(36).slice(2,8).toUpperCase()}`; }
@@ -36,6 +37,14 @@ export class BillingService {
       priceSnapshot(data, 100000, 3);
     }
     return mongoose.connection.transaction(async session => {
+      await assertPublishedFortKnoxInheritance(data, session);
+      if (data.key === 'CONTROL') {
+        const fortKnox = await SubscriptionPlan.findOne({ key: 'FORT_KNOX', active: true }).select('entitlements.features').session(session).lean();
+        if (fortKnox) {
+          if (!data.active) throw new AppError(409, 'PLAN_INHERITANCE_INVALID', 'Control must remain active while Fort Knox is available');
+          assertFortKnoxInheritsControl(data.entitlements, fortKnox.entitlements);
+        }
+      }
       const [plan] = await SubscriptionPlan.create([data], { session });
       if (!plan) throw new AppError(500, 'PLAN_CREATE_FAILED', 'Subscription plan could not be created');
       await AuditService.record({ actorUserId: auth.userId, actorRole: 'SUPER_ADMIN', action: 'BILLING_PLAN_CREATED', resourceType: 'SubscriptionPlan', resourceId: plan._id, after: { key: plan.key, amount: plan.amount, currency: plan.currency, billingInterval: plan.billingInterval, metadata: plan.metadata } }, session);
@@ -49,6 +58,14 @@ export class BillingService {
       if (!existing) throw new AppError(404, 'NOT_FOUND', 'Subscription plan not found');
       const metadata = data.metadata ? { ...(existing.metadata as Record<string, unknown> ?? {}), ...data.metadata } : existing.metadata;
       const candidate = { key: existing.key, name: data.name ?? existing.name, currency: data.currency ?? existing.currency, amount: data.amount ?? existing.amount, billingInterval: data.billingInterval ?? existing.billingInterval, metadata };
+      if (existing.key === 'CONTROL') {
+        const fortKnox = await SubscriptionPlan.findOne({ key: 'FORT_KNOX', active: true }).select('entitlements.features').session(session).lean();
+        if (fortKnox) {
+          if (data.active === false) throw new AppError(409, 'PLAN_INHERITANCE_INVALID', 'Control must remain active while Fort Knox is available');
+          assertFortKnoxInheritsControl(data.entitlements ?? existing.entitlements, fortKnox.entitlements);
+        }
+      }
+      if (existing.key === 'FORT_KNOX' && (data.active ?? existing.active)) await assertPublishedFortKnoxInheritance({ key: existing.key, entitlements: data.entitlements ?? existing.entitlements }, session);
       if ((existing.key === 'CONTROL' || existing.key === 'FORT_KNOX') && (data.active ?? existing.active)) {
         if (candidate.amount <= 0) throw new AppError(400, 'INVALID_PLAN_PRICE', 'The plan base price must be positive');
         priceSnapshot(candidate, 0, 3);

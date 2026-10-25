@@ -5,6 +5,7 @@ import type { ClientSession, Types } from "mongoose";
 import { AcquisitionJourney } from "../../database/models/AcquisitionJourney.js";
 import { SubscriptionPlan } from "../../database/models/SubscriptionPlan.js";
 import { priceSnapshot } from "../onboarding/contract-snapshot.js";
+import { assertFortKnoxInheritsControl } from "../billing/plan-inheritance.js";
 import {
   publicAcquisitionEventSchema,
   publicPlanQuoteSchema,
@@ -35,12 +36,14 @@ export class AcquisitionService {
       .lean();
     const available = [] as Array<{ key: string; name: string; description?: string; pricing: ReturnType<typeof priceSnapshot>; features: string[] }>;
     const unavailablePlans = [] as Array<{ key: string; name: string; reason: string }>;
+    const control = plans.find(plan => plan.key === 'CONTROL');
     for (const plan of plans) {
       try {
+        if (plan.key === 'FORT_KNOX') assertFortKnoxInheritsControl(control?.entitlements, plan.entitlements);
         available.push({ key: plan.key, name: plan.name, ...(plan.description ? { description: plan.description } : {}), pricing: priceSnapshot(plan, input.units, input.months), features: plan.entitlements?.features ?? [] });
       } catch (error) {
-        if (!(error instanceof AppError) || !['PLAN_PRICING_NOT_CONFIGURED', 'INVALID_PLAN_PRICE', 'UNSUPPORTED_ONBOARDING_PLAN'].includes(error.code)) throw error;
-        unavailablePlans.push({ key: plan.key, name: plan.name, reason: 'Pricing is not configured for this plan.' });
+        if (!(error instanceof AppError) || !['PLAN_PRICING_NOT_CONFIGURED', 'INVALID_PLAN_PRICE', 'UNSUPPORTED_ONBOARDING_PLAN', 'PLAN_INHERITANCE_INVALID'].includes(error.code)) throw error;
+        unavailablePlans.push({ key: plan.key, name: plan.name, reason: error.code === 'PLAN_INHERITANCE_INVALID' ? 'Plan capabilities require administrator review.' : 'Pricing is not configured for this plan.' });
       }
     }
     return {

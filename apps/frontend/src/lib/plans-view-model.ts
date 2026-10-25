@@ -23,3 +23,37 @@ export function featurePresentation(key: string) {
 export function comparisonFeatures(plans: PublicPlanCatalog['plans']) {
   return [...new Set(plans.flatMap(plan => plan.features))];
 }
+
+const categories = [
+  { title: 'Property management', rows: [['command-center', 'Portfolio, buildings and units']] },
+  { title: 'Tenant management', rows: [['command-center', 'Tenant and tenancy workflows']] },
+  { title: 'Financial management', rows: [['finance', 'Rent, payments and balances']] },
+  { title: 'Maintenance management', rows: [['maintenance', 'Requests and work tracking']] },
+  { title: 'Staff and operations', rows: [['command-center', 'Role-scoped workspaces'], ['notifications', 'Operational notifications']] },
+  { title: 'Reporting and intelligence', rows: [['command-center', 'Portfolio operating view'], ['advanced-reporting', 'Advanced reporting'], ['decision-intelligence', 'Decision intelligence']] },
+  { title: 'Security and monitoring', rows: [['security', 'Security operations']] },
+  { title: 'CCTV integration', rows: [['cctv', 'Authorized camera access']] },
+  { title: 'Audit and accountability', rows: [['documents', 'Controlled documents'], ['evidence', 'Incident and maintenance evidence']] },
+  { title: 'Automation and risk intelligence', rows: [['decision-automation', 'Decision automation'], ['predictive-intelligence', 'Predictive intelligence'], ['model-serving', 'Model serving']] },
+] as const;
+
+export function comparisonCategories(plans: PublicPlanCatalog['plans']) {
+  const offered = new Set(comparisonFeatures(plans));
+  const classified = new Set<string>(categories.flatMap(category => category.rows.map(([feature]) => feature)));
+  const unclassified = [...offered].filter(feature => !classified.has(feature));
+  return [
+    ...categories.map(category => ({
+      title: category.title,
+      rows: category.rows.filter(([feature]) => offered.has(feature)).map(([feature, label]) => ({ feature, label, description: featurePresentation(feature).description })),
+    })).filter(category => category.rows.length > 0),
+    ...(unclassified.length ? [{ title: 'Other included capabilities', rows: unclassified.map(feature => ({ feature, label: featurePresentation(feature).label, description: featurePresentation(feature).description })) }] : []),
+    { title: 'Support', rows: [{ feature: null, label: 'Service support', description: 'Scope and response commitments are defined in the signed agreement.' }] },
+  ];
+}
+
+export function planHighlights(plan: PublicPlanCatalog['plans'][number]) {
+  const priority = plan.key === 'FORT_KNOX'
+    ? ['command-center', 'finance', 'security', 'cctv', 'evidence']
+    : ['command-center', 'finance', 'maintenance', 'documents', 'notifications'];
+  return [...priority.filter(feature => plan.features.includes(feature)), ...plan.features.filter(feature => !priority.includes(feature))].slice(0, 5);
+}
