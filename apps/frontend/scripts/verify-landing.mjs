@@ -57,7 +57,7 @@ try {
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
     await page.getByRole('tab', { name: /Move-ins/i }).click();
     const selected = await page.getByRole('tab', { name: /Move-ins/i }).getAttribute('aria-selected');
-    await page.getByRole('button', { name: 'See it in action' }).click();
+    await page.getByRole('button', { name: 'Request an assisted demo' }).click();
     const demoOpens = await page.getByRole('dialog').isVisible();
     await page.keyboard.press('Escape');
     await page.getByRole('tab', { name: /Inside units/i }).click();

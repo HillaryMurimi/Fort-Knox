@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { comparisonFeatures, featurePresentation } from './plans-view-model';
-import { parseSignupContext, signupHref, type PublicPlanCatalog } from './acquisition';
+import { parseSignupContext, plansHref, signupHref, type PublicPlanCatalog } from './acquisition';
 
 describe('plans comparison', () => {
   it('includes every catalog entitlement and preserves the selected quote on signup', () => {
@@ -12,5 +12,6 @@ describe('plans comparison', () => {
     expect(featurePresentation('cctv').description).toContain('gateway');
     const chosen = { planKey: 'FORT_KNOX' as const, unitCount: 55, prepaidMonths: 6, source: 'PUBLIC_DEMO' as const };
     expect(parseSignupContext(signupHref(chosen).split('?')[1]!)).toEqual(chosen);
+    expect(parseSignupContext(plansHref(chosen).split('?')[1]!)).toEqual(chosen);
   });
 });

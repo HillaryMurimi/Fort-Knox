@@ -177,7 +177,8 @@ function MarketingNav({ onDemo }: { onDemo: () => void }) {
           <a href="#overview">Overview</a>
           <a href="#intelligence">Intelligence</a>
           <a href="#operations">Operations</a>
-          <a href="#roles">Access</a>
+          <Link href="/demo">Explore demo</Link>
+          <Link href="/plans">Plans</Link>
         </nav>
         <div className="dt-nav-actions">
           <button
@@ -193,9 +194,9 @@ function MarketingNav({ onDemo }: { onDemo: () => void }) {
           <Link href="/login" className="dt-login">
             Sign in
           </Link>
-          <button onClick={onDemo} className="dt-nav-cta">
-            Request a demo <ArrowRight size={15} />
-          </button>
+          <Link href="/plans" className="dt-nav-cta">
+            Calculate your subscription <ArrowRight size={15} />
+          </Link>
           <button
             className="dt-menu"
             aria-expanded={open}
@@ -222,6 +223,12 @@ function MarketingNav({ onDemo }: { onDemo: () => void }) {
           <Link href="/login">
             Sign in <ChevronRight size={16} />
           </Link>
+          <Link href="/demo" onClick={() => setOpen(false)}>
+            Explore demo <ChevronRight size={16} />
+          </Link>
+          <Link href="/plans" onClick={() => setOpen(false)}>
+            Calculate your subscription <ChevronRight size={16} />
+          </Link>
           <button
             onClick={() => {
               setOpen(false);
@@ -236,7 +243,7 @@ function MarketingNav({ onDemo }: { onDemo: () => void }) {
   );
 }
 
-function Hero({ onDemo }: { onDemo: () => void }) {
+function Hero() {
   const [focus, setFocus] = useState<SceneFocus>("portfolio");
   const reducedMotion = Boolean(useReducedMotion());
   const current = focuses.find((item) => item.key === focus) ?? focuses[0]!;
@@ -260,9 +267,10 @@ function Hero({ onDemo }: { onDemo: () => void }) {
             Direct your property operations from one clear view.
           </p>
           <div className="dt-hero-actions">
-            <button className="dt-primary" onClick={onDemo}>
-              See it in action <ArrowRight size={17} />
-            </button>
+            <Link className="dt-primary" href="/demo">
+              Explore the product <ArrowRight size={17} />
+            </Link>
+            <Link href="/plans">Calculate your subscription <ArrowRight size={16} /></Link>
             <a
               href="#overview"
               onClick={() => trackMarketingEvent("product_exploration")}
@@ -274,7 +282,7 @@ function Hero({ onDemo }: { onDemo: () => void }) {
         <div className="dt-hero-readout">
           <span className="dt-readout-label">DIGITAL TWIN / ILLUSTRATIVE</span>
           <span className="dt-readout-index">
-            0{focuses.findIndex((item) => item.key === focus) + 1} / 04
+            0{focuses.findIndex((item) => item.key === focus) + 1} / 0{focuses.length}
           </span>
           <strong>{current.detail}</strong>
         </div>
@@ -480,8 +488,8 @@ function Overview() {
               <span>
                 <TrendingUp size={16} /> One operational truth
               </span>
-              <Link href="/signup">
-                Open your command center <ArrowRight size={15} />
+              <Link href="/plans">
+                Compare plans <ArrowRight size={15} />
               </Link>
             </div>
           </div>
@@ -561,7 +569,7 @@ export function LandingPage() {
     <div className="digital-twin-landing">
       <MarketingNav onDemo={openDemo} />
       <main>
-        <Hero onDemo={openDemo} />
+        <Hero />
         <Overview />
         <Operations onDemo={openDemo} />
         <DemoTeaser />
@@ -574,12 +582,11 @@ export function LandingPage() {
               <span>Be connected to everything that matters.</span>
             </h2>
             <div>
-              <button onClick={openDemo} className="dt-primary">
-                Request a private demo <ArrowRight size={17} />
-              </button>
-              <Link href="/signup">
-                Create your organization <ArrowRight size={17} />
+              <Link href="/plans" className="dt-primary">
+                Calculate your subscription <ArrowRight size={17} />
               </Link>
+              <Link href="/demo">Explore the product <ArrowRight size={17} /></Link>
+              <button onClick={openDemo} className="dt-text-button">Request an assisted demo <ArrowRight size={17} /></button>
             </div>
           </div>
         </section>
@@ -597,6 +604,8 @@ export function LandingPage() {
           <div>
             <a href="#overview">Product</a>
             <a href="#operations">Operations</a>
+            <Link href="/plans">Plans</Link>
+            <Link href="/demo">Demo</Link>
             <Link href="/login">Sign in</Link>
           </div>
         </div>

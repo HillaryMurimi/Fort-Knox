@@ -1,5 +1,12 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Acquisition handoff and onboarding friction (2026-10-25)
+
+- Audited the 20-stage visitor-to-first-value path in `CUSTOMER_JOURNEY_AUDIT.md` and prioritized corrections in `FRICTION_ELIMINATION_REPORT.md`. Implementation and external gates are recorded in `ONBOARDING_IMPLEMENTATION_REPORT.md`.
+- Landing now exposes direct fictional demo and plan-calculator routes; assisted sales remains optional. Signup forces a fresh public server quote for the selected tier/units/term before account creation, blocks during revalidation, preserves selection on the back link and improves password entry. Authenticated onboarding reveals the full owner-scoped quote before contract generation, allows pre-contract detail correction and repeats the later billing amount at payment. Duplicate Plans term wording no longer causes React key collisions. Backend billing, signature, payment verification, RBAC/ABAC and paid capacity are unchanged.
+- Verification: typecheck and production build passed; frontend lint passed with 27 warnings and zero errors; root tests passed (364 backend, 198 opt-in skipped; 285 frontend). Focused frontend tests passed 12. Backend onboarding replica-set E2E passed 23 with a 30-second per-test timeout. Isolated self-service Chrome journey passed at 390px/1440px with signed Paystack test fixture; handoff verifier passed across phone, tablet, short laptop and wide desktop, with quote and unavailable-tier assertions at phone/desktop. The existing landing matrix passed 12 light/dark viewports on the toolbar-free browser fixture. Static release certification: 38 route files, 155 permissions, 10 critical paths.
+- Remaining: social OAuth does not yet preserve the selected public commercial context through its existing welcome flow; real email sender/Paystack/Coolify acceptance and approved catalog/contract terms remain external launch gates. Local fixtures do not authorize collecting live payments.
+
 ## Plans acquisition audit and pricing integrity (2026-10-25)
 
 - Audited the existing public plans -> signup -> verified owner -> signed agreement -> invoice -> Paystack checkout -> property onboarding sequence in `docs/PLANS_PAGE_AUDIT.md`. This work does not create another checkout or claim live provider certification.

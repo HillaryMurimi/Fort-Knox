@@ -3,7 +3,8 @@
 import { Suspense, type FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Building2, ShieldCheck } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Building2, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 import { Alert, Button, Input } from "@/components/ui";
 import { useAuth } from "@/hooks/use-auth";
@@ -14,6 +15,8 @@ import { resendAccountOtp } from "@/lib/auth/auth-api";
 import {
   journeyToken,
   parseSignupContext,
+  plansHref,
+  publicPlanCatalog,
   trackAcquisition,
 } from "@/lib/acquisition";
 import type { AccountOtpResponse } from "@/types/auth";
@@ -34,12 +37,24 @@ function Signup() {
   });
   const [optIn, setOptIn] = useState(false),
     [passwordError, setPasswordError] = useState<string | null>(null);
+  const [visiblePassword, setVisiblePassword] = useState(false),
+    [visibleConfirmation, setVisibleConfirmation] = useState(false);
   const [busy, setBusy] = useState(false),
     [created, setCreated] = useState(false),
     [error, setError] = useState<string | null>(null);
   const [challenge, setChallenge] = useState<AccountOtpResponse | null>(null),
     [code, setCode] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const catalog = useQuery({
+    queryKey: ["public-plan-catalog", context.unitCount, context.prepaidMonths],
+    queryFn: () => publicPlanCatalog(context.unitCount, context.prepaidMonths),
+    enabled: !created,
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+  const selectedQuote = catalog.data?.plans.find((plan) => plan.key === context.planKey);
+  const canCreate = Boolean(selectedQuote) && !catalog.isFetching && !catalog.isError;
+  const amount = selectedQuote && new Intl.NumberFormat("en-KE", { style: "currency", currency: selectedQuote.pricing.currency }).format(selectedQuote.pricing.totalMinor / 100);
   useEffect(() => {
     void trackAcquisition("signup_started", context);
   }, [context]);
@@ -51,6 +66,7 @@ function Signup() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
+    if (!created && !canCreate) return;
     setError(null);
     const problem = passwordConfirmationError(
       form.password,
@@ -147,15 +163,18 @@ function Signup() {
     }
   }
   function field(key: keyof typeof form, label: string, type = "text") {
+    const passwordField = type === "password";
+    const visible = key === "confirmPassword" ? visibleConfirmation : visiblePassword;
     return (
-      <label className="block text-sm font-medium">
-        {label}
+      <div className="text-sm font-medium">
+        <label htmlFor={key}>{label}</label>
+        <div className="relative mt-2">
         <Input
           id={key}
           name={key}
           required={key !== "name"}
           disabled={created && type !== "password"}
-          type={type}
+          type={passwordField && visible ? "text" : type}
           autoComplete={
             type === "password"
               ? "new-password"
@@ -178,16 +197,18 @@ function Signup() {
             setForm({ ...form, [key]: event.target.value });
             if (type === "password") setPasswordError(null);
           }}
-          className="mt-2"
+          className={passwordField ? "pr-11" : undefined}
         />
-      </label>
+        {passwordField && <button type="button" className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline-2" aria-label={`${visible ? "Hide" : "Show"} ${label.toLowerCase()}`} aria-pressed={visible} onClick={() => key === "confirmPassword" ? setVisibleConfirmation(!visibleConfirmation) : setVisiblePassword(!visiblePassword)}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button>}
+        </div>
+      </div>
     );
   }
   return (
     <main className="min-h-screen bg-muted px-4 py-8 sm:py-12">
       <div className="mx-auto max-w-2xl">
         <Link
-          href="/plans"
+          href={plansHref(context)}
           className="mb-5 inline-flex items-center gap-2 text-sm font-semibold"
         >
           <ArrowLeft size={15} /> Compare plans
@@ -208,6 +229,9 @@ function Signup() {
             {context.unitCount} planned units · {context.prepaidMonths} months
             upfront. Your property records can be added after verified payment.
           </p>
+          {!challenge && !created && <div className="mt-4 border-y border-border py-4 text-sm" aria-live="polite">
+            {catalog.isFetching ? <p role="status">Checking the current plan price...</p> : catalog.isError ? <Alert tone="destructive">Current pricing could not be loaded. <Button type="button" variant="link" onClick={() => void catalog.refetch()}>Retry</Button></Alert> : selectedQuote ? <div className="flex flex-wrap items-center justify-between gap-2"><span>Initial {context.prepaidMonths}-month estimate</span><strong className="tabular-nums">{amount}</strong></div> : <Alert tone="destructive">This plan is not currently available for the selected portfolio. <Link href={plansHref(context)} className="underline">Compare available plans</Link></Alert>}
+          </div>}
           {challenge ? (
             <AccountOtpPanel
               challenge={challenge}
@@ -240,6 +264,8 @@ function Signup() {
                 {field("password", "Password", "password")}
                 {field("confirmPassword", "Confirm password", "password")}
               </div>
+              <p className="text-xs text-muted-foreground">Use 12 to 200 characters.</p>
+              {!passwordError && form.confirmPassword && form.password !== form.confirmPassword && <p role="alert" className="text-sm text-destructive">Passwords do not match.</p>}
               {passwordError && (
                 <p
                   id="password-error"
@@ -273,7 +299,7 @@ function Signup() {
                   )}
                 </Alert>
               )}
-              <Button loading={busy} disabled={busy} className="w-full">
+              <Button loading={busy} disabled={busy || (!created && !canCreate)} className="w-full">
                 {created
                   ? "Continue email verification"
                   : "Create account and verify email"}

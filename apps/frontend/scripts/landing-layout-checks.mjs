@@ -43,14 +43,15 @@ export async function assertLandingLayout(page) {
   const actions = page.locator('.dt-hero-actions > *');
   for (const action of await actions.all()) {
     await action.scrollIntoViewIfNeeded();
-    const reachable = await action.evaluate((element) => {
+    const hitTest = await action.evaluate((element) => {
       const { left, top, width, height } = element.getBoundingClientRect();
-      return [[.1, .1], [.9, .1], [.5, .5], [.1, .9], [.9, .9]].every(([x, y]) => {
+      const hits = [[.1, .1], [.9, .1], [.5, .5], [.1, .9], [.9, .9]].map(([x, y]) => {
         const hit = document.elementFromPoint(left + width * x, top + height * y);
-        return hit && element.contains(hit);
+        return { inside: Boolean(hit && element.contains(hit)), tag: hit?.tagName, target: hit?.className?.baseVal ?? hit?.className ?? '', parent: hit?.parentElement?.className ?? '' };
       });
+      return { reachable: hits.every((hit) => hit.inside), hits, bounds: { left, top, width, height } };
     });
-    assert.ok(reachable, `${await action.innerText()} must be unobstructed across its full clickable area`);
+    assert.ok(hitTest.reachable, `${await action.innerText()} must be unobstructed across its full clickable area: ${JSON.stringify(hitTest)}`);
   }
   await page.evaluate(() => window.scrollTo(0, 0));
   return layout;

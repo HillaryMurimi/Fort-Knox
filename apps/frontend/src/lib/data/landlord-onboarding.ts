@@ -6,6 +6,11 @@ export interface ContractPricing {
   currency: string;
   unitCount: number;
   monthlyMinor: number;
+  baseMonthlyMinor: number;
+  additionalUnitMinor: number;
+  includedUnits: number;
+  extraUnits: number;
+  recurringMinor: number;
   totalMinor: number;
   prepaidMonths: number;
   billingCycle: string;

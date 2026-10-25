@@ -108,6 +108,7 @@ function GuidedOnboarding({
     [authority, setAuthority] = useState(false),
     [accepted, setAccepted] = useState(false);
   const [replacementReason, setReplacementReason] = useState("");
+  const [editingDetails, setEditingDetails] = useState(false);
   const quote = useQuery({
     queryKey: ["landlord-quote", org, planKey, months, progress.revision],
     queryFn: () => client.quote(org, planKey, months),
@@ -180,7 +181,7 @@ function GuidedOnboarding({
       )}
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
-          {progress.nextStep === "DETAILS" && (
+          {(progress.nextStep === "DETAILS" || (progress.nextStep === "PLAN" && editingDetails)) && (
             <form onSubmit={configure} className="space-y-5">
               <h2 className="text-xl font-semibold">
                 Organization and portfolio
@@ -235,9 +236,10 @@ function GuidedOnboarding({
               <Button type="submit" loading={action.isPending}>
                 Save and continue
               </Button>
+              {progress.nextStep === "PLAN" && <Button type="button" variant="outline" className="ml-3" onClick={() => setEditingDetails(false)}>Keep saved details</Button>}
             </form>
           )}
-          {progress.nextStep === "PLAN" && (
+          {progress.nextStep === "PLAN" && !editingDetails && (
             <div>
               <h2 className="text-xl font-semibold">
                 Choose your operating tier
@@ -246,6 +248,7 @@ function GuidedOnboarding({
                 Pricing comes from the server and includes the saved portfolio
                 of {progress.organization.unitCount} units.
               </p>
+              <Button type="button" variant="link" className="mt-2 px-0" onClick={() => setEditingDetails(true)}>Edit organization and unit count</Button>
               {plans.isLoading && (
                 <p className="mt-4" role="status">
                   Loading plans…
@@ -301,6 +304,19 @@ function GuidedOnboarding({
                   </Button>
                 </Alert>
               )}
+              {quote.isPending && <p className="mt-5 text-sm text-muted-foreground" role="status">Calculating your current quote...</p>}
+              {quote.data && <div className="mt-5 border-y border-border py-5" aria-live="polite">
+                <h3 className="text-sm font-semibold">Current server quote</h3>
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                  <div><dt className="text-muted-foreground">Included units</dt><dd className="font-medium tabular-nums">{quote.data.includedUnits}</dd></div>
+                  <div><dt className="text-muted-foreground">Additional units</dt><dd className="font-medium tabular-nums">{quote.data.extraUnits} at {money(quote.data.additionalUnitMinor, quote.data.currency)} per unit / month</dd></div>
+                  <div><dt className="text-muted-foreground">Base / month</dt><dd className="font-medium tabular-nums">{money(quote.data.baseMonthlyMinor, quote.data.currency)}</dd></div>
+                  <div><dt className="text-muted-foreground">Monthly equivalent</dt><dd className="font-medium tabular-nums">{money(quote.data.monthlyMinor, quote.data.currency)}</dd></div>
+                  <div><dt className="text-muted-foreground">Due for {quote.data.prepaidMonths} months upfront</dt><dd className="font-semibold tabular-nums">{money(quote.data.totalMinor, quote.data.currency)}</dd></div>
+                  <div><dt className="text-muted-foreground">Later {quote.data.billingCycle.toLowerCase()} cycle</dt><dd className="font-medium tabular-nums">{money(quote.data.recurringMinor, quote.data.currency)}</dd></div>
+                </dl>
+                <p className="mt-4 text-xs leading-5 text-muted-foreground">The generated agreement and invoice will confirm these terms. Hardware and installation are separate. No payment is taken at this step.</p>
+              </div>}
               <Button
                 className="mt-6"
                 loading={action.isPending || quote.isFetching}
@@ -413,6 +429,7 @@ function GuidedOnboarding({
                 Signed by {progress.contract?.signature?.name}. Access begins
                 after backend payment verification.
               </p>
+              <p className="mt-2 text-sm text-muted-foreground">Payment opens in secure Paystack checkout. Available methods depend on your Paystack account and country.</p>
               <div className="mt-5 rounded-xl border border-border bg-background p-5">
                 <p className="text-sm font-medium">
                   {progress.invoice?.invoiceNumber}
@@ -434,6 +451,7 @@ function GuidedOnboarding({
                     {money(pricing?.totalMinor ?? 0, pricing?.currency)}
                   </span>
                 </div>
+                {pricing && Number.isSafeInteger(pricing.recurringMinor) && <div className="mt-3 flex justify-between gap-3 text-sm text-muted-foreground"><span>Later {pricing.billingCycle.toLowerCase()} cycle</span><span className="tabular-nums">{money(pricing.recurringMinor, pricing.currency)}</span></div>}
                 <p className="mt-3 text-xs text-muted-foreground">
                   Invoice status:{" "}
                   <StatusBadge
@@ -599,7 +617,7 @@ function GuidedOnboarding({
             </div>
             <div className="flex justify-between">
               <dt>Later billing cycle</dt>
-              <dd>{pricing?.billingCycle ?? "Selected plan"}</dd>
+              <dd>{pricing ? Number.isSafeInteger(pricing.recurringMinor) ? `${pricing.billingCycle} · ${money(pricing.recurringMinor, pricing.currency)}` : "Review agreement" : "Selected plan"}</dd>
             </div>
           </dl>
           <p className="mt-6 rounded-xl bg-muted p-4 text-xs leading-5 text-muted-foreground">

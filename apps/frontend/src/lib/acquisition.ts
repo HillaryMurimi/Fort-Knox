@@ -152,11 +152,12 @@ export function trackAcquisition(
   });
   return queue;
 }
-export const signupHref = (context: SignupContext) =>
-  "/signup?" +
+const contextQuery = (context: SignupContext) =>
   new URLSearchParams({
     plan: context.planKey,
     units: String(context.unitCount),
     months: String(context.prepaidMonths),
     source: context.source,
   }).toString();
+export const signupHref = (context: SignupContext) => "/signup?" + contextQuery(context);
+export const plansHref = (context: SignupContext) => "/plans?" + contextQuery(context);

@@ -843,6 +843,10 @@
   border-color: #d6ba8a;
   color: #142125;
 }
+.digital-twin-landing .dt-hero-actions a.dt-primary,
+.digital-twin-landing .dt-final a.dt-primary {
+  color: #142125;
+}
 .digital-twin-landing .dt-primary:hover,
 .digital-twin-landing .dt-nav-cta:hover {
   background: #ead2a9;
