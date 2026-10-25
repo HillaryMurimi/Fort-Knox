@@ -434,4 +434,6 @@ Public plan comparison, email-verified signup handoff, saved paid portfolio setu
 
 The public Plans page now presents Control and Fort Knox as one product with differentiated capabilities. Its unit-count and prepaid-term controls render only current server-calculated quotes, including base, allowance, extra units, first payment and later cycle amount; no browser amount is accepted by checkout. The comparison is grouped by operational domain from the published entitlement list, with agreement-defined support and explicit CCTV hardware/service-readiness disclosures. Fort Knox must inherit every active Control entitlement before it is offered or quoted for new onboarding. The page does not certify that an optional provider or model is operational.
 
+The Plans comparison keeps Control and Fort Knox in adjacent columns on desktop and mobile, highlights only Fort Knox additions derived from the published entitlement list, and links directly from the price cards to the full matrix. Availability is informational; backend role, scope, entitlement and provider-readiness checks remain authoritative.
+
 See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.

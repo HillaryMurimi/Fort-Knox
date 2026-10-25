@@ -2,6 +2,8 @@
 
 ## Premium public subscription comparison (2026-10-25)
 
+- Follow-up: the published-plan feature matrix now keeps Control and Fort Knox in adjacent columns at all viewport sizes, with a direct link from the pricing cards and Fort-only additions derived from actual catalog entitlements. No plan configuration, quote calculation, checkout, or backend authorization changed.
+
 - Rebuilt `/plans` within the existing Dapinni customer journey: property-image hero, responsive unit/term quote controls, two differentiated subscription surfaces, exact backend-provided base/extra/upfront/renewal breakdowns, categorized entitlement comparison, business-value narrative, agreement/provider disclosures, theme toggle and preserved selected-plan signup handoff. No client-submitted amount, new checkout, or pricing override was added. The three-month upfront option remains the default; existing supported longer prepayments remain selectable.
 - Fort Knox inheritance is now checked on platform-admin plan writes, the public acquisition catalog, and authenticated onboarding quote/contract generation. A missing Control capability makes Fort Knox unavailable for new acquisition; no existing paid entitlement or signed commercial snapshot is rewritten. Support commitments remain agreement-defined, and CCTV/advanced intelligence copy states readiness and hardware dependencies.
 - Browser checks exercise 320/390/768/1440px light and dark, exact quote updates and signup continuation; focused frontend/backend tests and a replica-set admin API test cover catalog/entitlement integrity. Hosted Coolify and live Paystack acceptance are still manual launch gates, as is operator review of actual persisted prices and plan capabilities.

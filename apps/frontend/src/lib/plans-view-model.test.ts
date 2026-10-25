@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { comparisonFeatures, comparisonCategories, featurePresentation, planHighlights } from './plans-view-model';
+import { comparisonFeatures, comparisonCategories, featurePresentation, fortKnoxOnlyFeatures, planHighlights } from './plans-view-model';
 import { parseSignupContext, plansHref, signupHref, type PublicPlanCatalog } from './acquisition';
 
 describe('plans comparison', () => {
@@ -26,5 +26,7 @@ describe('plans comparison', () => {
     ] as PublicPlanCatalog['plans'];
     expect(comparisonCategories(plans).find(category => category.title === 'Other included capabilities')?.rows).toMatchObject([{ feature: 'custom-capability' }]);
     expect(plans[0]!.features.includes('custom-capability')).toBe(false);
+    expect(fortKnoxOnlyFeatures(plans)).toEqual(['custom-capability']);
+    expect(fortKnoxOnlyFeatures(plans.slice(0, 1))).toEqual([]);
   });
 });

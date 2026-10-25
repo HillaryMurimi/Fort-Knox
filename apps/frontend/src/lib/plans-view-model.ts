@@ -24,6 +24,13 @@ export function comparisonFeatures(plans: PublicPlanCatalog['plans']) {
   return [...new Set(plans.flatMap(plan => plan.features))];
 }
 
+export function fortKnoxOnlyFeatures(plans: PublicPlanCatalog['plans']) {
+  const control = plans.find(plan => plan.key === 'CONTROL');
+  const fortKnox = plans.find(plan => plan.key === 'FORT_KNOX');
+  if (!control || !fortKnox) return [];
+  return fortKnox.features.filter(feature => !control.features.includes(feature));
+}
+
 const categories = [
   { title: 'Property management', rows: [['command-center', 'Portfolio, buildings and units']] },
   { title: 'Tenant management', rows: [['command-center', 'Tenant and tenancy workflows']] },

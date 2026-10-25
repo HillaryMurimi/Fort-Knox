@@ -12,7 +12,7 @@ import {
   parseSignupContext, pauseJourneyAnalytics, publicPlanCatalog,
   signupHref, trackAcquisition, type AcquisitionPlanKey, type PublicPlanCatalog,
 } from "@/lib/acquisition";
-import { comparisonCategories, planHighlights, featurePresentation } from "@/lib/plans-view-model";
+import { comparisonCategories, featurePresentation, fortKnoxOnlyFeatures, planHighlights } from "@/lib/plans-view-model";
 import "./plans.css";
 
 const money = (minor: number, currency = "KES") =>
@@ -20,8 +20,8 @@ const money = (minor: number, currency = "KES") =>
 
 function Availability({ plan, feature }: { plan: PublicPlanCatalog["plans"][number]; feature: string | null }) {
   if (feature === null) return <span className="plans-availability plans-availability--terms">Per agreement</span>;
-  if (!plan.features.includes(feature)) return <span className="plans-availability plans-availability--absent">Not included</span>;
-  return <span className="plans-availability plans-availability--included"><Check size={14} aria-hidden="true" />Included</span>;
+  if (!plan.features.includes(feature)) return <span className="plans-availability plans-availability--absent"><span className="plans-availability-full">Not included</span><span className="plans-availability-short">No</span></span>;
+  return <span className="plans-availability plans-availability--included"><Check size={14} aria-hidden="true" /><span className="plans-availability-full">Included</span><span className="plans-availability-short">Yes</span></span>;
 }
 
 function PlanComparison() {
@@ -42,8 +42,10 @@ function PlanComparison() {
     refetchOnMount: "always",
   });
   const plans = valid && !catalog.isFetching && !catalog.isError ? catalog.data?.plans ?? [] : [];
+  const comparisonPlans = [...plans].sort((a, b) => (a.key === "CONTROL" ? -1 : b.key === "CONTROL" ? 1 : 0));
   const selected = plans.find(plan => plan.key === selectedKey);
-  const categories = comparisonCategories(plans);
+  const categories = comparisonCategories(comparisonPlans);
+  const fortOnly = new Set(fortKnoxOnlyFeatures(comparisonPlans));
   const selection = selected && { ...context, planKey: selected.key, unitCount: count, prepaidMonths: months };
 
   return <main className="plans-page" id="main-content">
@@ -132,13 +134,14 @@ function PlanComparison() {
             <Button type="button" variant={active ? "default" : "outline"} aria-pressed={active} onClick={() => setSelectedKey(plan.key)} className={`plans-select ${fort ? "plans-select--fort" : ""}`}>{active ? `${plan.name} selected` : `Select ${plan.name}`}</Button>
           </article>;
         })}</div>}
-        {plans.length > 0 && <p className="plans-disclosure">CCTV software access requires supported equipment and a configured gateway. Hardware, installation and provider costs are separate. Intelligence capabilities also depend on data and service readiness.</p>}
+        {plans.length > 0 && <><a className="plans-compare-link" href="#comparison">Compare Control and Fort Knox features side by side <ArrowDown size={16} aria-hidden="true" /></a><p className="plans-disclosure">CCTV software access requires supported equipment and a configured gateway. Hardware, installation and provider costs are separate. Intelligence capabilities also depend on data and service readiness.</p></>}
       </section>
 
-      {plans.length > 0 && <section className="plans-comparison" aria-labelledby="comparison-heading">
-        <div className="plans-section-heading"><div><p className="plans-eyebrow">CAPABILITIES</p><h2 id="comparison-heading">Compare what matters</h2></div><p>Features follow the current plan catalog. Access also depends on your role, configuration and service readiness.</p></div>
-        <div className="plans-comparison-desktop"><table><thead><tr><th scope="col">Capability</th>{plans.map(plan => <th scope="col" key={plan.key}>{plan.name}</th>)}</tr></thead><tbody>{categories.map(category => <FragmentCategory key={category.title} category={category} plans={plans} />)}</tbody></table></div>
-        <div className="plans-comparison-mobile">{categories.map(category => <section key={category.title} className="plans-mobile-category"><h3>{category.title}</h3>{category.rows.map(row => <div key={row.label} className="plans-mobile-row"><p>{row.label}<small>{row.description}</small></p><dl>{plans.map(plan => <div key={plan.key}><dt>{plan.name}</dt><dd><Availability plan={plan} feature={row.feature} /></dd></div>)}</dl></div>)}</section>)}</div>
+      {plans.length > 0 && <section id="comparison" className="plans-comparison" aria-labelledby="comparison-heading">
+        <div className="plans-section-heading"><div><p className="plans-eyebrow">SIDE-BY-SIDE COMPARISON</p><h2 id="comparison-heading">Control vs Fort Knox</h2></div><p>Fort Knox includes the Control foundation. Highlighted rows show the additional capabilities in the currently published plans.</p></div>
+        <div className="plans-comparison-key"><span><Check size={15} aria-hidden="true" /> Included in the plan</span><span className="plans-exclusive-key" /> Fort Knox addition</div>
+        <div className="plans-comparison-table"><table><thead><tr><th scope="col">Capability</th>{comparisonPlans.map(plan => <th scope="col" className={plan.key === "FORT_KNOX" ? "plans-fort-heading" : undefined} key={plan.key}>{plan.name}</th>)}</tr></thead><tbody>{categories.map(category => <FragmentCategory key={category.title} category={category} plans={comparisonPlans} fortOnly={fortOnly} />)}</tbody></table></div>
+        <p className="plans-disclosure">Features follow the published plan catalog. Actual access also depends on your role, configuration and service readiness. Support scope and response commitments are defined in the signed agreement.</p>
       </section>}
     </div>
 
@@ -152,8 +155,8 @@ function PlanComparison() {
   </main>;
 }
 
-function FragmentCategory({ category, plans }: { category: ReturnType<typeof comparisonCategories>[number]; plans: PublicPlanCatalog["plans"] }) {
-  return <><tr className="plans-category-row"><th scope="rowgroup" colSpan={plans.length + 1}>{category.title}</th></tr>{category.rows.map(row => <tr key={row.label}><th scope="row">{row.label}<span>{row.description}</span></th>{plans.map(plan => <td key={plan.key}><Availability plan={plan} feature={row.feature} /></td>)}</tr>)}</>;
+function FragmentCategory({ category, plans, fortOnly }: { category: ReturnType<typeof comparisonCategories>[number]; plans: PublicPlanCatalog["plans"]; fortOnly: Set<string> }) {
+  return <><tr className="plans-category-row"><th scope="rowgroup" colSpan={plans.length + 1}>{category.title}</th></tr>{category.rows.map(row => <tr key={row.label} className={row.feature && fortOnly.has(row.feature) ? "plans-exclusive-row" : undefined}><th scope="row">{row.label}{row.feature && fortOnly.has(row.feature) && <span className="plans-exclusive-label">Fort Knox addition</span>}<span className="plans-feature-description">{row.description}</span></th>{plans.map(plan => <td key={plan.key}><Availability plan={plan} feature={row.feature} /></td>)}</tr>)}</>;
 }
 
 export default function PlansPage() {

@@ -40,6 +40,16 @@ try {
     await page.getByRole('button', { name: 'Select Fort Knox' }).click();
     assert.match(await page.getByRole('link', { name: 'Continue with Fort Knox' }).getAttribute('href'), /plan=FORT_KNOX&units=75&months=3/);
     assert.equal(await page.getByText('CCTV integration').count() > 0, true);
+    const comparison = page.getByRole('table');
+    assert.deepEqual(await comparison.locator('thead th').allTextContents(), ['Capability', 'Control', 'Fort Knox']);
+    assert.equal(await comparison.locator('tr.plans-exclusive-row').count() >= 3, true);
+    const columnsFit = await comparison.evaluate(table => {
+      const cells = [...table.querySelectorAll('thead th')];
+      return cells[0].getBoundingClientRect().right <= cells[1].getBoundingClientRect().left + 1
+        && cells[1].getBoundingClientRect().right <= cells[2].getBoundingClientRect().left + 1
+        && table.getBoundingClientRect().width <= innerWidth;
+    });
+    assert.equal(columnsFit, true);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
     await page.screenshot({ path: join(tmpdir(), `pcc-plans-premium-${viewport.width}-light.png`), fullPage: true });
     await page.getByRole('button', { name: 'Toggle light and dark theme' }).click();
