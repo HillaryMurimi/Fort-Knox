@@ -8,16 +8,16 @@ const origin = process.env.ACQUISITION_TEST_ORIGIN ?? 'http://localhost:3000';
 const browser = await chromium.launch({ headless: true, ...(process.env.PCC_BROWSER_EXECUTABLE ? { executablePath: process.env.PCC_BROWSER_EXECUTABLE } : {}) });
 
 const fixture = (available, units, months) => {
-  const quote = (key, base) => ({
+  const quote = (key, base, perUnit) => ({
     key, name: key === 'CONTROL' ? 'Control' : 'Fort Knox', features: ['finance'],
     pricing: { planKey: key, currency: 'KES', unitCount: units, prepaidMonths: months,
       includedUnits: 50, extraUnits: Math.max(0, units - 50), baseMonthlyMinor: base,
-      additionalUnitMinor: 20000, monthlyMinor: base + Math.max(0, units - 50) * 20000,
-      recurringMinor: base + Math.max(0, units - 50) * 20000,
+      additionalUnitMinor: perUnit, monthlyMinor: base + Math.max(0, units - 50) * perUnit,
+      recurringMinor: base + Math.max(0, units - 50) * perUnit,
       billingCycle: 'MONTH', intervalMonths: 1,
-      totalMinor: (base + Math.max(0, units - 50) * 20000) * months, taxMinor: 0 },
+      totalMinor: (base + Math.max(0, units - 50) * perUnit) * months, taxMinor: 0 },
   });
-  return { success: true, data: { plans: [quote('CONTROL', 1000000), ...(available ? [quote('FORT_KNOX', 3000000)] : [])],
+  return { success: true, data: { plans: [quote('CONTROL', 1000000, 20000), ...(available ? [quote('FORT_KNOX', 3000000, 30000)] : [])],
     unavailablePlans: available ? [] : [{ key: 'FORT_KNOX', name: 'Fort Knox', reason: 'Pricing is not configured.' }],
     minimumPrepaidMonths: 3, terms: { taxPolicy: 'No tax calculated.', hardware: 'Hardware excluded.', renewal: 'Per agreement.', cancellation: 'Per agreement.', paymentMethods: 'Paystack.' } } };
 };
@@ -42,8 +42,12 @@ async function check(viewport) {
   assert.equal(await heroLinks.nth(1).getAttribute('href'), '/plans');
   await heroLinks.nth(1).click();
   await page.getByRole('heading', { name: 'Choose your level of control' }).waitFor();
+  await page.getByText(/(?:KES|Ksh)\s*10,000\.00/).first().waitFor();
+  await page.getByText(/(?:KES|Ksh)\s*30,000\.00/).first().waitFor();
   await page.getByRole('button', { name: 'Select Fort Knox' }).click();
   await page.getByLabel('Planned units').fill('55');
+  await page.getByText(/(?:KES|Ksh)\s*11,000\.00/).first().waitFor();
+  await page.getByText(/(?:KES|Ksh)\s*31,500\.00/).first().waitFor();
   await page.getByLabel('Initial commitment').selectOption('6');
   await page.getByRole('link', { name: 'Continue with Fort Knox' }).click();
   await page.getByRole('heading', { name: 'Create your Property Command Center' }).waitFor();

@@ -311,6 +311,33 @@ describe.skipIf(!process.env.RUN_E2E)(
       await signedWebhook(charge(state));
       return state;
     }
+    it('serves configured prices by tier and unit count after an authorized plan update', async () => {
+      const plan = await SubscriptionPlan.findOne({ key: 'CONTROL' }).orFail();
+      const denied = await request(app).patch(`/api/v1/billing/plans/${plan.id}`).auth(token, { type: 'bearer' }).send({ metadata: { additionalUnitAmount: 250 } });
+      expect(denied.status).toBe(403);
+      const updated = await request(app).patch(`/api/v1/billing/plans/${plan.id}`).auth(adminToken, { type: 'bearer' }).send({ metadata: { additionalUnitAmount: 250 } });
+      expect(updated.status, JSON.stringify(updated.body)).toBe(200);
+      expect(updated.body.data.metadata).toMatchObject({ includedUnits: 50, additionalUnitAmount: 250 });
+      expect(await AuditLog.countDocuments({ action: 'BILLING_PLAN_UPDATED', resourceId: plan._id })).toBe(1);
+      const invalidBase = await request(app).patch(`/api/v1/billing/plans/${plan.id}`).auth(adminToken, { type: 'bearer' }).send({ amount: 0 });
+      expect(invalidBase.status).toBe(400);
+      expect((await SubscriptionPlan.findById(plan._id).orFail()).amount).toBe(10000);
+      const create = await request(app).post('/api/v1/billing/plans').auth(adminToken, { type: 'bearer' }).send({
+        key: 'FORT_KNOX', name: 'Fort Knox', amount: 30000, billingInterval: 'MONTH',
+        entitlements: { maxProperties: -1, maxUnits: -1, maxUsers: -1, maxTenants: -1, features: ['security'] },
+        metadata: { pricingModel: 'BASE_PLUS_ACTIVE_UNITS', includedUnits: 50, additionalUnitAmount: 300 },
+      });
+      expect(create.status, JSON.stringify(create.body)).toBe(201);
+      expect(await AuditLog.countDocuments({ action: 'BILLING_PLAN_CREATED' })).toBe(1);
+      for (const [units, control, fort] of [[50, 1000000, 3000000], [55, 1125000, 3150000]]) {
+        const response = await request(app).get(`/api/v1/acquisition/plans?units=${units}&months=3`);
+        expect(response.status, JSON.stringify(response.body)).toBe(200);
+        expect(response.body.data.plans).toMatchObject([
+          { key: 'CONTROL', pricing: { includedUnits: 50, additionalUnitMinor: 25000, monthlyMinor: control, totalMinor: control * 3 } },
+          { key: 'FORT_KNOX', pricing: { includedUnits: 50, additionalUnitMinor: 30000, monthlyMinor: fort, totalMinor: fort * 3 } },
+        ]);
+      }
+    });
     it("connects anonymous demo, chosen plan, real email verification, payment and actual first-value evidence", async () => {
       let journeyToken = "";
       for (const event of [

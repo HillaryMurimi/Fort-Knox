@@ -94,7 +94,7 @@ describe.skipIf(!process.env.RUN_E2E)('backend release E2E certification', () =>
   });
 
   it('activates a pending Paystack subscription only for a matching signed charge', async () => {
-    const plan = await SubscriptionPlan.create({ key: 'E2E', name: 'E2E Plan', amount: 30000, currency: 'KES', billingInterval: 'MONTH', active: true, entitlements: { maxProperties: 5, maxUnits: 100, maxUsers: 5, maxTenants: 100, features: [] } });
+    const plan = await SubscriptionPlan.create({ key: 'E2E', name: 'E2E Plan', amount: 30000, currency: 'KES', billingInterval: 'MONTH', active: true, entitlements: { maxProperties: 5, maxUnits: 100, maxUsers: 5, maxTenants: 100, features: [] }, metadata: { pricingModel: 'BASE_PLUS_ACTIVE_UNITS', includedUnits: 50, additionalUnitAmount: 300 } });
     const now = new Date();
     const subscription = await OrganizationSubscription.create({ organizationId, planId: plan._id, status: 'PENDING', currentPeriodStart: now, currentPeriodEnd: new Date(now.getTime() + 30 * 86400000), provider: 'PAYSTACK', providerCustomerId: 'CUS_e2e', providerPlanCode: 'PLN_e2e', providerCheckoutReference: 'bill_e2e', createdBy: userId, updatedBy: userId });
     const invoice = await SubscriptionInvoice.create({ organizationId, subscriptionId: subscription._id, invoiceNumber: 'INV-E2E', periodStart: now, periodEnd: new Date(now.getTime() + 30 * 86400000), subtotal: 30000, tax: 0, total: 30000, amountPaid: 0, currency: 'KES', status: 'OPEN', dueDate: now, provider: 'PAYSTACK', createdBy: userId, updatedBy: userId });
@@ -108,6 +108,7 @@ describe.skipIf(!process.env.RUN_E2E)('backend release E2E certification', () =>
     expect(updatedSubscription.status).toBe('ACTIVE');
     const platformAdmin = { userId, isPlatformAdmin: true, memberships: [] };
     await expect(BillingService.updatePlan(platformAdmin, String(plan._id), { amount: 1 })).rejects.toMatchObject({ code: 'PLAN_PRICE_LOCKED' });
+    await expect(BillingService.updatePlan(platformAdmin, String(plan._id), { metadata: { additionalUnitAmount: 400 } })).rejects.toMatchObject({ code: 'PLAN_PRICE_LOCKED' });
     const fetchSubscription = vi.spyOn(PaystackBillingProvider.prototype, 'fetchSubscription').mockResolvedValue({ customerCode: 'CUS_e2e', planCode: 'PLN_e2e', subscriptionCode: 'SUB_e2e', emailToken: 'private-token' });
     await IntegrationService.processPaystack({ event: 'subscription.create', data: { customer: 42, plan: 7, subscription_code: 'SUB_e2e' } });
     expect(fetchSubscription).toHaveBeenCalledWith('SUB_e2e');
@@ -120,6 +121,7 @@ describe.skipIf(!process.env.RUN_E2E)('backend release E2E certification', () =>
     await BillingService.changePlan(platformAdmin, String(organizationId), upgrade.key, true);
     expect(updatePlan).toHaveBeenCalledWith('PLN_e2e', { planKey: upgrade.key, amount: upgrade.amount, currency: upgrade.currency, interval: upgrade.billingInterval });
     updatePlan.mockRestore();
+    await expect(BillingService.updatePlan(platformAdmin, String(upgrade._id), { amount: 46000 })).rejects.toMatchObject({ code: 'PLAN_PRICE_LOCKED' });
     expect(String((await OrganizationSubscription.findById(subscription._id).orFail()).planId)).toBe(String(plan._id));
     await expect(IntegrationService.processPaystack({ event: 'invoice.update', data: { paid: true, status: 'success', subscription: { subscription_code: 'SUB_e2e' }, transaction: { status: 'success', reference: 'upgrade_e2e', amount: 3000000, currency: 'USD' } } })).rejects.toMatchObject({ code: 'PROVIDER_AMOUNT_MISMATCH' });
     await IntegrationService.processPaystack({ event: 'invoice.update', data: { paid: true, status: 'success', subscription: { subscription_code: 'SUB_e2e' }, transaction: { status: 'success', reference: 'upgrade_e2e', amount: 4500000, currency: 'KES' } } });

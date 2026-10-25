@@ -1,5 +1,11 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Configurable landlord subscription pricing (2026-10-25)
+
+- Control and Fort Knox base prices remain backend `SubscriptionPlan.amount`; their included-unit allowances and per-extra-unit KES rates are now accepted and validated by platform-admin plan create/PATCH instead of being stripped from requests. PATCH merges partial pricing metadata and locks any price-field change for in-use Paystack subscriptions. Plan writes and audit commit together in a MongoDB transaction.
+- New missing-plan seed defaults: Control KES 10,000/month including 50 units plus KES 200/extra unit/month; Fort Knox KES 30,000/month including 50 plus KES 300/extra unit/month. Seeding no longer overwrites configured plans or deactivates unrelated records. Existing Fort Knox records keep their current rate until an authorized operator reviews and changes it; active Paystack-linked plans require a versioned migration, not an in-place edit.
+- Public acquisition pricing, signup and authenticated onboarding already consume server-calculated snapshots; the browser verifier now asserts exact displayed totals at 50 and 55 units for both tiers. Unit and replica-set API tests verify real persisted admin edits, public quote amounts and the price lock. Live Atlas/Paystack and existing catalog values were not modified in this task.
+
 ## Acquisition handoff and onboarding friction (2026-10-25)
 
 - Audited the 20-stage visitor-to-first-value path in `CUSTOMER_JOURNEY_AUDIT.md` and prioritized corrections in `FRICTION_ELIMINATION_REPORT.md`. Implementation and external gates are recorded in `ONBOARDING_IMPLEMENTATION_REPORT.md`.

@@ -18,6 +18,9 @@ import { PaystackBillingProvider, type BillingProviderKey } from '../../core/bil
 import { PaystackProvider } from '../../core/integrations/paystack.provider.js';
 import { IntegrationService } from '../integrations/integration.service.js';
 import { AuditService } from '../audit/audit.service.js';
+import type { z } from 'zod';
+import mongoose from 'mongoose';
+import type { createPlanSchema, updatePlanSchema } from './billing.schemas.js';
 
 function addInterval(date: Date, interval: 'MONTH' | 'QUARTER' | 'YEAR') { const d = new Date(date); if (interval === 'YEAR') d.setUTCFullYear(d.getUTCFullYear() + 1); else d.setUTCMonth(d.getUTCMonth() + (interval === 'QUARTER' ? 3 : 1)); return d; }
 function invoiceNumber() { return `INV-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.random().toString(36).slice(2,8).toUpperCase()}`; }
@@ -25,14 +28,41 @@ function invoiceNumber() { return `INV-${new Date().toISOString().slice(0,10).re
 export class BillingService {
   static startPrepaidCheckout = startPrepaidCheckout;
   static async listPlans(activeOnly = true) { return SubscriptionPlan.find(activeOnly ? { active: true } : {}).sort({ amount: 1 }).lean(); }
-  static async createPlan(auth: NonNullable<Express.Request['auth']>, data: Record<string, unknown>) { AuthorizationService.assertPlatformAdmin(auth); return SubscriptionPlan.create(data); }
-  static async updatePlan(auth: NonNullable<Express.Request['auth']>, planId: string, data: Record<string, unknown>) {
+  static async createPlan(auth: NonNullable<Express.Request['auth']>, data: z.infer<typeof createPlanSchema>) {
     AuthorizationService.assertPlatformAdmin(auth);
-    const existing = await SubscriptionPlan.findById(planId);
-    if (!existing) throw new AppError(404, 'NOT_FOUND', 'Subscription plan not found');
-    const priceChanged = (data.amount !== undefined && data.amount !== existing.amount) || (data.currency !== undefined && data.currency !== existing.currency) || (data.billingInterval !== undefined && data.billingInterval !== existing.billingInterval);
-    if (priceChanged && await OrganizationSubscription.exists({ planId, provider: 'PAYSTACK', status: { $in: ['PENDING', 'ACTIVE', 'PAST_DUE', 'PAUSED'] } })) throw new AppError(409, 'PLAN_PRICE_LOCKED', 'Create a new plan instead of changing the price of an in-use Paystack plan');
-    return SubscriptionPlan.findByIdAndUpdate(planId, data, { new: true, runValidators: true });
+    if (data.key === 'CONTROL' || data.key === 'FORT_KNOX') {
+      if (data.amount <= 0) throw new AppError(400, 'INVALID_PLAN_PRICE', 'The plan base price must be positive');
+      priceSnapshot(data, 0, 3);
+      priceSnapshot(data, 100000, 3);
+    }
+    return mongoose.connection.transaction(async session => {
+      const [plan] = await SubscriptionPlan.create([data], { session });
+      if (!plan) throw new AppError(500, 'PLAN_CREATE_FAILED', 'Subscription plan could not be created');
+      await AuditService.record({ actorUserId: auth.userId, actorRole: 'SUPER_ADMIN', action: 'BILLING_PLAN_CREATED', resourceType: 'SubscriptionPlan', resourceId: plan._id, after: { key: plan.key, amount: plan.amount, currency: plan.currency, billingInterval: plan.billingInterval, metadata: plan.metadata } }, session);
+      return plan;
+    });
+  }
+  static async updatePlan(auth: NonNullable<Express.Request['auth']>, planId: string, data: z.infer<typeof updatePlanSchema>) {
+    AuthorizationService.assertPlatformAdmin(auth);
+    return mongoose.connection.transaction(async session => {
+      const existing = await SubscriptionPlan.findById(planId).session(session);
+      if (!existing) throw new AppError(404, 'NOT_FOUND', 'Subscription plan not found');
+      const metadata = data.metadata ? { ...(existing.metadata as Record<string, unknown> ?? {}), ...data.metadata } : existing.metadata;
+      const candidate = { key: existing.key, name: data.name ?? existing.name, currency: data.currency ?? existing.currency, amount: data.amount ?? existing.amount, billingInterval: data.billingInterval ?? existing.billingInterval, metadata };
+      if ((existing.key === 'CONTROL' || existing.key === 'FORT_KNOX') && (data.active ?? existing.active)) {
+        if (candidate.amount <= 0) throw new AppError(400, 'INVALID_PLAN_PRICE', 'The plan base price must be positive');
+        priceSnapshot(candidate, 0, 3);
+        priceSnapshot(candidate, 100000, 3);
+      }
+      const previousPricing = existing.metadata as Record<string, unknown> | undefined;
+      const nextPricing = metadata as Record<string, unknown> | undefined;
+      const priceChanged = candidate.amount !== existing.amount || candidate.currency !== existing.currency || candidate.billingInterval !== existing.billingInterval || ['pricingModel', 'includedUnits', 'additionalUnitAmount'].some(key => previousPricing?.[key] !== nextPricing?.[key]);
+      if (priceChanged && await OrganizationSubscription.exists({ provider: 'PAYSTACK', status: { $in: ['PENDING', 'ACTIVE', 'TRIALING', 'PAST_DUE', 'PAUSED'] }, $or: [{ planId }, { pendingPlanId: planId }] }).session(session)) throw new AppError(409, 'PLAN_PRICE_LOCKED', 'Create a new plan instead of changing the price of an in-use Paystack plan');
+      const updated = await SubscriptionPlan.findByIdAndUpdate(planId, { ...data, ...(data.metadata ? { metadata } : {}) }, { new: true, runValidators: true, session });
+      if (!updated) throw new AppError(409, 'PLAN_UPDATE_CONFLICT', 'Subscription plan changed during update');
+      await AuditService.record({ actorUserId: auth.userId, actorRole: 'SUPER_ADMIN', action: 'BILLING_PLAN_UPDATED', resourceType: 'SubscriptionPlan', resourceId: existing._id, before: { amount: existing.amount, currency: existing.currency, billingInterval: existing.billingInterval, metadata: existing.metadata }, after: { amount: updated.amount, currency: updated.currency, billingInterval: updated.billingInterval, metadata: updated.metadata } }, session);
+      return updated;
+    });
   }
 
   static async getSubscription(auth: NonNullable<Express.Request['auth']>, organizationId: string) {

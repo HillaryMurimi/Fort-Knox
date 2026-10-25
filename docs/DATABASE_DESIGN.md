@@ -533,11 +533,14 @@ ordinary mutation.
 
 ### plans
 
--   code
--   name
+-   key and name (unique key)
+-   currency, base `amount` for `billingInterval`
+-   `metadata.pricingModel = BASE_PLUS_ACTIVE_UNITS`, `includedUnits`, and `additionalUnitAmount` (KES per additional unit per month) for Control/Fort Knox
 -   limits
 -   entitlements
 -   active
+
+Plan configuration is persisted in `SubscriptionPlan`. The quote/contract service converts amounts to integer minor units and snapshots the signed commercial terms. Seed creates missing defaults without overwriting operator pricing. Existing Paystack-linked prices are locked against in-place price edits; historical invoices and agreements retain their snapshots.
 
 ### subscriptions
 

@@ -641,7 +641,10 @@ export function buildOpenApiDocument() {
       },
       "/billing/plans": {
         get: { summary: "List subscription plans" },
-        post: { summary: "Create subscription plan" },
+        post: { summary: "Create subscription plan with validated base and unit pricing (platform admin)" },
+      },
+      "/billing/plans/{planId}": {
+        patch: { summary: "Update subscription plan pricing (platform admin; in-use Paystack prices locked)" },
       },
       "/billing/organizations/{organizationId}/subscription": {
         get: { summary: "Get organization subscription" },

@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+const pricingMetadataSchema = z.object({
+  pricingModel: z.literal('BASE_PLUS_ACTIVE_UNITS'),
+  includedUnits: z.number().int().min(0).max(100000),
+  additionalUnitAmount: z.number().positive().finite(),
+  hardwareIncluded: z.boolean().optional(),
+}).strict();
+
 export const createPlanSchema = z.object({
   key: z.string().min(2).max(50).regex(/^[A-Z0-9_]+$/),
   name: z.string().min(2).max(120),
@@ -9,10 +16,11 @@ export const createPlanSchema = z.object({
   billingInterval: z.enum(['MONTH', 'QUARTER', 'YEAR']),
   trialDays: z.number().int().nonnegative().max(365).default(0),
   entitlements: z.object({ maxProperties: z.number().int().min(-1), maxUnits: z.number().int().min(-1), maxUsers: z.number().int().min(-1), maxTenants: z.number().int().min(-1), features: z.array(z.string()).default([]) }),
+  metadata: pricingMetadataSchema.optional(),
   active: z.boolean().default(true)
 });
 
-export const updatePlanSchema = createPlanSchema.partial().omit({ key: true });
+export const updatePlanSchema = createPlanSchema.partial().omit({ key: true }).extend({ metadata: pricingMetadataSchema.partial().optional() });
 export const createSubscriptionSchema = z.object({ planKey: z.string().min(2).max(50), provider: z.enum(['PAYSTACK', 'INTERNAL']).default('PAYSTACK'), email: z.string().email().optional(), prepaidMonths: z.number().int().min(3).max(24).default(3) });
 export const changePlanSchema = z.object({ planKey: z.string().min(2).max(50), atPeriodEnd: z.boolean().default(true) });
 export const cancelSubscriptionSchema = z.object({ atPeriodEnd: z.boolean().default(true) });

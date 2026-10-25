@@ -23,4 +23,22 @@ describe('public plan catalog', () => {
     await expect(AcquisitionService.catalog({ units: '100001', months: '3' })).rejects.toThrow();
     expect(find).not.toHaveBeenCalled();
   });
+
+  it.each([
+    [50, 1000000, 3000000, 0],
+    [55, 1100000, 3150000, 5],
+  ])('quotes both configured tiers for %i units', async (units, controlMonthly, fortMonthly, extraUnits) => {
+    vi.spyOn(SubscriptionPlan, 'find').mockReturnValue({
+      select: () => ({ sort: () => ({ limit: () => ({ lean: async () => [
+        { key: 'CONTROL', name: 'Control', amount: 10000, currency: 'KES', billingInterval: 'MONTH', metadata: { pricingModel: 'BASE_PLUS_ACTIVE_UNITS', includedUnits: 50, additionalUnitAmount: 200 }, entitlements: { features: [] } },
+        { key: 'FORT_KNOX', name: 'Fort Knox', amount: 30000, currency: 'KES', billingInterval: 'MONTH', metadata: { pricingModel: 'BASE_PLUS_ACTIVE_UNITS', includedUnits: 50, additionalUnitAmount: 300 }, entitlements: { features: [] } },
+      ] }) }) }),
+    } as never);
+    const result = await AcquisitionService.catalog({ units: String(units), months: '3' });
+    expect(result.unavailablePlans).toEqual([]);
+    expect(result.plans).toMatchObject([
+      { key: 'CONTROL', pricing: { includedUnits: 50, extraUnits, additionalUnitMinor: 20000, monthlyMinor: controlMonthly, totalMinor: controlMonthly * 3 } },
+      { key: 'FORT_KNOX', pricing: { includedUnits: 50, extraUnits, additionalUnitMinor: 30000, monthlyMinor: fortMonthly, totalMinor: fortMonthly * 3 } },
+    ]);
+  });
 });

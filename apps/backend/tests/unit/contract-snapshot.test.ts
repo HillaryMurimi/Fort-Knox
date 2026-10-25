@@ -3,12 +3,21 @@ import { addMonths, contractVariables, hash, interpolate, priceSnapshot } from '
 import { defaultContractDraft } from '../../src/modules/onboarding/contract-default.js';
 import { signContractSchema, configureLandlordSchema } from '../../src/modules/onboarding/landlord-onboarding.schemas.js';
 import { renderArtifact } from '../../src/modules/documents/generated-document.service.js';
+import { createPlanSchema, updatePlanSchema } from '../../src/modules/billing/billing.schemas.js';
 const plan = { key: 'CONTROL', name: 'Control', amount: 10000, currency: 'KES', billingInterval: 'MONTH', metadata: { pricingModel: 'BASE_PLUS_ACTIVE_UNITS', includedUnits: 50, additionalUnitAmount: 200 } };
 describe('contract commercial snapshots', () => {
   it('calculates the first three months in integer minor units with additional units', () => {
     const snapshot = priceSnapshot(plan, 55, 3);
     expect(snapshot).toMatchObject({ monthlyMinor: 1100000, totalMinor: 3300000, recurringMinor: 1100000, extraUnits: 5, taxMinor: 0 });
     expect(snapshot.lineItems.reduce((total, line) => total + line.totalMinor, 0)).toBe(snapshot.totalMinor);
+  });
+  it('accepts explicit plan pricing inputs and rejects malformed unit charges', () => {
+    const data = { key: 'FORT_KNOX', name: 'Fort Knox', amount: 30000, billingInterval: 'MONTH', entitlements: { maxProperties: -1, maxUnits: -1, maxUsers: -1, maxTenants: -1, features: [] }, metadata: { pricingModel: 'BASE_PLUS_ACTIVE_UNITS', includedUnits: 50, additionalUnitAmount: 300 } };
+    expect(createPlanSchema.parse(data).metadata).toMatchObject(data.metadata);
+    expect(updatePlanSchema.parse({ metadata: { additionalUnitAmount: 350 } }).metadata).toEqual({ additionalUnitAmount: 350 });
+    expect(updatePlanSchema.safeParse({ metadata: { includedUnits: -1 } }).success).toBe(false);
+    expect(updatePlanSchema.safeParse({ metadata: { additionalUnitAmount: '300' } }).success).toBe(false);
+    expect(updatePlanSchema.safeParse({ metadata: { unexpected: 1 } }).success).toBe(false);
   });
   it.each(['QUARTER', 'YEAR'])('preserves %s renewal interval while collecting three monthly equivalents', interval => {
     const multiple = interval === 'QUARTER' ? 3 : 12;
