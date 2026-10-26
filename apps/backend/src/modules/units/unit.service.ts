@@ -6,6 +6,7 @@ import { ResourceScopeService } from "../../core/authorization/resource-scope.se
 import { EntitlementService } from "../../core/billing/entitlement.service.js";
 import { AppError } from "../../core/errors/AppError.js";
 import { AuditLog } from "../../database/models/AuditLog.js";
+import { AdminSupportSession } from "../../database/models/AdminSupportSession.js";
 import type { AuthenticatedUser } from "../../core/types/auth.js";
 import type { CreateUnitInput, UpdateUnitInput } from "./unit.schemas.js";
 
@@ -60,6 +61,7 @@ export class UnitService {
     auth: AuthenticatedUser,
     organizationId: string,
     data: CreateUnitInput,
+    supportSessionId?: Types.ObjectId,
   ) {
     const orgId = new Types.ObjectId(organizationId);
     const floor = await Floor.findOne({
@@ -75,6 +77,12 @@ export class UnitService {
     const session = await mongoose.startSession();
     try {
       return await session.withTransaction(async () => {
+        if (supportSessionId) {
+          const grant = await AdminSupportSession.updateOne({ _id: supportSessionId, organizationId: orgId,
+            adminUserId: auth.userId, adminSessionId: auth.sessionId, status: 'ACTIVE', permission: 'PROPERTY_SETUP', expiresAt: { $gt: new Date() } },
+            { $inc: { useCount: 1 } }, { session });
+          if (grant.modifiedCount !== 1) throw new AppError(403, 'SUPPORT_SESSION_INACTIVE', 'Support session ended or expired');
+        }
         await EntitlementService.reserveCapacity(
           organizationId,
           "UNITS",
@@ -106,6 +114,7 @@ export class UnitService {
               propertyId: floor.propertyId,
               buildingId: floor.buildingId,
               unitId: unit!._id,
+              ...(supportSessionId ? { metadata: { supportSessionId: String(supportSessionId), permission: 'PROPERTY_SETUP' } } : {}),
               occurredAt: new Date(),
             },
           ],

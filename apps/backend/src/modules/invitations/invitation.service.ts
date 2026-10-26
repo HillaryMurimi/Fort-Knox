@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import mongoose from 'mongoose';
 import { availableChannels } from '../auth/otp-policy.js';
 import { Types } from 'mongoose';
 import { Invitation } from '../../database/models/Invitation.js';
@@ -7,6 +8,8 @@ import { Role } from '../../database/models/Role.js';
 import { User } from '../../database/models/User.js';
 import { Tenant } from '../../database/models/Tenant.js';
 import { Tenancy } from '../../database/models/Tenancy.js';
+import { Organization } from '../../database/models/Organization.js';
+import { AuditService } from '../audit/audit.service.js';
 import { AuthorizationService } from '../../core/authorization/authorization.service.js';
 import { ResourceScopeService } from '../../core/authorization/resource-scope.service.js';
 import { AppError } from '../../core/errors/AppError.js';
@@ -40,6 +43,26 @@ export class InvitationService {
   static async accept(data: { token: string; firstName: string; lastName: string; phone: string; email?: string }) {
     const invitation = await Invitation.findOne({ tokenHash: hash(data.token), status: 'PENDING', expiresAt: { $gt: new Date() } });
     if (!invitation) throw new AppError(404, 'INVITATION_INVALID', 'Invitation is invalid, expired, or already used');
+    if (invitation.role === 'LANDLORD') {
+      if (!invitation.email || data.email?.toLowerCase() !== invitation.email) throw new AppError(403, 'INVITATION_IDENTITY_MISMATCH', 'The invited landlord email must match');
+      const phone = normalizePhone(data.phone);
+      return mongoose.connection.transaction(async session => {
+        const current = await Invitation.findOne({ _id: invitation._id, status: 'PENDING', expiresAt: { $gt: new Date() } }).session(session);
+        if (!current) throw new AppError(409, 'INVITATION_CLOSED', 'Invitation has already been used');
+        if (await User.exists({ $or: [{ phone }, { email: invitation.email }] }).session(session)) throw new AppError(409, 'USER_EXISTS', 'An account already exists for these contact details');
+        const role = await Role.findOne({ key: 'LANDLORD', system: true, organizationId: null }).session(session);
+        if (!role) throw new AppError(503, 'SYSTEM_ROLE_MISSING', 'Landlord role is not configured');
+        const [user] = await User.create([{ phone, email: invitation.email, firstName: data.firstName, lastName: data.lastName }], { session });
+        const org = await Organization.findOneAndUpdate({ _id: invitation.organizationId, 'onboarding.ownerUserId': { $exists: false } },
+          { $set: { 'onboarding.ownerUserId': user!._id } }, { new: true, session });
+        if (!org) throw new AppError(409, 'LANDLORD_ALREADY_ASSIGNED', 'This organization already has a landlord owner');
+        await OrganizationMembership.create([{ userId: user!._id, organizationId: org._id, roleIds: [role._id], status: 'ACTIVE',
+          scope: { allProperties: true, propertyIds: [], buildingIds: [], unitIds: [] }, invitedBy: invitation.invitedByUserId, joinedAt: new Date() }], { session });
+        current.status = 'ACCEPTED'; current.acceptedAt = new Date(); await current.save({ session });
+        await AuditService.record({ organizationId: org._id, actorUserId: user!._id, actorRole: 'LANDLORD', action: 'landlord.assisted.invitation.accepted', resourceType: 'Organization', resourceId: org._id }, session);
+        return { userId: user!._id, organizationId: org._id, role: 'LANDLORD', message: 'Invitation accepted. Verify your own contact details and sign in through the normal authentication flow.' };
+      });
+    }
     const phone = normalizePhone(data.phone); const email = data.email?.toLowerCase();
     if (invitation.phone && invitation.phone !== phone) throw new AppError(403, 'INVITATION_IDENTITY_MISMATCH', 'Phone number does not match the invitation');
     if (invitation.email && email !== invitation.email) throw new AppError(403, 'INVITATION_IDENTITY_MISMATCH', 'Email does not match the invitation');

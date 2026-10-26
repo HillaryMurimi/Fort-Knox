@@ -109,12 +109,10 @@ const organizationSchema = new Schema(
           leadId: {
             type: Schema.Types.ObjectId,
             ref: "SalesLead",
-            required: true,
           },
           demoSessionId: {
             type: Schema.Types.ObjectId,
             ref: "SalesDemoSession",
-            required: true,
           },
           ownerUserId: {
             type: Schema.Types.ObjectId,

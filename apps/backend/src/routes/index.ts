@@ -42,6 +42,7 @@ import { invitationRouter } from "../modules/invitations/invitation.routes.js";
 import { salesRouter } from "../modules/sales/sales.routes.js";
 import { platformControlRouter } from "../modules/platform-control/platform-control.routes.js";
 import { platformSwitchGuard } from "../modules/platform-control/platform-control.guard.js";
+import { landlordOperationsRouter } from '../modules/landlord-operations/landlord-operations.routes.js';
 export const apiRouter = Router();
 apiRouter.use(platformSwitchGuard);
 // Public activation verifies only an opaque, purpose-bound pre-registration challenge.
@@ -52,6 +53,7 @@ apiRouter.use(landlordOnboardingRouter);
 apiRouter.use(portfolioOnboardingRouter);
 apiRouter.use("/health", healthRouter);
 apiRouter.use("/platform-control", platformControlRouter);
+apiRouter.use('/landlord-operations', landlordOperationsRouter);
 apiRouter.use("/sales", salesRouter);
 apiRouter.use("/billing", billingRouter);
 apiRouter.use("/integrations", integrationRouter);

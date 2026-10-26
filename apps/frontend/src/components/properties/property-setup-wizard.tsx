@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useSetupPermission } from "@/hooks/use-setup-permission";
+import { landlordOperationsClient } from "@/lib/data/landlord-operations";
 import { queryKeys } from "@/lib/data/query-keys";
 import {
   generateSetup,
@@ -58,12 +59,14 @@ const money = (value: number) =>
   }).format(value);
 const codePattern = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
-export function PropertySetupWizard() {
+export function PropertySetupWizard({ support }: { support?: { organizationId: string; sessionId: string } } = {}) {
   const router = useRouter();
   const qc = useQueryClient();
   const reduced = useReducedMotion();
   const { activeOrganizationId } = useOrganization();
   const canCreate = useSetupPermission(activeOrganizationId, "property.create");
+  const targetOrganizationId = support?.organizationId ?? activeOrganizationId;
+  const backHref = support ? "/landlord-operations" : "/properties";
   const [step, setStep] = useState(0);
   const [property, setProperty] = useState<PropertySetupInput["property"]>({
     name: "",
@@ -314,25 +317,28 @@ export function PropertySetupWizard() {
       setError(problem);
       return;
     }
-    if (!activeOrganizationId) {
+    if (!targetOrganizationId) {
       setError("Select an organization first.");
       return;
     }
     setSaving(true);
     setError("");
     try {
-      const result = await propertySetupClient.create(activeOrganizationId, {
+      const input: PropertySetupInput = {
         property: latitude && longitude ? { ...property, location: { type: "Point", coordinates: [Number(longitude), Number(latitude)] } } : property,
         structureMode: mode,
         buildings,
-      });
+      };
+      const result = support
+        ? await landlordOperationsClient.createPropertySetup(support.sessionId, input)
+        : await propertySetupClient.create(targetOrganizationId, input);
       setSavedId(result.propertyId);
       await Promise.all(
         [
-          queryKeys.properties.all(activeOrganizationId),
-          queryKeys.buildings.all(activeOrganizationId),
-          queryKeys.floors.all(activeOrganizationId),
-          queryKeys.units.all(activeOrganizationId),
+          queryKeys.properties.all(targetOrganizationId),
+          queryKeys.buildings.all(targetOrganizationId),
+          queryKeys.floors.all(targetOrganizationId),
+          queryKeys.units.all(targetOrganizationId),
         ].map((queryKey) => qc.invalidateQueries({ queryKey })),
       );
     } catch (cause) {
@@ -346,15 +352,15 @@ export function PropertySetupWizard() {
     }
   }
 
-  if (!activeOrganizationId || !canCreate)
+  if (!targetOrganizationId || (!support && !canCreate))
     return (
       <div className="mx-auto max-w-3xl py-12">
         <h1 className="text-2xl font-semibold">Property setup unavailable</h1>
         <p className="mt-2 text-muted-foreground">
           Select an organization with permission to create properties.
         </p>
-        <Link href="/properties" className="btn-secondary mt-6 inline-flex">
-          Back to properties
+        <Link href={backHref} className="btn-secondary mt-6 inline-flex">
+          Back
         </Link>
       </div>
     );
@@ -379,18 +385,16 @@ export function PropertySetupWizard() {
           </span>
         </p>
         <div className="mt-10 flex flex-wrap justify-center gap-3">
-          <Link className="btn-primary" href={`/properties/${savedId}`}>
-            View property <ArrowRight size={16} />
+          <Link className="btn-primary" href={support ? backHref : `/properties/${savedId}`}>
+            {support ? "Back to landlord operations" : "View property"} <ArrowRight size={16} />
           </Link>
-          <Link className="btn-secondary" href="/tenants">
-            Add tenants
-          </Link>
-          <button
+          {!support && <Link className="btn-secondary" href="/tenants">Add tenants</Link>}
+          {!support && <button
             className="btn-secondary"
             onClick={() => router.push("/dashboard")}
           >
             Command Center
-          </button>
+          </button>}
         </div>
       </main>
     );
@@ -399,7 +403,7 @@ export function PropertySetupWizard() {
     <main className="mx-auto max-w-7xl pb-16">
       <div className="mb-8 flex items-center justify-between">
         <Link
-          href="/properties"
+          href={backHref}
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft size={16} /> Portfolio

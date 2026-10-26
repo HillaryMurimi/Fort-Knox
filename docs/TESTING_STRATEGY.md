@@ -314,3 +314,6 @@ Self-service acceptance extends the landlord replica-set HTTP suite and spreadsh
 The shared feature-matrix render test checks tier column order, Fort-only highlights, configuration notes and absence of unverified anomaly claims. Authenticated onboarding render tests check catalog-priced choices and that an unavailable saved tier cannot proceed to contract generation. The public browser check still covers narrow side-by-side columns after the matrix extraction.
 
 See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.
+# Landlord operations coverage (2026-10-26)
+
+Replica-set E2E coverage exercises anonymous/owner admin-route denial, owner consent, another organization's rejection, support-session write scoping and termination, one-use owner invitation, pilot expiry/extension and conversion without fake invoices. Frontend typecheck and production build cover the admin and owner workspaces. Manual staging acceptance still requires a real SUPER_ADMIN step-up, invitation delivery, owner approval on a second session/device, timed expiration, and owner-signed Paystack checkout/webhook reconciliation.

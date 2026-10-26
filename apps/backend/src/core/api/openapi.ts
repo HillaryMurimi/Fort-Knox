@@ -4,6 +4,7 @@ import { PRODUCT_NAME } from "../../config/brand.js";
 import { salesDemoPaths } from "../../modules/sales/sales-demo.openapi.js";
 import { platformBusinessPaths } from "../../modules/platform-control/platform-business.openapi.js";
 import { landlordContractPaths } from "../../modules/onboarding/landlord-onboarding.openapi.js";
+import { landlordOperationsPaths } from "../../modules/landlord-operations/landlord-operations.openapi.js";
 import { API_CONTRACT_VERSION, API_VERSION } from "./api-contract.js";
 
 export function buildOpenApiDocument() {
@@ -177,6 +178,7 @@ export function buildOpenApiDocument() {
       ...salesDemoPaths,
       ...platformBusinessPaths,
       ...landlordContractPaths,
+      ...landlordOperationsPaths,
       "/platform-control/monitoring": {
         get: {
           summary: "Platform monitoring overview (Super Admin only)",

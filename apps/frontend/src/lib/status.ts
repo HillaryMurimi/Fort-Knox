@@ -174,6 +174,7 @@ export const statusGroups = {
     "IGNORED",
     "REVERSED",
     "EXPIRED",
+    "ENDED",
     "DISABLE",
   ],
   archived: [

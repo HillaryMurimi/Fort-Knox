@@ -506,7 +506,7 @@ export class GuidedPilotService {
               },
               session,
             );
-            await SalesValueEvent.create(
+            if (org.guidedPilot!.demoSessionId && org.guidedPilot!.leadId) await SalesValueEvent.create(
               [
                 {
                   sessionId: org.guidedPilot!.demoSessionId,
@@ -592,14 +592,14 @@ export class GuidedPilotService {
     try {
       await session.withTransaction(async () => {
         const commandId = `insight-${org._id}-${input.resourceId}`;
-        if (
+        if (org.guidedPilot!.demoSessionId &&
           await SalesValueEvent.exists({
             sessionId: org.guidedPilot!.demoSessionId,
             commandId,
           }).session(session)
         )
           return;
-        await SalesValueEvent.create(
+        if (org.guidedPilot!.demoSessionId && org.guidedPilot!.leadId) await SalesValueEvent.create(
           [
             {
               sessionId: org.guidedPilot!.demoSessionId,

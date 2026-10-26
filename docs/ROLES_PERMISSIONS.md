@@ -379,3 +379,6 @@ The existing platform security role (User.isPlatformAdmin) requires password plu
 ## Pain-first sales demonstration and guided pilot (2026-10-02)
 
 sales.demo.manage is an explicitly delegated organization-wide salesperson permission. SUPER_ADMIN uses its existing completed role-based MFA. Sellers can access their own sessions; normal landlord accounts cannot access sales sessions. Only the verified pilot owner or SUPER_ADMIN can inspect guided-pilot progress; actual operations retain existing RBAC/ABAC. Expired unpaid pilots are read-only except commercial billing actions.
+# Assisted support authorization (2026-10-26)
+
+SUPER_ADMIN may request but may not self-approve a support session. The designated verified organization-wide LANDLORD alone approves/rejects; either the owner or the requesting administrator in the same privileged session can end it. Even SUPER_ADMIN property and unit writes on the assisted routes require an active grant for that organization and session. No caretaker, manager, contractor, tenant, dev-preview role, or unrelated landlord can exercise these endpoints. The owner still signs their own commercial contract and authorizes Paystack checkout.

@@ -4,6 +4,8 @@ import { Building } from "../../database/models/Building.js";
 import { Floor } from "../../database/models/Floor.js";
 import { Unit } from "../../database/models/Unit.js";
 import { AuditLog } from "../../database/models/AuditLog.js";
+import { AdminSupportSession } from "../../database/models/AdminSupportSession.js";
+import { AppError } from "../../core/errors/AppError.js";
 import { AuthorizationService } from "../../core/authorization/authorization.service.js";
 import { EntitlementService } from "../../core/billing/entitlement.service.js";
 import type { AuthenticatedUser } from "../../core/types/auth.js";
@@ -18,6 +20,7 @@ export class PropertySetupService {
     auth: AuthenticatedUser,
     organizationId: string,
     input: PropertySetupInput,
+    supportSessionId?: Types.ObjectId,
   ) {
     const orgId = new Types.ObjectId(organizationId);
     for (const permission of [
@@ -51,6 +54,7 @@ export class PropertySetupService {
       actorUserId: actorId,
       propertyId,
       occurredAt,
+      ...(supportSessionId ? { metadata: { supportSessionId: String(supportSessionId), permission: 'PROPERTY_SETUP' } } : {}),
     };
     let estimatedMonthlyRentMinor = 0;
 
@@ -145,6 +149,12 @@ export class PropertySetupService {
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {
+        if (supportSessionId) {
+          const grant = await AdminSupportSession.updateOne({ _id: supportSessionId, organizationId: orgId,
+            adminUserId: auth.userId, adminSessionId: auth.sessionId, status: 'ACTIVE', permission: 'PROPERTY_SETUP', expiresAt: { $gt: new Date() } },
+            { $inc: { useCount: 1 } }, { session });
+          if (grant.modifiedCount !== 1) throw new AppError(403, 'SUPPORT_SESSION_INACTIVE', 'Support session ended or expired');
+        }
         await EntitlementService.reserveCapacity(
           organizationId,
           "PROPERTIES",

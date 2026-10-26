@@ -1,0 +1,23 @@
+import { Router } from 'express';
+import { requireAuth } from '../../middleware/auth.middleware.js';
+import { asyncHandler } from '../../core/http/asyncHandler.js';
+import * as controller from './landlord-operations.controller.js';
+
+export const landlordOperationsRouter = Router();
+landlordOperationsRouter.use(requireAuth);
+landlordOperationsRouter.use((_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
+landlordOperationsRouter.get('/overview', asyncHandler(controller.overview));
+landlordOperationsRouter.get('/organizations', asyncHandler(controller.directory));
+landlordOperationsRouter.post('/organizations', asyncHandler(controller.createOrganization));
+landlordOperationsRouter.get('/organizations/:organizationId', asyncHandler(controller.detail));
+landlordOperationsRouter.get('/organizations/:organizationId/support-sessions', asyncHandler(controller.listSupport));
+landlordOperationsRouter.post('/support-sessions', asyncHandler(controller.requestSupport));
+landlordOperationsRouter.post('/support-sessions/:supportId/approve', asyncHandler(controller.approveSupport));
+landlordOperationsRouter.post('/support-sessions/:supportId/reject', asyncHandler(controller.rejectSupport));
+landlordOperationsRouter.post('/support-sessions/:supportId/end', asyncHandler(controller.endSupport));
+landlordOperationsRouter.post('/support-sessions/:supportId/units', asyncHandler(controller.addUnit));
+landlordOperationsRouter.post('/support-sessions/:supportId/property-setups', asyncHandler(controller.createPropertySetup));
+landlordOperationsRouter.post('/organizations/:organizationId/pilot', asyncHandler(controller.grantPilot));
+landlordOperationsRouter.post('/organizations/:organizationId/pilot/extend', asyncHandler(controller.extendPilot));
+landlordOperationsRouter.post('/organizations/:organizationId/pilot/terminate', asyncHandler(controller.terminatePilot));
+landlordOperationsRouter.post('/organizations/:organizationId/pilot/prepare-conversion', asyncHandler(controller.prepareConversion));

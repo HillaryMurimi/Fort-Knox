@@ -76,6 +76,7 @@ export const ROLE_NAVIGATION: Record<SystemRoleKey, NavSection[]> = {
         item("Security & CCTV", "/security", "Shield"),
         item("Integrations", "/integrations", "Workflow"),
         item("Billing & Subscription", "/billing", "CreditCard"),
+        item("Support access", "/support-access", "LifeBuoy"),
         item("Notifications", "/notifications", "Bell"),
       ],
     },
@@ -166,6 +167,7 @@ export const ROLE_NAVIGATION: Record<SystemRoleKey, NavSection[]> = {
       label: "Platform",
       items: [
         item("Platform Overview", "/admin", "Globe2"),
+        item("Landlord operations", "/landlord-operations", "Building2"),
         item("Sales demonstration", "/sales-demo", "Workflow"),
         item("Sales intelligence", "/sales-intelligence", "LineChart"),
         item("Organizations", "/platform?tab=organizations", "Building2"),
