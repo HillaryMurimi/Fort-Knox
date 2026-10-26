@@ -78,7 +78,9 @@ export class FinanceService {
     if(data.provider==='PAYSTACK'){
       await assertOperationalIntegrationAllowed(orgId);
       const subaccount=await new PaystackProvider().createSubaccount({businessName:data.businessName,bankCode:data.bankCode,accountNumber:data.accountNumber,percentageCharge:data.percentageCharge,primaryContactEmail:data.contactEmail,primaryContactPhone:data.contactPhone,metadata:{organizationId}});
-      status=subaccount.active?'ACTIVE':'PENDING_PROVIDER_SETUP';verified=Boolean(subaccount.is_verified);
+      if (subaccount.currency?.toUpperCase() !== data.currency || subaccount.account_number?.slice(-4) !== data.accountNumber.slice(-4)) throw new AppError(409,'PAYSTACK_SUBACCOUNT_MISMATCH','Paystack returned different settlement account details');
+      verified=subaccount.active && subaccount.is_verified === true;
+      status=verified?'ACTIVE':'PENDING_PROVIDER_SETUP';
       providerFields={paystackSubaccountCode:subaccount.subaccount_code,settlementBankCode:data.bankCode,accountName:subaccount.account_name??subaccount.business_name,accountNumberLast4:data.accountNumber.slice(-4)};
     }else if(data.provider==='MPESA'){
       status=integrationConfig.mpesa.enabled&&integrationConfig.mpesa.shortCode===data.shortCode?'ACTIVE':'PENDING_PROVIDER_SETUP';verified=status==='ACTIVE';
@@ -93,6 +95,23 @@ export class FinanceService {
   }
 
   static async disablePaymentDestination(auth:AuthenticatedUser,id:string){const destination=await PaymentDestination.findById(id);if(!destination)throw new AppError(404,'PAYMENT_DESTINATION_NOT_FOUND','Payment destination not found');AuthorizationService.assertPermission(auth,'organization.settings.manage',destination.organizationId);destination.status='DISABLED';destination.isDefault=false;destination.updatedBy=auth.userId;await destination.save();await AuditService.record({organizationId:destination.organizationId,actorUserId:auth.userId,action:'payment.destination.disabled',resourceType:'PaymentDestination',resourceId:destination._id,metadata:{provider:destination.provider}});return destination;}
+
+  static async refreshPaystackDestination(auth:AuthenticatedUser,id:string){
+    const destination=await PaymentDestination.findById(id);
+    if(!destination)throw new AppError(404,'PAYMENT_DESTINATION_NOT_FOUND','Payment destination not found');
+    AuthorizationService.assertPermission(auth,'organization.settings.manage',destination.organizationId);
+    if(destination.provider!=='PAYSTACK'||destination.status==='DISABLED'||!destination.paystackSubaccountCode)throw new AppError(409,'PAYSTACK_DESTINATION_UNAVAILABLE','An enabled Paystack settlement destination is required');
+    const remote=await new PaystackProvider().getSubaccount(destination.paystackSubaccountCode);
+    if(remote.currency?.toUpperCase()!==destination.currency||remote.account_number?.slice(-4)!==destination.accountNumberLast4)throw new AppError(409,'PAYSTACK_SUBACCOUNT_MISMATCH','Paystack settlement account no longer matches this destination');
+    const before=destination.status;
+    const verified=remote.active&&remote.is_verified===true;
+    destination.status=verified?'ACTIVE':'PENDING_PROVIDER_SETUP';
+    destination.providerVerifiedAt=verified?destination.providerVerifiedAt??new Date():undefined;
+    destination.updatedBy=auth.userId;
+    await destination.save();
+    await AuditService.record({organizationId:destination.organizationId,actorUserId:auth.userId,action:'payment.destination.refreshed',resourceType:'PaymentDestination',resourceId:destination._id,metadata:{provider:'PAYSTACK',before,after:destination.status}});
+    return destination;
+  }
 
   static async confirmPayment(auth:AuthenticatedUser,id:string,data:AllocationInput){
     const session=await mongoose.startSession();

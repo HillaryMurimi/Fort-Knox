@@ -317,3 +317,12 @@ See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARD
 # Landlord operations coverage (2026-10-26)
 
 Replica-set E2E coverage exercises anonymous/owner admin-route denial, owner consent, another organization's rejection, support-session write scoping and termination, one-use owner invitation, pilot expiry/extension and conversion without fake invoices. Frontend typecheck and production build cover the admin and owner workspaces. Manual staging acceptance still requires a real SUPER_ADMIN step-up, invitation delivery, owner approval on a second session/device, timed expiration, and owner-signed Paystack checkout/webhook reconciliation.
+## Paystack Destination Readiness
+
+Unit coverage asserts that new unverified subaccounts remain pending, provider
+refresh activates only a matching verified account, disabled/mismatched
+destinations cannot be refreshed into service, permission checks precede
+provider access, and rent checkout queries only verified active defaults.
+Staging must additionally prove signed webhook reconciliation and actual
+automatic settlement to the landlord's bank account; mocked provider responses
+cannot establish delivery of funds.

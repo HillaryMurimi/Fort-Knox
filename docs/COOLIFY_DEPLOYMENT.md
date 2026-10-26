@@ -49,6 +49,11 @@ never be placed in `NEXT_PUBLIC_*` variables or Docker build arguments.
   merchant and environment. Tenant checkout now requires an active default
   destination for the organization/provider. Set the landlord destination
   before attempting a rent checkout.
+  For Paystack, complete any subaccount verification requested in the merchant
+  dashboard, then use the landlord's **Refresh status** action. A pending
+  destination cannot receive a new rent checkout. Confirm actual automatic
+  settlement in the Paystack dashboard and receiving bank separately; PMCC
+  does not initiate a second transfer from the platform balance.
 
 ## Verify and Operate
 

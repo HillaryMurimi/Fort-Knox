@@ -57,7 +57,7 @@ describe('operational payment rail initiation', () => {
     const { auth, payment } = fixture();
     integrationConfig.paystack.enabled = true;
     const destination = { _id: new Types.ObjectId(), paystackSubaccountCode: 'ACCT_verified' };
-    vi.spyOn(PaymentDestination, 'findOne').mockReturnValue({ lean: async () => destination } as never);
+    const findDestination = vi.spyOn(PaymentDestination, 'findOne').mockReturnValue({ lean: async () => destination } as never);
     const initiate = vi.fn().mockResolvedValue({ provider: 'PAYSTACK', providerTransactionId: 'rent-ref', status: 'PENDING', checkoutUrl: 'https://checkout.example.com' });
     vi.spyOn(IntegrationDispatcher, 'payment').mockReturnValue({ key: 'PAYSTACK', initiate, query: vi.fn() } as never);
     vi.spyOn(IntegrationAttempt, 'create').mockResolvedValue({ status: 'STARTED', createdAt: new Date(), save: vi.fn() } as never);
@@ -65,6 +65,7 @@ describe('operational payment rail initiation', () => {
     vi.spyOn(AuditService, 'record').mockResolvedValue({} as never);
 
     await IntegrationService.initiatePayment(auth, String(payment._id), 'PAYSTACK');
+    expect(findDestination).toHaveBeenCalledWith(expect.objectContaining({ providerVerifiedAt: { $exists: true }, status: 'ACTIVE' }));
     expect(initiate).toHaveBeenCalledWith(expect.objectContaining({
       currency: 'KES', paystackSubaccountCode: 'ACCT_verified', metadata: { paymentDestinationId: String(destination._id) },
     }));

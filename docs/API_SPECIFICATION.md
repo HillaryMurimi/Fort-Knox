@@ -221,6 +221,7 @@ Landlord settlement destination endpoints are:
 GET  /organizations/:organizationId/payment-destinations
 POST /organizations/:organizationId/payment-destinations
 POST /payment-destinations/:id/disable
+POST /payment-destinations/:id/refresh
 ```
 
 They require `organization.settings.manage`. Paystack destination creation
@@ -229,6 +230,12 @@ masked account details. M-Pesa destinations become active only when they
 match the securely configured Daraja shortcode. Crypto destinations remain
 `PENDING_PROVIDER_SETUP` until a supported processor and reconciliation
 adapter are connected.
+Paystack destinations remain `PENDING_PROVIDER_SETUP` until Paystack reports
+the subaccount active and verified. The refresh command re-fetches provider
+status, checks the currency and masked account suffix, and cannot reactivate
+a disabled destination. Rent checkout requires an active, provider-verified
+default destination. The refresh result is not evidence that a bank payout
+has settled.
 Provider initiation now fails with `PAYMENT_RAIL_UNAVAILABLE` when the
 organization's regional profile does not support the selected country,
 currency and rail. It fails with `PAYMENT_DESTINATION_REQUIRED` before any

@@ -165,6 +165,18 @@ export class PaystackProvider implements PaymentProvider, RefundProvider {
     return response.data;
   }
 
+  async getSubaccount(code: string): Promise<PaystackSubaccount> {
+    if (!/^ACCT_[A-Za-z0-9]+$/.test(code)) throw new Error('PAYSTACK_SUBACCOUNT_CODE_INVALID');
+    const response = await requestJson<PaystackEnvelope<PaystackSubaccount>>(
+      `${integrationConfig.paystack.baseUrl}/subaccount/${encodeURIComponent(code)}`,
+      { headers: this.headers() },
+    );
+    if (!response.status || !response.data || response.data.subaccount_code !== code) {
+      throw new Error('PAYSTACK_SUBACCOUNT_LOOKUP_FAILED');
+    }
+    return response.data;
+  }
+
   async query(reference: string): Promise<PaymentInitiationResult> {
     const response = await requestJson<PaystackEnvelope<VerifiedTransaction>>(
       `${integrationConfig.paystack.baseUrl}/transaction/verify/${encodeURIComponent(reference)}`,

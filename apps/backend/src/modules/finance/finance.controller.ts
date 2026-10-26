@@ -10,6 +10,7 @@ export async function createPayment(req:Request,res:Response){res.status(201).js
 export async function listPaymentDestinations(req:Request,res:Response){res.json(apiResponse(await FinanceService.listPaymentDestinations(auth(req),requiredParam(req.params.organizationId,'organizationId'))));}
 export async function createPaymentDestination(req:Request,res:Response){res.status(201).json(apiResponse(await FinanceService.createPaymentDestination(auth(req),requiredParam(req.params.organizationId,'organizationId'),s.paymentDestinationSchema.parse(req.body))));}
 export async function disablePaymentDestination(req:Request,res:Response){res.json(apiResponse(await FinanceService.disablePaymentDestination(auth(req),requiredParam(req.params.id,'id'))));}
+export async function refreshPaystackDestination(req:Request,res:Response){res.json(apiResponse(await FinanceService.refreshPaystackDestination(auth(req),requiredParam(req.params.id,'id'))));}
 export async function confirmPayment(req:Request,res:Response){res.json(apiResponse(await FinanceService.confirmPayment(auth(req),requiredParam(req.params.id,'id'),s.allocationSchema.parse(req.body))));}
 export async function reversePayment(req:Request,res:Response){res.json(apiResponse(await FinanceService.reversePayment(auth(req),requiredParam(req.params.id,'id'))));}
 export async function requestRefund(req:Request,res:Response){res.status(202).json(apiResponse(await RefundService.request(auth(req),requiredParam(req.params.id,'id'),s.refundRequestSchema.parse(req.body).reason)));}

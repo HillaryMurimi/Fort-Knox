@@ -1,5 +1,12 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Paystack rent settlement readiness (2026-10-26)
+
+- Confirmed the intended payout model is automatic Paystack subaccount settlement, not platform-funded transfer recipients or transfer calls. Existing subscription checkout, server-side verification, signed webhooks, reusable authorization and rent subaccount routing remain the payment architecture.
+- New Paystack rent destinations stay pending until the provider reports both active and verified. The landlord can refresh provider status from settlement settings; the backend checks the stored subaccount code, currency and account suffix, audits the change, preserves organization settings authorization and refuses disabled destinations. Rent checkout requires a verified active default destination. Existing active records without provider verification evidence are also refused.
+- Remaining: configure real Paystack secrets and HTTPS webhook in Coolify, complete merchant/subaccount verification, execute test-merchant subscription and rent checkout/webhook/renewal acceptance, and reconcile provider settlement records against the receiving bank. Provider verification is settlement *readiness*, not proof of bank receipt. No outbound Paystack Transfer API was added, preventing duplicate landlord payouts. Phase A remains partial for the finance migration and settlement reconciliation gaps already tracked below.
+- Verification: typecheck, lint (existing warnings only), root tests (374 backend passed, 202 opt-in skipped; 290 frontend passed), and production build passed. Focused destination/rail tests passed 7. No live Paystack merchant, bank payout, or Coolify staging transaction was run.
+
 ## Premium public subscription comparison (2026-10-25)
 
 - Authenticated onboarding now offers two catalog-priced, selectable tiers and the same responsive feature matrix used on `/plans`; unavailable tiers cannot advance to contract generation. The matrix expands route-backed operational workflows under published entitlement keys, uses check/dash states, and labels integration/model prerequisites. The supplied feature-table attachment was truncated in Staff & Access Management; unverified aspirational capabilities were not presented as live. Server quotes, agreement, invoice, RBAC/ABAC and payment authority remain unchanged.

@@ -101,6 +101,7 @@ export class IntegrationService {
       isDefault: true,
       currency: p.currency,
       country: organization.regionalProfile?.countryCode ?? 'KE',
+      ...(providerKey === 'PAYSTACK' ? { providerVerifiedAt: { $exists: true } } : {}),
     }).lean();
     if (!destination || (providerKey === 'PAYSTACK' && (!integrationConfig.paystack.enabled || !destination.paystackSubaccountCode)) ||
       (providerKey === 'MPESA' && (!integrationConfig.mpesa.enabled || !destination.mpesaShortCode || destination.mpesaShortCode !== integrationConfig.mpesa.shortCode))) {

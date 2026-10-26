@@ -41,6 +41,7 @@ export const financeClient = {
     list: (organizationId:string) => api<PaymentDestination[]>(`/organizations/${organizationId}/payment-destinations`),
     create: (organizationId:string,input:PaymentDestinationInput) => api<PaymentDestination>(`/organizations/${organizationId}/payment-destinations`,{method:'POST',body:JSON.stringify(input)}),
     disable: (id:string) => api<PaymentDestination>(`/payment-destinations/${id}/disable`,{method:'POST'}),
+    refresh: (id:string) => api<PaymentDestination>(`/payment-destinations/${id}/refresh`,{method:'POST'}),
   },
   expenses: {
     list: (organizationId: string) => api<Expense[]>(`/organizations/${organizationId}/expenses`),

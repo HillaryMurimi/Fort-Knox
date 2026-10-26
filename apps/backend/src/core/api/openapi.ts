@@ -670,6 +670,9 @@ export function buildOpenApiDocument() {
       "/integrations/payments/{paymentId}/provider-initiate": {
         post: { summary: "Initiate an M-Pesa or Paystack payment" },
       },
+      "/payment-destinations/{id}/refresh": {
+        post: { summary: "Refresh Paystack subaccount verification and settlement readiness (organization settings manager)" },
+      },
       "/integrations/payments/{paymentId}/provider-reconcile": {
         post: { summary: "Reconcile provider payment" },
       },
