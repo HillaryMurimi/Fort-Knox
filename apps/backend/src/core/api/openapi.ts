@@ -6,6 +6,7 @@ import { platformBusinessPaths } from "../../modules/platform-control/platform-b
 import { landlordContractPaths } from "../../modules/onboarding/landlord-onboarding.openapi.js";
 import { landlordOperationsPaths } from "../../modules/landlord-operations/landlord-operations.openapi.js";
 import { paymentClaimPaths } from "../../modules/finance/payment-claim.openapi.js";
+import { expensePaths } from "../../modules/finance/expense.openapi.js";
 import { API_CONTRACT_VERSION, API_VERSION } from "./api-contract.js";
 
 export function buildOpenApiDocument() {
@@ -181,6 +182,7 @@ export function buildOpenApiDocument() {
       ...landlordContractPaths,
       ...landlordOperationsPaths,
       ...paymentClaimPaths,
+      ...expensePaths,
       "/platform-control/monitoring": {
         get: {
           summary: "Platform monitoring overview (Super Admin only)",

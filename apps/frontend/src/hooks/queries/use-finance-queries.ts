@@ -1,6 +1,6 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { financeClient, type AllocationInput, type ArrearsUpdateInput, type ExpenseInput, type FinancialPeriodInput, type GenerateRentInput, type PaymentDestinationInput, type PaymentInput, type RentChargeInput, type ServiceChargeInput } from '../../lib/data/finance';
+import { financeClient, type AllocationInput, type ArrearsUpdateInput, type ExpenseInput, type ExpensePaymentInput, type FinancialPeriodInput, type GenerateRentInput, type PaymentDestinationInput, type PaymentInput, type RentChargeInput, type ServiceChargeInput } from '../../lib/data/finance';
 import { queryKeys } from '../../lib/data/query-keys';
 
 export function useRentChargesQuery(org:string|null){return useQuery({queryKey:org?queryKeys.finance.rent(org):['finance','rent','disabled'],queryFn:()=>financeClient.rent.list(org as string),enabled:Boolean(org)});}
@@ -28,7 +28,7 @@ export function useRefreshPaymentDestinationMutation(org:string|null){const qc=u
 export function useConfirmPaymentMutation(org:string|null){const qc=useQueryClient();return useMutation({mutationFn:(v:{id:string;allocation:AllocationInput})=>financeClient.payments.confirm(v.id,v.allocation),onSuccess:()=>{if(org)invalidate(qc,org);}});}
 export function useReversePaymentMutation(org:string|null){const qc=useQueryClient();return useMutation({mutationFn:(id:string)=>financeClient.payments.reverse(id),onSuccess:()=>{if(org)invalidate(qc,org);}});}
 export function useCreateExpenseMutation(org:string|null){const qc=useQueryClient();return useMutation({mutationFn:(input:ExpenseInput)=>financeClient.expenses.create(org as string,input),onSuccess:()=>{if(org)invalidate(qc,org);}});}
-export function useExpenseActionMutation(org:string|null){const qc=useQueryClient();return useMutation({mutationFn:(v:{id:string;action:'approve'|'pay'|'reject';notes?:string})=>financeClient.expenses[v.action](v.id,v.notes),onSuccess:()=>{if(org)invalidate(qc,org);}});}
+export function useExpenseActionMutation(org:string|null){const qc=useQueryClient();return useMutation({mutationFn:(v:{id:string;action:'submit'|'approve'|'reject';notes?:string}|{id:string;action:'pay';payment:ExpensePaymentInput})=>v.action==='pay'?financeClient.expenses.pay(v.id,v.payment):financeClient.expenses[v.action](v.id,v.notes),onSuccess:()=>{if(org)invalidate(qc,org);}});}
 export function useCreateServiceChargeMutation(org:string|null){const qc=useQueryClient();return useMutation({mutationFn:(input:ServiceChargeInput)=>financeClient.serviceCharges.create(org as string,input),onSuccess:()=>{if(org)invalidate(qc,org);}});}
 export function useUpdateArrearsMutation(org:string|null){const qc=useQueryClient();return useMutation({mutationFn:(v:{id:string;input:ArrearsUpdateInput})=>financeClient.arrears.update(v.id,v.input),onSuccess:()=>{if(org)invalidate(qc,org);}});}
 export function useCreateFinancialPeriodMutation(org:string|null){const qc=useQueryClient();return useMutation({mutationFn:(input:FinancialPeriodInput)=>financeClient.periods.create(org as string,input),onSuccess:()=>{if(org)invalidate(qc,org);}});}

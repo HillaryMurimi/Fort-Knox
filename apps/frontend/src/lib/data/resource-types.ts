@@ -252,6 +252,15 @@ export interface Expense {
     | "OTHER";
   description: string;
   amount: number;
+  amountMinor?: number;
+  classification?: "OPEX" | "CAPEX" | "FINANCING" | "TAX" | "OWNER_DISTRIBUTION" | "SECURITY_DEPOSIT" | "INTERNAL_TRANSFER";
+  invoiceNumber?: string;
+  invoiceDate?: string;
+  servicePeriodStart?: string;
+  servicePeriodEnd?: string;
+  dueDate?: string;
+  paymentBasis?: string;
+  paymentReference?: string;
   currency: string;
   incurredAt: string;
   paidAt?: string;
@@ -326,7 +335,9 @@ export interface FinancialReport {
   expensesByCategory: Record<string, number>;
   totalExpenses: number;
   accrualPnl: number;
-  cashPnl: number;
+  cashPnl: number | null;
+  operatingPosition?: { basis: string; reportedOperatingMargin: number; operatingExpenseRatio: number | null; cashFlow: null; currency: string };
+  dataQuality?: { basis: string; unclassifiedExpenseCount: number; complete: boolean; warnings: string[] };
   arrearsAmount: number;
   arrearsCount: number;
   serviceChargeAssessed: number;

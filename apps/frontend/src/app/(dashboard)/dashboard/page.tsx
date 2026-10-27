@@ -226,8 +226,8 @@ export default function Dashboard() {
         />
         <Stat
           label="Occupancy"
-          value={pct(occupancyRate)}
-          sub={`${p.vacantUnits} vacant units`}
+          value={p.occupancyIssues ? 'Review records' : p.units ? pct(occupancyRate) : 'Unavailable'}
+          sub={`${p.vacantUnits} vacant of ${p.units} rentable · ${p.occupancyIssues} properties need review`}
           icon={I.Building2}
         />
         <Stat
@@ -332,7 +332,7 @@ export default function Dashboard() {
                 label="Financial"
                 score={Math.round(p.collectionRate)}
               />
-              <ScoreRow label="Operational" score={Math.round(occupancyRate)} />
+              {p.occupancyIssues === 0 && <ScoreRow label="Operational" score={Math.round(occupancyRate)} />}
               <ScoreRow
                 label="Security"
                 score={Math.max(
@@ -599,11 +599,12 @@ function PropertyDrilldown({ property }: { property: CommandCenterProperty }) {
         </StatusBadge>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
-        <Metric label="Occupancy" value={pct(m.occupancyRate)} />
+        <Metric label="Occupancy" value={m.occupancyQuality.complete ? m.units ? pct(m.occupancyRate) : 'Unavailable' : 'Review records'} />
         <Metric label="Collection" value={pct(m.collectionRate)} />
         <Metric label="Arrears" value={money(m.arrearsAmount)} />
         <Metric label="Open work" value={String(m.maintenanceOpen)} />
       </div>
+      {!m.occupancyQuality.complete && <p className="mt-3 text-xs text-muted-foreground" role="status">Active tenancies and unit records disagree. Resolve the record conflict before using this occupancy figure.</p>}
       <div className="mt-5 flex flex-wrap gap-2">
         <Link
           href={`/properties/${property.property._id}`}

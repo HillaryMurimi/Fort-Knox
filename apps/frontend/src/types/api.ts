@@ -20,6 +20,13 @@ export interface PropertyMetrics {
   vacantUnits: number;
   reservedUnits: number;
   maintenanceUnits: number;
+  occupancyQuality: {
+    conflictingTenancies: number;
+    statusMismatches: number;
+    inactiveWithTenancy: number;
+    missingUnits: number;
+    complete: boolean;
+  };
   occupancyRate: number;
   rentBilled: number;
   rentCollected: number;
@@ -93,6 +100,7 @@ export interface CommandCenterPortfolio {
   units: number;
   occupiedUnits: number;
   vacantUnits: number;
+  occupancyIssues: number;
   rentBilled: number;
   rentCollected: number;
   cashCollected: number;

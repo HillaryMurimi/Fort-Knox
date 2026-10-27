@@ -174,6 +174,8 @@ POST   /tenancies/:tenancyId/activate
 POST   /tenancies/:tenancyId/move-out
 ```
 
+The existing `GET /api/v1/organizations/:organizationId/command-center` response reports **current** physical occupancy from `ACTIVE`/`NOTICE` tenancies whose start has passed and whose actual move-out/termination has not passed, rather than trusting `Unit.status=OCCUPIED`. `portfolio.occupancyIssues` counts properties with conflicting records; each property has `metrics.occupancyQuality` with `conflictingTenancies`, `statusMismatches`, `inactiveWithTenancy`, `missingUnits` and `complete`. `metrics.units` excludes `INACTIVE`; reserved vacant units and maintenance units are separate overlays. Property-wide Command Center, health history and evaluation now require a full-property assignment; descendant-only scope returns 403 instead of exposing all buildings' aggregates. This endpoint does not provide historical occupancy, economic occupancy, verified vacancy loss or churn predictions. Its existing plan contract is unchanged.
+
 ## 7. Rent / Payments / Finance
 
 ``` text
@@ -202,6 +204,10 @@ GET    /financial-reports/summary
 GET    /financial-reports/properties/:propertyId
 GET    /financial-reports/pnl
 ```
+
+Current `/api/v1/organizations/:organizationId/expenses` POST requires explicit `classification` (`OPEX`, `CAPEX`, `FINANCING`, `TAX`, `OWNER_DISTRIBUTION`, `SECURITY_DEPOSIT`, `INTERNAL_TRANSFER`) and creates a DRAFT. `POST /api/v1/expenses/:id/submit` moves DRAFT to SUBMITTED; approve/reject require SUBMITTED. `POST /api/v1/expenses/:id/pay` requires an APPROVED expense and `{ "paidAt": "...", "paymentBasis": "at least ten characters", "paymentReference": "optional" }`; it records an operator acknowledgment, not bank reconciliation. Mutations enforce resource scope and record an audit entry in the same MongoDB transaction. New property invoice numbers are unique within organization/property.
+
+The existing `/api/v1/organizations/:organizationId/financial-report` includes `operatingPosition` with `basis=BILLED_INCOME_LESS_RECORDED_OPEX`, integer minor-unit inputs, reported operating margin, nullable OPEX ratio and `cashFlow:null`. `dataQuality` discloses unclassified expenses and missing settlement/vacancy coverage. `profitAndLoss.cash` is now null; clients must not infer cash flow from rent receipts minus incurred expenses. This report is not audited NOI and does not change subscription entitlement or the activation-blocked profitability switch.
 
 Provider webhook routes require provider-specific verification and
 idempotency.

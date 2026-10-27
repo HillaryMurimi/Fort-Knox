@@ -26,8 +26,9 @@ export async function reviewRefund(req:Request,res:Response){res.json(apiRespons
 export async function applyRefundLedger(req:Request,res:Response){res.json(apiResponse(await RefundService.applyLedger(auth(req),requiredParam(req.params.id,'id'))));}
 export async function listExpenses(req:Request,res:Response){res.json(apiResponse(await FinanceService.listExpenses(auth(req),requiredParam(req.params.organizationId,'organizationId'))));}
 export async function createExpense(req:Request,res:Response){res.status(201).json(apiResponse(await FinanceService.createExpense(auth(req),requiredParam(req.params.organizationId,'organizationId'),s.expenseSchema.parse(req.body))));}
+export async function submitExpense(req:Request,res:Response){res.json(apiResponse(await FinanceService.submitExpense(auth(req),requiredParam(req.params.id,'id'),s.expenseActionSchema.parse(req.body).notes)));}
 export async function approveExpense(req:Request,res:Response){res.json(apiResponse(await FinanceService.approveExpense(auth(req),requiredParam(req.params.id,'id'),s.expenseActionSchema.parse(req.body).notes)));}
-export async function payExpense(req:Request,res:Response){res.json(apiResponse(await FinanceService.payExpense(auth(req),requiredParam(req.params.id,'id'),s.expenseActionSchema.parse(req.body).notes)));}
+export async function payExpense(req:Request,res:Response){res.json(apiResponse(await FinanceService.payExpense(auth(req),requiredParam(req.params.id,'id'),s.expensePaymentSchema.parse(req.body))));}
 export async function rejectExpense(req:Request,res:Response){res.json(apiResponse(await FinanceService.rejectExpense(auth(req),requiredParam(req.params.id,'id'),s.expenseActionSchema.parse(req.body).notes)));}
 export async function listServiceCharges(req:Request,res:Response){res.json(apiResponse(await FinanceService.listServiceCharges(auth(req),requiredParam(req.params.organizationId,'organizationId'))));}
 export async function createServiceCharge(req:Request,res:Response){res.status(201).json(apiResponse(await FinanceService.createServiceCharge(auth(req),requiredParam(req.params.organizationId,'organizationId'),s.serviceChargeSchema.parse(req.body))));}

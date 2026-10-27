@@ -1621,6 +1621,7 @@ export function propertyHealth(propertyId: string): CommandCenterProperty {
       reservedUnits: units.filter((item) => item.status === "RESERVED").length,
       maintenanceUnits: units.filter((item) => item.status === "MAINTENANCE")
         .length,
+      occupancyQuality: { conflictingTenancies: 0, statusMismatches: 0, inactiveWithTenancy: 0, missingUnits: 0, complete: true },
       occupancyRate: occupancy,
       rentBilled: billed,
       rentCollected: collected,
@@ -1701,6 +1702,7 @@ export function commandCenter(): CommandCenter {
       units,
       occupiedUnits: occupied,
       vacantUnits: demoUnits.filter((item) => item.status === "VACANT").length,
+      occupancyIssues: 0,
       rentBilled: billed,
       rentCollected: collected,
       cashCollected: collected,
