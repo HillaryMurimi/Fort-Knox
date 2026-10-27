@@ -172,10 +172,13 @@ export interface Payment {
   currency: string;
   method: "MPESA" | "BANK_TRANSFER" | "CARD" | "CASH" | "CHEQUE" | "OTHER";
   status: "PENDING" | "CONFIRMED" | "FAILED" | "REVERSED";
+  source?: "TENANT_CLAIM" | "STAFF_ENTRY" | "PROVIDER_INITIATION";
+  verificationState?: "PENDING_VERIFICATION" | "CLARIFICATION_REQUESTED" | "MANUALLY_CONFIRMED" | "PROVIDER_CONFIRMED" | "REJECTED" | "DISPUTED" | "REVERSED";
   provider?: string;
   providerTransactionId?: string;
   receiptNumber?: string;
   paidAt?: string;
+  claimPaidAt?: string;
   confirmedAt?: string;
   reversedAt?: string;
   notes?: string;

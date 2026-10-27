@@ -1,5 +1,13 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Universal rent ledger Phase 2: assisted verification slice (2026-10-27)
+
+- Extended the existing `Payment` ledger, not a second ledger. Tenants can report an out-of-band payment as a pending claim with amount/date/method, optional reference and scoped tenancy evidence; UUID idempotency and partial unique indexes guard duplicate submissions. A claim has no collected-rent or charge-balance effect. Scoped claim listing and transactional reject/clarify/dispute review APIs are added. Platform administration alone cannot read the private claim queue.
+- Manual confirmation now requires explicit receiving-account check and a recorded basis at the HTTP boundary; provider initiations remain ineligible. Existing transactional allocations and audit remain authoritative. The finance dialog filters charges to the payment tenancy and requires the exact amount before confirmation; the tenant rent dialog exposes out-of-band reporting.
+- This is **not Phase 2 completion**. Still missing: stable unique tenancy payment references; bank CSV import and matching/reconciliation UI; independent M-Pesa C2B landlord authorization/callback ingestion; credit/overpayment/deposit/refund/write-off ledger policy; caretaker delegated approval; full verification center and historical tenant statement; complete analytics, exceptions, notifications, feature manifest/plan/organization switches, and concurrency/security E2E. Keep `INTELLIGENCE_RENT_LEDGER` activation blocked. Do not deploy or enable live rent integrations from this change.
+- Coolify operator steps before rollout: back up `payments`, inspect preexisting indexes and duplicates, apply new partial indexes on staging replica-set MongoDB, run tenant/manager cross-scope and concurrent-review acceptance, then deploy through reviewed migration process. No production data or provider state was touched.
+- Verification for this slice: root typecheck, backend lint (0 errors/509 existing warnings), frontend lint (0 errors/27 existing warnings), root tests (403 backend passed/202 opt-in skipped; 292 frontend passed), and root production build passed. Six focused new guard tests pass. Replica-set claim/confirmation E2E, visual browser acceptance and live provider tests were not run.
+
 ## Real-estate intelligence foundation (2026-10-27)
 
 - Audited existing finance, tenancy, expenses, maintenance, forecasts, entitlements, controls, jobs, notifications and audit boundaries. [INTELLIGENCE_FOUNDATION.md](INTELLIGENCE_FOUNDATION.md) records capability status, shared financial formulas, evidence classes, nine module contracts, dependency order, data-quality gates, security boundaries and Coolify compatibility.

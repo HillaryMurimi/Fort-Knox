@@ -5,12 +5,13 @@ import { toQueryString, type QueryValue } from './query-params';
 export interface RentChargeInput { tenancyId: string; periodStart: string; periodEnd: string; dueDate: string; rentAmount: number; serviceChargeAmount?: number; adjustments?: number; currency?: string; notes?: string; }
 export interface GenerateRentInput { periodStart: string; periodEnd: string; dueDate: string; currency?: string; }
 export interface PaymentInput { tenancyId: string; amount: number; currency?: string; method: Payment['method']; notes?: string; }
+export interface PaymentClaimInput { tenancyId: string; amount: number; currency?: string; method: Payment['method']; paidAt: string; transactionReference?: string; receivingAccount?: string; evidenceIds?: string[]; idempotencyKey: string; }
 export interface TenancyPaymentInstructions { methods: Array<{ provider:'MPESA'; destinationId:string; label:string; businessType:'PAYBILL'|'TILL'; shortCode:string; accountReference:string|null; currency:string; verification:'OWNER_ATTESTED'; canInitiateStk:boolean }> }
 export type PaymentDestinationInput =
   | { provider:'PAYSTACK';label:string;isDefault?:boolean;country?:string;currency?:string;businessName:string;bankCode:string;accountNumber:string;percentageCharge?:number;contactEmail?:string;contactPhone?:string }
   | { provider:'MPESA';label:string;isDefault?:boolean;country?:string;currency?:'KES';propertyId?:string;businessType:'PAYBILL'|'TILL';ownershipAttested:true;shortCode:string;accountReference?:string }
   | { provider:'CRYPTO';label:string;isDefault?:boolean;country?:string;currency?:string;asset:'USDC'|'USDT'|'BTC'|'ETH';network:'BASE'|'ETHEREUM'|'POLYGON'|'BITCOIN';walletAddress:string };
-export interface AllocationInput { allocations: Array<{ rentChargeId: string; amount: number }> }
+export interface AllocationInput { allocations: Array<{ rentChargeId: string; amount: number }>; verification: { checkedReceivingAccount: true; basis: string } }
 export interface ExpenseInput { propertyId: string; buildingId?: string; floorId?: string; unitId?: string; category: Expense['category']; description: string; amount: number; currency?: string; incurredAt: string; vendorName?: string; contractorId?: string; evidenceIds?: string[]; notes?: string; }
 export interface ServiceChargeInput { tenancyId: string; periodStart: string; periodEnd: string; amount: number; currency?: string; description?: string; }
 export interface ArrearsUpdateInput { status: Exclude<ArrearsCase['status'], 'OPEN'>; promiseDate?: string; notes?: string; }
@@ -54,8 +55,13 @@ export const financeClient = {
   payments: {
     list: (organizationId: string) => api<Payment[]>(`/organizations/${organizationId}/payments`),
     create: (organizationId: string, input: PaymentInput) => api<Payment>(`/organizations/${organizationId}/payments`, { method: 'POST', body: JSON.stringify(input) }),
-    confirm: (id: string, input?: AllocationInput) => input ? api<Payment>(`/payments/${id}/confirm`, { method: 'POST', body: JSON.stringify(input) }) : api<Payment>(`/payments/${id}/confirm`, { method: 'POST' }),
+    confirm: (id: string, input: AllocationInput) => api<Payment>(`/payments/${id}/confirm`, { method: 'POST', body: JSON.stringify(input) }),
     reverse: (id: string) => api<Payment>(`/payments/${id}/reverse`, { method: 'POST' }),
+  },
+  paymentClaims: {
+    list: (organizationId: string, params: { state?: Payment['verificationState']; page?: number; limit?: number } = {}) => api<{ items: Payment[]; total: number; page: number; limit: number }>(query(`/organizations/${organizationId}/payment-claims`, params)),
+    report: (organizationId: string, input: PaymentClaimInput) => api<Payment>(`/organizations/${organizationId}/payment-claims`, { method: 'POST', body: JSON.stringify(input) }),
+    review: (id: string, input: { action: 'REJECT' | 'CLARIFY' | 'DISPUTE'; note: string }) => api<Payment>(`/payment-claims/${id}/review`, { method: 'POST', body: JSON.stringify(input) }),
   },
   refunds: {
     list: (organizationId: string) => api<PaymentRefund[]>(`/organizations/${organizationId}/payment-refunds`),

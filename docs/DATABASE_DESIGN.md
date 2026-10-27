@@ -280,6 +280,7 @@ Financial collections still contain legacy major-unit Number fields. New
 `payments.confirmationSource` distinguishes new `PROVIDER` confirmations from
 `MANUAL_ACKNOWLEDGED` staff confirmations. Null on historical rows means the
 source was not captured and must not be relabeled as provider-verified.
+Assisted claims reuse `payments` with `source=TENANT_CLAIM`, a separate `verificationState`, claimed payment date/reference/receiving account/evidence IDs, review note/actor/time, and optional manual verification basis and receiving-account check. `status=PENDING` claims are never collections or rent allocations. New unique partial indexes on `(organizationId, claimIdempotencyKey)` and `(organizationId, tenancyId, claimTransactionReference)` prevent duplicate claims without rewriting historical rows. Review and claim creation commit with their audit writes in replica-set transactions. Before enabling in Coolify, back up the collection, inspect existing indexes/duplicate identifiers, and apply indexes in staging; this task did not run a production migration. The global tenancy-reference, credit/refund and bank-import schemas are not yet implemented.
 `payment_destinations` may have an optional `propertyId`, `mpesaBusinessType`
 (`PAYBILL`/`TILL`), and `ownerAttestedAt`. The latter records an authenticated
 owner declaration, not provider verification. The unique active property

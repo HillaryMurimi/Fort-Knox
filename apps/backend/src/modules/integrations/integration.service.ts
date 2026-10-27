@@ -661,6 +661,7 @@ export class IntegrationService {
 
         current.status='CONFIRMED';
         current.confirmationSource='PROVIDER';
+        current.verificationState='PROVIDER_CONFIRMED';
         current.confirmedAt=new Date();
         current.paidAt=payment.paidAt??current.paidAt??new Date();
         if(payment.receiptNumber)current.receiptNumber=payment.receiptNumber;

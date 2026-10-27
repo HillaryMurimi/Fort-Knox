@@ -19,6 +19,7 @@ import {
 import type { Payment, RentCharge } from '@/lib/data/resource-types';
 import { PaymentDestinations } from '@/components/payments/payment-destinations';
 import { PaymentRefundReview } from '@/components/payments/payment-refund-review';
+import { financeClient } from '@/lib/data/finance';
 
 const isoDate = (date: Date) => date.toISOString().slice(0, 10);
 const monthStart = (date = new Date()) => new Date(date.getFullYear(), date.getMonth(), 1);
@@ -36,6 +37,7 @@ export default function FinancePage() {
   const [showPayment, setShowPayment] = useState(false);
   const [showGenerate, setShowGenerate] = useState(false);
   const [confirming, setConfirming] = useState<Payment | null>(null);
+  const [reviewing, setReviewing] = useState<Payment | null>(null);
   const [collecting, setCollecting] = useState<Payment | null>(null);
   const [providerMessage, setProviderMessage] = useState<string | null>(null);
 
@@ -292,15 +294,16 @@ export default function FinancePage() {
                       <td className="py-3 font-semibold">{money(payment.amount)}</td>
                       <td className="py-3">{payment.paidAt?.slice(0, 10) ?? '—'}</td>
                       <td className="py-3">
-                        <StatusBadge status={payment.status} domain="payment">{payment.status}</StatusBadge>
+                        <StatusBadge status={payment.status} domain="payment">{payment.verificationState?.replaceAll('_', ' ') ?? payment.status}</StatusBadge>
                       </td>
                       <td className="py-3 text-right">
-                        {payment.status === 'PENDING' && !payment.providerTransactionId && (
+                        {payment.source === 'TENANT_CLAIM' && payment.status === 'PENDING' && <button className="btn-secondary" onClick={() => setReviewing(payment)}>Review claim</button>}
+                        {payment.status === 'PENDING' && payment.source !== 'PROVIDER_INITIATION' && !payment.providerTransactionId && !['REJECTED','DISPUTED'].includes(payment.verificationState ?? '') && (
                           <div className="flex justify-end gap-2">
-                            <button className="btn-secondary" onClick={() => setCollecting(payment)}>
+                            {payment.source !== 'TENANT_CLAIM' && <button className="btn-secondary" onClick={() => setCollecting(payment)}>
                               <I.CreditCard size={14} />
                               Collect
-                            </button>
+                            </button>}
                             <button className="btn-secondary" onClick={() => setConfirming(payment)}>
                               Confirm & allocate
                             </button>
@@ -374,14 +377,12 @@ export default function FinancePage() {
           submitting={confirmPayment.isPending}
           onClose={() => setConfirming(null)}
           onSubmit={async (allocation) => {
-            await confirmPayment.mutateAsync({
-              id: confirming._id,
-              ...(allocation.allocations.length ? { allocation } : {}),
-            });
+            await confirmPayment.mutateAsync({ id: confirming._id, allocation });
             setConfirming(null);
           }}
         />
       )}
+      {reviewing && <ClaimReviewModal payment={reviewing} onClose={() => setReviewing(null)} onSubmit={async (input) => { await financeClient.paymentClaims.review(reviewing._id, input); await payments.refetch(); setReviewing(null); }} />}
       {collecting && (
         <ProviderCollectionModal
           payment={collecting}
@@ -659,6 +660,23 @@ function GenerateRentModal({
   );
 }
 
+function ClaimReviewModal({ payment, onClose, onSubmit }: { payment: Payment; onClose: () => void; onSubmit: (input: { action: 'REJECT' | 'CLARIFY' | 'DISPUTE'; note: string }) => Promise<void> }) {
+  const [action, setAction] = useState<'REJECT' | 'CLARIFY' | 'DISPUTE'>('CLARIFY');
+  const [note, setNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true); setError(null);
+    try { await onSubmit({ action, note: note.trim() }); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not review this claim'); }
+    finally { setSubmitting(false); }
+  }
+
+  return <Modal title="Review payment claim" onClose={onClose}><form className="space-y-4" onSubmit={event => void submit(event)}><p className="text-sm text-muted-foreground">Tenant-reported {payment.method} payment for {money(payment.amount)}. Reporting does not establish receipt.</p><label className="block text-sm font-medium">Action<select className="mt-1 w-full" value={action} onChange={event => setAction(event.target.value as typeof action)}><option value="CLARIFY">Request clarification</option><option value="DISPUTE">Flag discrepancy</option><option value="REJECT">Reject claim</option></select></label><label className="block text-sm font-medium">Reason<textarea className="mt-1 w-full" rows={3} minLength={10} maxLength={1000} required value={note} onChange={event => setNote(event.target.value)} /></label>{error && <p role="alert" className="text-sm text-destructive">{error}</p>}<div className="flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={onClose}>Cancel</button><button type="submit" className="btn-primary" disabled={submitting || note.trim().length < 10}>{submitting ? 'Saving...' : 'Save review'}</button></div></form></Modal>;
+}
+
 function AllocationModal({
   payment,
   charges,
@@ -672,11 +690,15 @@ function AllocationModal({
   onClose: () => void;
   onSubmit: (input: {
     allocations: Array<{ rentChargeId: string; amount: number }>;
+    verification: { checkedReceivingAccount: true; basis: string };
   }) => Promise<void>;
 }) {
   const [allocations, setAllocations] = useState<Record<string, string>>({});
+  const [checkedReceivingAccount, setCheckedReceivingAccount] = useState(false);
+  const [basis, setBasis] = useState('');
+  const eligibleCharges = charges.filter((charge) => charge.tenancyId === payment.tenancyId);
   const total = Object.values(allocations).reduce((sum, value) => sum + Number(value || 0), 0);
-  const remaining = payment.amount - total;
+  const remaining = Math.round((payment.amount - total) * 100) / 100;
 
   return (
     <Modal title="Confirm & allocate payment" onClose={onClose}>
@@ -695,7 +717,7 @@ function AllocationModal({
         </div>
       </div>
       <div className="space-y-2 max-h-72 overflow-auto">
-        {charges.map((charge) => (
+        {eligibleCharges.map((charge) => (
           <div key={charge._id} className="border border-border rounded-xl p-3">
             <div className="flex justify-between text-sm">
               <span>{shortId(charge._id)}</span>
@@ -722,17 +744,22 @@ function AllocationModal({
           </div>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground mt-3">
-        Leave allocations empty to let the backend apply its provider/payment allocation rules.
-        Any explicit allocations must not exceed the payment amount or charge balances.
-      </p>
+      {eligibleCharges.length === 0 && <p className="mt-3 text-sm text-muted-foreground">No open rent charges for this tenancy. Create a charge before confirming this payment.</p>}
+      <label className="mt-4 flex items-start gap-2 text-sm">
+        <input type="checkbox" checked={checkedReceivingAccount} onChange={(event) => setCheckedReceivingAccount(event.target.checked)} />
+        I checked the landlord&apos;s receiving account or other acceptable receipt evidence.
+      </label>
+      <label className="mt-3 block text-sm">
+        Verification basis
+        <textarea className="mt-1 w-full" value={basis} onChange={(event) => setBasis(event.target.value)} minLength={10} maxLength={1000} rows={3} placeholder="Describe the account record or receipt you checked" />
+      </label>
       <div className="flex justify-end gap-2 mt-5">
         <button className="btn-secondary" onClick={onClose}>
           Cancel
         </button>
         <button
           className="btn-primary"
-          disabled={submitting || remaining < 0}
+          disabled={submitting || remaining !== 0 || !checkedReceivingAccount || basis.trim().length < 10}
           onClick={() =>
             void onSubmit({
               allocations: Object.entries(allocations)
@@ -741,6 +768,7 @@ function AllocationModal({
                   rentChargeId,
                   amount: Number(value),
                 })),
+              verification: { checkedReceivingAccount: true, basis: basis.trim() },
             })
           }
         >

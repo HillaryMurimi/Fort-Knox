@@ -64,7 +64,7 @@ export class FinanceService {
 
   static async listPayments(auth:AuthenticatedUser,organizationId:string){const orgId=toId(organizationId);AuthorizationService.assertPermission(auth,'payment.view',orgId);const ids=await ResourceScopeService.scopedUnitIds(auth,orgId);const filter:Record<string,unknown>={organizationId:orgId};if(ids)filter.unitId={$in:ids};return Payment.find(filter).sort({createdAt:-1}).lean();}
 
-  static async createPayment(auth:AuthenticatedUser,organizationId:string,data:PaymentInput){const orgId=toId(organizationId);const {tenancy,tenant}=await this.tenancyFor(auth,data.tenancyId,'payment.create');if(String(tenancy.organizationId)!==String(orgId))throw new AppError(403,'ORGANIZATION_ACCESS_DENIED','Tenancy does not belong to this organization');const payment=await Payment.create({organizationId:orgId,...data,amountMinor:legacyMinorUnits(data.amount,data.currency),propertyId:tenancy.propertyId,buildingId:tenancy.buildingId,floorId:tenancy.floorId,unitId:tenancy.unitId,tenantId:tenant?._id ?? tenancy.tenantId,tenancyId:tenancy._id,status:'PENDING',createdBy:auth.userId,updatedBy:auth.userId});return payment;}
+  static async createPayment(auth:AuthenticatedUser,organizationId:string,data:PaymentInput){const orgId=toId(organizationId);const {tenancy,tenant}=await this.tenancyFor(auth,data.tenancyId,'payment.create');if(String(tenancy.organizationId)!==String(orgId))throw new AppError(403,'ORGANIZATION_ACCESS_DENIED','Tenancy does not belong to this organization');const isTenant=auth.memberships.some(m=>String(m.organizationId)===String(orgId)&&m.roles.includes('TENANT'));const payment=await Payment.create({organizationId:orgId,...data,amountMinor:legacyMinorUnits(data.amount,data.currency),propertyId:tenancy.propertyId,buildingId:tenancy.buildingId,floorId:tenancy.floorId,unitId:tenancy.unitId,tenantId:tenant?._id ?? tenancy.tenantId,tenancyId:tenancy._id,status:'PENDING',source:isTenant?'PROVIDER_INITIATION':'STAFF_ENTRY',createdBy:auth.userId,updatedBy:auth.userId});return payment;}
 
   static async listPaymentDestinations(auth:AuthenticatedUser,organizationId:string){const orgId=toId(organizationId);AuthorizationService.assertPermission(auth,'organization.settings.manage',orgId);return PaymentDestination.find({organizationId:orgId}).sort({isDefault:-1,createdAt:-1}).lean();}
 
@@ -117,15 +117,19 @@ export class FinanceService {
     throw new AppError(409,'RENT_PAYSTACK_NOT_APPROVED','Paystack rent collection is unavailable pending a separate merchant agreement');
   }
 
-  static async confirmPayment(auth:AuthenticatedUser,id:string,data:AllocationInput){
+  static async confirmPayment(auth:AuthenticatedUser,id:string,data:AllocationInput & {verification?:{checkedReceivingAccount:true;basis:string}}){
     const session=await mongoose.startSession();
     try{
       const confirmed=await session.withTransaction(async()=>{
         const payment=await Payment.findById(id).session(session);
         if(!payment)throw new AppError(404,'NOT_FOUND','Payment not found');
+        if(payment.source==='TENANT_CLAIM'&&auth.isPlatformAdmin)throw new AppError(403,'PRIVATE_FINANCE_ACCESS_DENIED','Platform administration does not grant access to private payment claims');
         ResourceScopeService.assertUnit(auth,payment,'payment.confirm',(await Tenant.findById(payment.tenantId).session(session).lean())?.userId);
         if(payment.status!=='PENDING')throw new AppError(409,'INVALID_PAYMENT_STATE','Only pending payments can be confirmed');
         if(payment.provider||payment.providerTransactionId)throw new AppError(409,'PROVIDER_CONFIRMATION_REQUIRED','Provider-linked payments require independent provider verification');
+        if(payment.source==='PROVIDER_INITIATION')throw new AppError(409,'PROVIDER_CONFIRMATION_REQUIRED','A checkout request cannot be manually confirmed');
+        if(payment.source&&!data.verification?.checkedReceivingAccount)throw new AppError(400,'VERIFICATION_BASIS_REQUIRED','Confirm the receiving account check before manually confirming funds');
+        if(payment.source&&(!data.verification?.basis||data.verification.basis.trim().length<10))throw new AppError(400,'VERIFICATION_BASIS_REQUIRED','A verification basis is required');
         const paymentMinor=storedMinorUnits(payment.amount,payment.amountMinor,payment.currency);
         const sum=data.allocations.reduce((total,item)=>addMinorUnits(total,legacyMinorUnits(item.amount,payment.currency)),0);
         if(sum!==paymentMinor)throw new AppError(400,'ALLOCATION_MISMATCH','Allocation total must equal payment amount');
@@ -163,7 +167,7 @@ export class FinanceService {
           charge.updatedBy=auth.userId;
           await charge.save({session});
         }
-        payment.status='CONFIRMED';payment.confirmationSource='MANUAL_ACKNOWLEDGED';payment.confirmedAt=new Date();payment.paidAt=payment.paidAt??new Date();payment.updatedBy=auth.userId;
+        payment.status='CONFIRMED';payment.confirmationSource='MANUAL_ACKNOWLEDGED';payment.verificationState='MANUALLY_CONFIRMED';payment.verificationBasis=data.verification?.basis;payment.verifiedReceivingAccount=data.verification?.checkedReceivingAccount;payment.reviewedBy=auth.userId;payment.reviewedAt=new Date();payment.confirmedAt=new Date();payment.paidAt=payment.paidAt??payment.claimPaidAt??new Date();payment.updatedBy=auth.userId;
         await payment.save({session});
         await AuditService.record({organizationId:payment.organizationId,actorUserId:auth.userId,action:'payment.confirmed',resourceType:'Payment',resourceId:payment._id,propertyId:payment.propertyId,buildingId:payment.buildingId,unitId:payment.unitId,metadata:{amount:payment.amount,currency:payment.currency,allocationCount:checked.length}},session);
         await AuditService.publish({organizationId:payment.organizationId,name:'payment.confirmed',aggregateType:'Payment',aggregateId:payment._id,actorUserId:auth.userId,source:'APPLICATION',payload:{propertyId:String(payment.propertyId),buildingId:String(payment.buildingId),unitId:String(payment.unitId),amountMajorUnits:payment.amount,currency:payment.currency,allocationCount:checked.length}},session);
@@ -227,7 +231,7 @@ export class FinanceService {
           charge.updatedBy=auth.userId;
           await charge.save({session});
         }
-        payment.status='REVERSED';payment.reversedAt=now;payment.updatedBy=auth.userId;
+        payment.status='REVERSED';payment.verificationState='REVERSED';payment.reversedAt=now;payment.updatedBy=auth.userId;
         await payment.save({session});
         if(refund){refund.ledgerReversedAt=now;refund.ledgerReversedBy=auth.userId;await refund.save({session});}
         await AuditService.record({organizationId:payment.organizationId,actorUserId:auth.userId,action:'payment.reversed',resourceType:'Payment',resourceId:payment._id,propertyId:payment.propertyId,buildingId:payment.buildingId,unitId:payment.unitId,metadata:{amount:payment.amount,currency:payment.currency,allocationCount:checked.length,...(refund?{refundId:String(refund._id)}:{})}},session);

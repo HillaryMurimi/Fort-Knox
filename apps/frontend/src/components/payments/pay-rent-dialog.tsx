@@ -5,6 +5,7 @@ import { Check, Copy, Loader2, Smartphone } from 'lucide-react';
 import { Alert, Button, Dialog, Input, Label, Select } from '@/components/ui';
 import { useCreatePaymentMutation, useRentChargesQuery, useTenancyPaymentInstructionsQuery } from '@/hooks/queries/use-finance-queries';
 import { useInitiateProviderPaymentMutation } from '@/hooks/queries/use-integration-queries';
+import { financeClient } from '@/lib/data/finance';
 
 export function PayRentDialog({organizationId,tenancyId,open,onOpenChange}:{organizationId:string|null;tenancyId:string|null;open:boolean;onOpenChange:(open:boolean)=>void}){
   const rent=useRentChargesQuery(organizationId);
@@ -16,6 +17,13 @@ export function PayRentDialog({organizationId,tenancyId,open,onOpenChange}:{orga
   const [phone,setPhone]=useState('');
   const [copied,setCopied]=useState<string|null>(null);
   const [requested,setRequested]=useState(false);
+  const [claimMethod,setClaimMethod]=useState<'MPESA'|'BANK_TRANSFER'|'CASH'|'OTHER'>('MPESA');
+  const [claimAmount,setClaimAmount]=useState('');
+  const [claimReference,setClaimReference]=useState('');
+  const [claimPaidAt,setClaimPaidAt]=useState('');
+  const [claimBusy,setClaimBusy]=useState(false);
+  const [claimError,setClaimError]=useState<string|null>(null);
+  const [claimReported,setClaimReported]=useState(false);
   const charge=eligible.find(item=>item._id===chargeId)??eligible[0];
   const method=instructions.data?.methods[0];
   const busy=createPayment.isPending||initiate.isPending;
@@ -35,6 +43,17 @@ export function PayRentDialog({organizationId,tenancyId,open,onOpenChange}:{orga
     }catch{/* Errors are rendered below; no payment is claimed as complete. */}
   }
 
+  async function reportPayment(event:FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    if(!organizationId||!tenancyId||claimBusy)return;
+    setClaimError(null);setClaimBusy(true);setClaimReported(false);
+    try{
+      await financeClient.paymentClaims.report(organizationId,{tenancyId,amount:Number(claimAmount),currency:'KES',method:claimMethod,paidAt:new Date(claimPaidAt).toISOString(),...(claimReference.trim()?{transactionReference:claimReference.trim()}:{}),idempotencyKey:crypto.randomUUID()});
+      setClaimReported(true);setClaimAmount('');setClaimReference('');setClaimPaidAt('');
+    }catch(error){setClaimError(error instanceof Error?error.message:'Could not report payment');}
+    finally{setClaimBusy(false);}
+  }
+
   return <Dialog open={open} onOpenChange={onOpenChange} title="Pay rent" description="Pay directly to your property management account. Instructions are not proof of payment." className="max-w-xl">
     <div className="space-y-5">
       {instructions.isLoading?<p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin" size={16}/>Loading receiving details</p>:instructions.isError?<Alert tone="destructive">Payment details could not be loaded. <Button variant="link" onClick={()=>void instructions.refetch()}>Retry</Button></Alert>:!method?<Alert tone="warning" title="Payment instructions unavailable">Your landlord has not configured an attested receiving account for this home. Contact management before sending rent.</Alert>:<>
@@ -52,6 +71,7 @@ export function PayRentDialog({organizationId,tenancyId,open,onOpenChange}:{orga
         {(createPayment.error||initiate.error)&&<Alert tone="destructive">{createPayment.error?.message??initiate.error?.message}</Alert>}
         {requested&&<Alert tone="warning" title="Payment request sent">Approve the prompt on your phone. Rent remains outstanding until the provider confirms and the ledger is updated.</Alert>}
       </>}
+      {tenancyId&&<form className="space-y-3 border-t border-border pt-4" onSubmit={event=>void reportPayment(event)}><h3 className="text-sm font-semibold">Already paid elsewhere?</h3><p className="text-xs text-muted-foreground">Report a payment sent directly to your landlord. Your report is a claim, not confirmation of receipt.</p><div className="grid gap-3 sm:grid-cols-2"><div><Label htmlFor="claim-method">Method</Label><Select id="claim-method" value={claimMethod} onChange={event=>setClaimMethod(event.target.value as typeof claimMethod)}><option value="MPESA">M-Pesa</option><option value="BANK_TRANSFER">Bank transfer</option><option value="CASH">Cash</option><option value="OTHER">Other</option></Select></div><div><Label htmlFor="claim-amount">Amount (KES)</Label><Input id="claim-amount" type="number" min="0.01" step="0.01" required value={claimAmount} onChange={event=>setClaimAmount(event.target.value)}/></div><div><Label htmlFor="claim-date">Payment date</Label><Input id="claim-date" type="date" required value={claimPaidAt} max={new Date().toISOString().slice(0,10)} onChange={event=>setClaimPaidAt(event.target.value)}/></div><div><Label htmlFor="claim-reference">Transaction reference (optional)</Label><Input id="claim-reference" value={claimReference} maxLength={120} onChange={event=>setClaimReference(event.target.value)}/></div></div><Button type="submit" variant="outline" loading={claimBusy}>Submit for verification</Button>{claimError&&<Alert tone="destructive">{claimError}</Alert>}{claimReported&&<Alert tone="success" title="Report submitted">Your landlord can review it. Rent remains due until receipt is confirmed.</Alert>}</form>}
       <div className="flex justify-end"><Button type="button" variant="outline" onClick={()=>onOpenChange(false)}>Close</Button></div>
     </div>
   </Dialog>;
