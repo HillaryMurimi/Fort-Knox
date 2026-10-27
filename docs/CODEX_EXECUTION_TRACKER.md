@@ -1,5 +1,13 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Phase 4 occupancy and retention intelligence: current-occupancy slice (2026-10-27)
+
+- Audit: the existing Command Center counted `Unit.status=OCCUPIED`, while active/notice tenancies and move-out dates are the stronger source for physical occupancy. Existing vacancy forecasts use assumptions and must not be presented as verified Phase 4 intelligence. Phase 2 settlement and Phase 3 profitability remain partial; no historical occupancy event stream or authoritative vacancy-loss input exists.
+- The existing Command Center now derives **current** rentable, occupied and vacant counts from active/notice tenancy start and actual exit dates. `INACTIVE` units leave the rentable denominator; `RESERVED` is a vacant-unit overlay and `MAINTENANCE` is an independent overlay that may coexist with occupancy. Duplicate active tenancies, stale unit flags, inactive units with tenancies and missing unit references are surfaced as per-property quality findings and a portfolio review count. The UI withholds a clean occupancy percentage when records conflict.
+- Property-wide Command Center metrics, alerts, health history and evaluation now require a full-property assignment; building/unit-only scope no longer exposes whole-property aggregates. Dashboard alerts are limited to the property cards actually returned. A future scoped building view must aggregate only its authorized units and avoid property-wide financial joins.
+- This is a correction to the existing core `command-center` route, not a new intelligence feature. `INTELLIGENCE_OCCUPANCY` remains OFF and activation-blocked; no entitlements, module switches, database schemas, indexes, migrations or production records changed. Historical occupancy, renewals, retention cohorts, churn risk, vacancy loss, scenario exploration, notifications and full Phase 4 acceptance remain open. No Phase 5 work or deployment occurred.
+- Verification: root `npm run typecheck`, `npm run lint` (0 errors; 508 existing backend and 27 frontend warnings), `npm run test` (421 backend passed, 202 opt-in skipped; 292 frontend passed) and `npm run build` passed. No hosted Coolify smoke test, live data migration or deployment was run.
+
 ## Phase 3 property expense and operating position: partial delivery (2026-10-27)
 
 - Audit: the existing `Expense` collection and Finance routes already provide draft/approval/payment states, but the UI supplied raw property IDs, approvals were not audited, maintenance adapters were unused, expenses lacked OPEX/CAPEX distinction, and `finance.report` mislabeled billed-minus-all-expense and collected-minus-incurred-expense as P&L. Phase 2 remains partial, so settlement-based cash flow and certified NOI are unavailable.

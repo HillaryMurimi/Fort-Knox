@@ -174,6 +174,8 @@ POST   /tenancies/:tenancyId/activate
 POST   /tenancies/:tenancyId/move-out
 ```
 
+The existing `GET /api/v1/organizations/:organizationId/command-center` response reports **current** physical occupancy from `ACTIVE`/`NOTICE` tenancies whose start has passed and whose actual move-out/termination has not passed, rather than trusting `Unit.status=OCCUPIED`. `portfolio.occupancyIssues` counts properties with conflicting records; each property has `metrics.occupancyQuality` with `conflictingTenancies`, `statusMismatches`, `inactiveWithTenancy`, `missingUnits` and `complete`. `metrics.units` excludes `INACTIVE`; reserved vacant units and maintenance units are separate overlays. Property-wide Command Center, health history and evaluation now require a full-property assignment; descendant-only scope returns 403 instead of exposing all buildings' aggregates. This endpoint does not provide historical occupancy, economic occupancy, verified vacancy loss or churn predictions. Its existing plan contract is unchanged.
+
 ## 7. Rent / Payments / Finance
 
 ``` text

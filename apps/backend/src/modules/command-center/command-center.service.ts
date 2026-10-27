@@ -17,10 +17,10 @@ import { PropertyHealthSnapshot } from '../../database/models/PropertyHealthSnap
 import { IntelligenceAlert } from '../../database/models/IntelligenceAlert.js';
 import { AuditService } from '../audit/audit.service.js';
 import { AuthorizationService } from '../../core/authorization/authorization.service.js';
-import { ResourceScopeService } from '../../core/authorization/resource-scope.service.js';
 import { AppError } from '../../core/errors/AppError.js';
 import type { AuthenticatedUser } from '../../core/types/auth.js';
 import type { AlertQuery, DashboardQuery } from './command-center.schemas.js';
+import { currentOccupancy } from './current-occupancy.js';
 
 const oid = (value: string) => new Types.ObjectId(value);
 const ACTIVE_TENANCIES = ['ACTIVE', 'NOTICE'] as const;
@@ -46,6 +46,7 @@ interface PropertyMetrics {
   vacantUnits: number;
   reservedUnits: number;
   maintenanceUnits: number;
+  occupancyQuality: ReturnType<typeof currentOccupancy>['quality'];
   occupancyRate: number;
   rentBilled: number;
   rentCollected: number;
@@ -89,23 +90,31 @@ function period(query: DashboardQuery): { from: Date; to: Date } {
 }
 
 export class CommandCenterService {
+  private static wholePropertyIds(auth: AuthenticatedUser, organizationId: Types.ObjectId, propertyId?: string) {
+    const membership = auth.isPlatformAdmin ? null : AuthorizationService.getMembership(auth, organizationId);
+    // This dashboard aggregates whole-property financials, so descendant-only grants cannot open it.
+    const ids = membership?.scope.allProperties || !membership ? null : membership.scope.propertyIds;
+    if (ids?.length === 0) throw new AppError(403, 'PROPERTY_SCOPE_REQUIRED', 'This view requires a full-property assignment');
+    if (propertyId && ids && !ids.some(id => String(id) === propertyId)) throw new AppError(403, 'FORBIDDEN', 'You are not authorized to view this property');
+    return ids;
+  }
+
   private static async scopedProperties(auth: AuthenticatedUser, organizationId: Types.ObjectId, propertyId?: string) {
     AuthorizationService.assertPermission(auth, 'command-center.view', organizationId);
-    const ids = await ResourceScopeService.scopedPropertyIds(auth, organizationId);
+    const ids = this.wholePropertyIds(auth, organizationId, propertyId);
     const filter: Record<string, unknown> = { organizationId, status: 'ACTIVE' };
     if (ids) filter._id = { $in: ids };
     if (propertyId) {
       const requested = oid(propertyId);
-      if (ids && !ids.some((id) => String(id) === String(requested))) throw new AppError(403, 'FORBIDDEN', 'You are not authorized to view this property');
       filter._id = requested;
     }
     return Property.find(filter).sort({ name: 1 }).lean();
   }
 
-  private static async metricsForProperty(propertyId: Types.ObjectId, organizationId: Types.ObjectId, from: Date, to: Date): Promise<PropertyMetrics> {
+  private static async metricsForProperty(propertyId: Types.ObjectId, organizationId: Types.ObjectId, from: Date, to: Date, asOf = new Date()): Promise<PropertyMetrics> {
     const [units, tenancies, charges, payments, expenses, arrears, maintenance, inspections, inventory, cameras, securityEvents, incidents, accessDenied] = await Promise.all([
       Unit.find({ organizationId, propertyId }).select('_id status').lean(),
-      Tenancy.find({ organizationId, propertyId, status: { $in: ACTIVE_TENANCIES } }).select('_id unitId').lean(),
+      Tenancy.find({ organizationId, propertyId, status: { $in: ACTIVE_TENANCIES } }).select('unitId status startDate movedOutAt terminatedAt').lean(),
       RentCharge.find({ organizationId, propertyId, periodStart: { $gte: from, $lte: to }, status: { $ne: 'VOID' } }).select('totalAmount paidAmount balanceAmount').lean(),
       Payment.find({ organizationId, propertyId, status: 'CONFIRMED', paidAt: { $gte: from, $lte: to } }).select('amount').lean(),
       Expense.find({ organizationId, propertyId, status: { $in: ['APPROVED', 'PAID'] }, incurredAt: { $gte: from, $lte: to } }).select('amount category').lean(),
@@ -119,11 +128,12 @@ export class CommandCenterService {
       AccessEvent.countDocuments({ organizationId, propertyId, decision: 'DENIED', occurredAt: { $gte: new Date(to.getTime() - MS_DAY), $lte: to } })
     ]);
 
-    const unitCount = units.length;
-    const occupied = units.filter((u) => u.status === 'OCCUPIED').length;
-    const vacant = units.filter((u) => u.status === 'VACANT').length;
-    const reserved = units.filter((u) => u.status === 'RESERVED').length;
-    const maintenanceUnits = units.filter((u) => u.status === 'MAINTENANCE').length;
+    const occupancy = currentOccupancy(units, tenancies, asOf);
+    const unitCount = occupancy.rentable;
+    const occupied = occupancy.occupied;
+    const vacant = occupancy.vacant;
+    const reserved = occupancy.reserved;
+    const maintenanceUnits = occupancy.maintenance;
     const billed = charges.reduce((sum, x) => sum + x.totalAmount, 0);
     const chargeCollected = charges.reduce((sum, x) => sum + x.paidAmount, 0);
     const paymentCollected = payments.reduce((sum, x) => sum + x.amount, 0);
@@ -140,7 +150,7 @@ export class CommandCenterService {
     const criticalIncidents = incidents.filter((x) => x.severity === 'CRITICAL').length;
 
     return {
-      propertyId, units: unitCount, occupiedUnits: occupied, vacantUnits: vacant, reservedUnits: reserved, maintenanceUnits,
+      propertyId, units: unitCount, occupiedUnits: occupied, vacantUnits: vacant, reservedUnits: reserved, maintenanceUnits, occupancyQuality: occupancy.quality,
       occupancyRate: unitCount === 0 ? 0 : round(pct(occupied, unitCount)), rentBilled: round(billed), rentCollected: round(collected), cashCollected: round(paymentCollected), collectionRate: round(pct(collected, billed)),
       outstandingRent: round(outstanding), arrearsCases: arrears.length, arrearsAmount: round(arrears.reduce((sum, x) => sum + x.amountOutstanding, 0)),
       expenses: round(expenseTotal), expenseRatio: round(expenseTotal / Math.max(collected, 1) * 100), maintenanceOpen: openMaintenance, urgentMaintenance,
@@ -166,6 +176,7 @@ export class CommandCenterService {
     if (metrics.collectionRate < 85) warningCodes.push('LOW_COLLECTION');
     if (metrics.arrearsAmount > 0) warningCodes.push('ARREARS_EXPOSURE');
     if (metrics.occupancyRate < 90) warningCodes.push('VACANCY_RISK');
+    if (!metrics.occupancyQuality.complete) warningCodes.push('OCCUPANCY_RECORD_CONFLICT');
     if (metrics.urgentMaintenance > 0) warningCodes.push('URGENT_MAINTENANCE');
     if (metrics.maintenanceOpen > Math.max(3, metrics.units * 0.1)) warningCodes.push('MAINTENANCE_BACKLOG');
     if (metrics.inventoryServiceDue > 0) warningCodes.push('SERVICE_DUE');
@@ -190,6 +201,7 @@ export class CommandCenterService {
     if (metrics.urgentMaintenance > 0) actions.push({ priority: 'HIGH', code: 'CLEAR_URGENT_MAINTENANCE', title: 'Clear urgent maintenance', reason: `${metrics.urgentMaintenance} emergency/high-priority job(s) require attention.` });
     if (metrics.collectionRate < 85) actions.push({ priority: 'HIGH', code: 'FOLLOW_UP_COLLECTION', title: 'Follow up rent collection', reason: `Collection is ${metrics.collectionRate}% for the selected period.` });
     if (metrics.vacantUnits > 0) actions.push({ priority: 'HIGH', code: 'ADDRESS_VACANCY', title: 'Address vacant units', reason: `${metrics.vacantUnits} unit(s) are currently vacant.` });
+    if (!metrics.occupancyQuality.complete) actions.push({ priority: 'HIGH', code: 'REVIEW_OCCUPANCY_RECORDS', title: 'Review occupancy records', reason: 'Active tenancy and unit records disagree; review before relying on occupancy or property health.' });
     if (metrics.inventoryServiceDue > 0) actions.push({ priority: 'MEDIUM', code: 'SCHEDULE_SERVICE', title: 'Schedule asset servicing', reason: `${metrics.inventoryServiceDue} asset(s) are due for service.` });
     if (metrics.inspectionCoverage < 75) actions.push({ priority: 'MEDIUM', code: 'COMPLETE_INSPECTIONS', title: 'Close inspection coverage gap', reason: `Only ${metrics.inspectionCoverage}% of units have a recent completed inspection.` });
     if (warningCodes.includes('CAMERA_COVERAGE')) actions.push({ priority: 'HIGH', code: 'RESTORE_CAMERA_COVERAGE', title: 'Restore CCTV coverage', reason: `${metrics.cameras - metrics.camerasOnline} camera(s) are not online.` });
@@ -198,23 +210,26 @@ export class CommandCenterService {
 
   static async dashboard(auth: AuthenticatedUser, organizationId: string, query: DashboardQuery) {
     const orgId = oid(organizationId); const { from, to } = period(query);
+    const asOf = new Date();
     const properties = await this.scopedProperties(auth, orgId, query.propertyId);
     const cards = await Promise.all(properties.map(async (property) => {
-      const metrics = await this.metricsForProperty(property._id, orgId, from, to); const scoring = this.score(metrics);
+      const metrics = await this.metricsForProperty(property._id, orgId, from, to, asOf); const scoring = this.score(metrics);
       return { property: { _id: property._id, name: property.name, code: property.code, propertyType: property.propertyType, address: property.address }, health: scoring, metrics, actions: this.actions(metrics, scoring.warningCodes) };
     }));
     const aggregate = cards.reduce((acc, card) => ({
       units: acc.units + card.metrics.units, occupiedUnits: acc.occupiedUnits + card.metrics.occupiedUnits, vacantUnits: acc.vacantUnits + card.metrics.vacantUnits,
+      occupancyIssues: acc.occupancyIssues + (card.metrics.occupancyQuality.complete ? 0 : 1),
       rentBilled: acc.rentBilled + card.metrics.rentBilled, rentCollected: acc.rentCollected + card.metrics.rentCollected, cashCollected: acc.cashCollected + card.metrics.cashCollected, outstandingRent: acc.outstandingRent + card.metrics.outstandingRent,
       expenses: acc.expenses + card.metrics.expenses, maintenanceOpen: acc.maintenanceOpen + card.metrics.maintenanceOpen, urgentMaintenance: acc.urgentMaintenance + card.metrics.urgentMaintenance,
       openIncidents: acc.openIncidents + card.metrics.openIncidents, criticalIncidents: acc.criticalIncidents + card.metrics.criticalIncidents, openSecurityEvents: acc.openSecurityEvents + card.metrics.openSecurityEvents,
       offlineCameras: acc.offlineCameras + Math.max(0, card.metrics.cameras - card.metrics.camerasOnline), accessDenied24h: acc.accessDenied24h + card.metrics.accessDenied24h
-    }), { units: 0, occupiedUnits: 0, vacantUnits: 0, rentBilled: 0, rentCollected: 0, cashCollected: 0, outstandingRent: 0, expenses: 0, maintenanceOpen: 0, urgentMaintenance: 0, openIncidents: 0, criticalIncidents: 0, openSecurityEvents: 0, offlineCameras: 0, accessDenied24h: 0 });
+    }), { units: 0, occupiedUnits: 0, vacantUnits: 0, occupancyIssues: 0, rentBilled: 0, rentCollected: 0, cashCollected: 0, outstandingRent: 0, expenses: 0, maintenanceOpen: 0, urgentMaintenance: 0, openIncidents: 0, criticalIncidents: 0, openSecurityEvents: 0, offlineCameras: 0, accessDenied24h: 0 });
     const portfolioCollection = round(pct(aggregate.rentCollected, aggregate.rentBilled));
     const healthScores = cards.map((c) => c.health.score);
     const portfolioHealth = healthScores.length ? round(healthScores.reduce((a, b) => a + b, 0) / healthScores.length) : 100;
-    const alerts = await IntelligenceAlert.find({ organizationId: orgId, status: { $in: ['OPEN', 'ACKNOWLEDGED'] }, ...(query.propertyId ? { propertyId: oid(query.propertyId) } : {}) }).sort({ severity: -1, lastDetectedAt: -1 }).limit(20).lean();
-    return { asOf: new Date(), period: { from, to }, portfolio: { propertyCount: cards.length, healthScore: portfolioHealth, grade: grade(portfolioHealth), collectionRate: portfolioCollection, ...aggregate }, properties: cards, activeAlerts: alerts };
+    const alerts = await IntelligenceAlert.find({ organizationId: orgId, status: { $in: ['OPEN', 'ACKNOWLEDGED'] },
+      propertyId: { $in: cards.map(card => card.property._id) } }).sort({ severity: -1, lastDetectedAt: -1 }).limit(20).lean();
+    return { asOf, period: { from, to }, portfolio: { propertyCount: cards.length, healthScore: portfolioHealth, grade: grade(portfolioHealth), collectionRate: portfolioCollection, ...aggregate }, properties: cards, activeAlerts: alerts };
   }
 
   static async propertyHealth(auth: AuthenticatedUser, organizationId: string, propertyId: string, query: DashboardQuery) {
@@ -259,9 +274,9 @@ export class CommandCenterService {
   static async evaluate(auth: AuthenticatedUser, organizationId: string, query: DashboardQuery) {
     const orgId = oid(organizationId); AuthorizationService.assertPermission(auth, 'intelligence.evaluate', orgId); const { from, to } = period(query);
     if (query.propertyId) {
+      this.wholePropertyIds(auth, orgId, query.propertyId);
       const property = await Property.findOne({ _id: oid(query.propertyId), organizationId: orgId, status: 'ACTIVE' }).lean();
       if (!property) throw new AppError(404, 'PROPERTY_NOT_FOUND', 'Property not found');
-      await ResourceScopeService.assertProperty(auth, property);
       const metrics = await this.metricsForProperty(property._id, orgId, from, to); const scoring = this.score(metrics); const now = new Date();
       await PropertyHealthSnapshot.create({ organizationId: orgId, propertyId: property._id, asOf: now, periodStart: from, periodEnd: to, score: scoring.score, grade: scoring.grade, dimensions: scoring.dimensions, metrics, warningCodes: scoring.warningCodes, createdBy: auth.userId });
       const rules = this.alertRules(metrics); const alerts: unknown[] = [];
@@ -292,7 +307,8 @@ export class CommandCenterService {
   }
 
   static async healthHistory(auth: AuthenticatedUser, organizationId: string, propertyId: string, limit = 30) {
-    const orgId = oid(organizationId); AuthorizationService.assertPermission(auth, 'intelligence.history.view', orgId); const property = await Property.findOne({ _id: oid(propertyId), organizationId: orgId, status: 'ACTIVE' }).lean();
-    if (!property) throw new AppError(404, 'PROPERTY_NOT_FOUND', 'Property not found'); await ResourceScopeService.assertProperty(auth, property); return PropertyHealthSnapshot.find({ organizationId: orgId, propertyId: property._id }).sort({ asOf: -1 }).limit(limit).lean();
+    const orgId = oid(organizationId); AuthorizationService.assertPermission(auth, 'intelligence.history.view', orgId); this.wholePropertyIds(auth, orgId, propertyId);
+    const property = await Property.findOne({ _id: oid(propertyId), organizationId: orgId, status: 'ACTIVE' }).lean();
+    if (!property) throw new AppError(404, 'PROPERTY_NOT_FOUND', 'Property not found'); return PropertyHealthSnapshot.find({ organizationId: orgId, propertyId: property._id }).sort({ asOf: -1 }).limit(limit).lean();
   }
 }
