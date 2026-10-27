@@ -12,6 +12,18 @@ import type { AuthenticatedUser } from '../../src/core/types/auth.js';
 afterEach(() => vi.restoreAllMocks());
 
 describe('finance currency guards', () => {
+  it('does not manually confirm a provider-linked payment', async () => {
+    const payment = { _id: new Types.ObjectId(), organizationId: new Types.ObjectId(), tenantId: new Types.ObjectId(),
+      propertyId: new Types.ObjectId(), buildingId: new Types.ObjectId(), unitId: new Types.ObjectId(),
+      status: 'PENDING', provider: 'PAYSTACK', providerTransactionId: 'rent-ref' };
+    vi.spyOn(mongoose, 'startSession').mockResolvedValue({ withTransaction: async (callback: () => Promise<unknown>) => callback(), endSession: vi.fn() } as never);
+    vi.spyOn(Payment, 'findById').mockReturnValue({ session: async () => payment } as never);
+    vi.spyOn(Tenant, 'findById').mockReturnValue({ session: () => ({ lean: async () => ({ userId: new Types.ObjectId() }) }) } as never);
+    vi.spyOn(ResourceScopeService, 'assertUnit').mockImplementation(() => undefined);
+    const allocations = vi.spyOn(PaymentAllocation, 'create');
+    await expect(FinanceService.confirmPayment({ userId: new Types.ObjectId() } as AuthenticatedUser, String(payment._id), { allocations: [{ rentChargeId: String(new Types.ObjectId()), amount: 100 }] })).rejects.toMatchObject({ code: 'PROVIDER_CONFIRMATION_REQUIRED' });
+    expect(allocations).not.toHaveBeenCalled();
+  });
   it('rejects a later mismatched charge before writing any allocation', async () => {
     const organizationId = new Types.ObjectId();
     const tenancyId = new Types.ObjectId();

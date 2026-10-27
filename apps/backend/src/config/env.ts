@@ -110,6 +110,7 @@ export const envSchema = z
     MPESA_CONSUMER_KEY: optionalValue(z.string().min(1)),
     MPESA_CONSUMER_SECRET: optionalValue(z.string().min(1)),
     MPESA_SHORT_CODE: optionalValue(z.string().min(1)),
+    MPESA_RENT_ORGANIZATION_ID: optionalValue(z.string().regex(/^[a-f\d]{24}$/i)),
     MPESA_PASSKEY: optionalValue(z.string().min(1)),
     MPESA_CALLBACK_URL: optionalValue(z.string().url()),
     MPESA_WEBHOOK_SECRET: optionalValue(z.string().min(16)),

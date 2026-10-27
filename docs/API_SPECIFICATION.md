@@ -222,26 +222,41 @@ GET  /organizations/:organizationId/payment-destinations
 POST /organizations/:organizationId/payment-destinations
 POST /payment-destinations/:id/disable
 POST /payment-destinations/:id/refresh
+GET  /tenancies/:id/payment-instructions
 ```
 
-They require `organization.settings.manage`. Paystack destination creation
-provisions a Paystack subaccount server-side and persists only routing and
-masked account details. M-Pesa destinations become active only when they
-match the securely configured Daraja shortcode. Crypto destinations remain
-`PENDING_PROVIDER_SETUP` until a supported processor and reconciliation
-adapter are connected.
-Paystack destinations remain `PENDING_PROVIDER_SETUP` until Paystack reports
-the subaccount active and verified. The refresh command re-fetches provider
-status, checks the currency and masked account suffix, and cannot reactivate
-a disabled destination. Rent checkout requires an active, provider-verified
-default destination. The refresh result is not evidence that a bank payout
-has settled.
-Provider initiation now fails with `PAYMENT_RAIL_UNAVAILABLE` when the
-organization's regional profile does not support the selected country,
-currency and rail. It fails with `PAYMENT_DESTINATION_REQUIRED` before any
-provider call if there is no active default destination matching the payment
-country/currency or if its routing code does not match the configured merchant.
-Paystack rent checkout always includes the organization's subaccount code.
+Destination management requires `organization.settings.manage`; property
+overrides additionally require property scope. A new M-Pesa PayBill/Till
+destination requires explicit owner attestation, business type, and a PayBill
+reference (which may include `{{leaseNumber}}`). Active, attested property
+instructions override an active, attested organization default. The tenancy
+instructions endpoint uses `rent.view` and unit/owner scope and returns only
+the resolved receiving number/reference and whether STK is available. It
+never returns another organization's or property-specific account. This is
+instruction display, not ownership or transaction verification. Legacy
+destinations without attestation are not exposed to tenants. Crypto remains
+pending. New Paystack rent destinations and legacy refresh now return
+`RENT_PAYSTACK_NOT_APPROVED`; Dapinni Paystack billing is unaffected.
+STK initiation requires `MPESA_RENT_ORGANIZATION_ID` to match the payment's
+organization, `MPESA_ENABLED`, provider credentials, an attested active PayBill
+for the property/default, a shortcode matching server credentials, and a
+reference that resolves to 1-12 alphanumeric characters for the active
+tenancy. A longer/non-alphanumeric reference remains visible for manual
+PayBill payment but disables STK; direct initiation returns
+`MPESA_STK_REFERENCE_UNAVAILABLE` before contacting Safaricom.
+Otherwise it returns `RENT_MPESA_NOT_AUTHORIZED` or
+`PAYMENT_DESTINATION_REQUIRED` before contacting Safaricom. Paystack rent
+initiation returns `RENT_PAYSTACK_NOT_APPROVED`. Historical signed webhooks
+and reconciliation continue to process already-initiated transactions.
+The generic payment-create request no longer accepts provider identity,
+provider reference, receipt number, or paid timestamp. Manual confirmation
+cannot confirm a provider-linked payment. Confirmed payments record
+`confirmationSource` (`PROVIDER` or `MANUAL_ACKNOWLEDGED`); older confirmed
+records without it remain unclassified. Reports expose the three totals.
+Authorized M-Pesa initiation also fails with `PAYMENT_RAIL_UNAVAILABLE` for
+unsupported country/currency and `PAYMENT_DESTINATION_REQUIRED` for a missing
+attested, matching property/default PayBill. No Paystack rent checkout is
+initiated under the platform merchant account.
 While the operational finance ledger still stores major-unit KES amounts,
 new rent charges, generated rent, payments, expenses, and service-charge
 assessments accept only `KES`. Paystack/M-Pesa settlement destinations must
@@ -302,14 +317,10 @@ auditing it. This endpoint does not submit or retry a refund, collect customer
 bank details, or alter rent balances. If no provider refund can be identified,
 the request remains quarantined for investigation.
 
-Paystack initiation accepts an optional payer email override and optional
-`paystackChannels`; otherwise
-the server uses the pre-registered tenant email. Its response may include
-`checkoutUrl` and `accessCode`. Raw provider payloads and secret keys are
-never returned to clients.
-
-Paystack support in these endpoints is for property/rent payments. It does
-not change the separate platform-subscription billing provider contract.
+The existing provider adapter and historical signed webhook/reconciliation
+paths remain for past rent transactions. New Paystack payment initialization
+is restricted to the separate SaaS subscription billing contract; its raw
+provider payloads and secrets are never returned to clients.
 
 ## 8. Maintenance
 

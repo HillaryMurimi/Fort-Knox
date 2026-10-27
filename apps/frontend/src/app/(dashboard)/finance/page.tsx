@@ -132,7 +132,7 @@ export default function FinancePage() {
           icon={I.Receipt}
         />
         <Stat
-          label="Collected"
+          label="Recorded collections"
           value={money(collected)}
           sub={`${collectionRate.toFixed(1)}% collection rate`}
           trend="up"
@@ -158,6 +158,11 @@ export default function FinancePage() {
           icon={I.BarChart3}
         />
       </div>
+      {report.data && <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 border-b border-border pb-3 text-xs text-muted-foreground" aria-label="Collection verification breakdown">
+        <span>Provider-confirmed: <strong className="text-foreground">{money(report.data.providerConfirmed ?? 0)}</strong></span>
+        <span>Staff-acknowledged: <strong className="text-foreground">{money(report.data.manualAcknowledged ?? 0)}</strong></span>
+        <span>Legacy source unknown: <strong className="text-foreground">{money(report.data.legacyUnclassified ?? 0)}</strong></span>
+      </div>}
 
       <div className="grid xl:grid-cols-[1.45fr_.9fr] gap-6 mt-6">
         <section className="card p-5">

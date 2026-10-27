@@ -1,4 +1,3 @@
-import { assertOperationalIntegrationAllowed } from '../sales/pilot-safety.js';
 import mongoose, { Types, type HydratedDocument } from 'mongoose';
 import { RentCharge, type RentChargeDocument } from '../../database/models/RentCharge.js';
 import { Payment } from '../../database/models/Payment.js';
@@ -18,8 +17,9 @@ import { AuthorizationService } from '../../core/authorization/authorization.ser
 import { ResourceScopeService } from '../../core/authorization/resource-scope.service.js';
 import { AppError } from '../../core/errors/AppError.js';
 import { AuditService } from '../audit/audit.service.js';
-import { PaystackProvider } from '../../core/integrations/paystack.provider.js';
 import { integrationConfig } from '../../core/integrations/config.js';
+import { resolveMpesaAccountReference } from '../../core/integrations/mpesa-reference.js';
+import { env } from '../../config/env.js';
 import { addMinorUnits, assertMatchingCurrency, legacyMajorUnits, legacyMinorUnits, storedMinorUnits } from '../../core/money/legacy-finance.js';
 import { assertOperatingRail } from '../../core/money/operating-rails.js';
 import type { AuthenticatedUser } from '../../core/types/auth.js';
@@ -68,28 +68,42 @@ export class FinanceService {
 
   static async listPaymentDestinations(auth:AuthenticatedUser,organizationId:string){const orgId=toId(organizationId);AuthorizationService.assertPermission(auth,'organization.settings.manage',orgId);return PaymentDestination.find({organizationId:orgId}).sort({isDefault:-1,createdAt:-1}).lean();}
 
+  static async tenancyPaymentInstructions(auth:AuthenticatedUser,tenancyId:string){
+    const {tenancy}=await this.tenancyFor(auth,tenancyId,'rent.view');
+    if(!['ACTIVE','NOTICE'].includes(tenancy.status))throw new AppError(409,'TENANCY_INACTIVE','Payment instructions are available for an active tenancy');
+    const base={organizationId:tenancy.organizationId,provider:'MPESA' as const,status:'ACTIVE' as const,ownerAttestedAt:{$exists:true}};
+    const destination=await PaymentDestination.findOne({...base,propertyId:tenancy.propertyId}).lean()
+      ??await PaymentDestination.findOne({...base,propertyId:{$exists:false},isDefault:true}).lean();
+    if(!destination?.mpesaShortCode)return {methods:[]};
+    const accountReference=destination.mpesaAccountReference?.replaceAll('{{leaseNumber}}',tenancy.leaseNumber);
+    const canInitiateStk=Boolean(env.MPESA_ENABLED&&integrationConfig.mpesa.enabled&&
+      integrationConfig.mpesa.rentOrganizationId===String(tenancy.organizationId)&&
+      integrationConfig.mpesa.shortCode===destination.mpesaShortCode&&destination.mpesaBusinessType==='PAYBILL'&&
+      resolveMpesaAccountReference(destination.mpesaAccountReference,tenancy.leaseNumber));
+    return {methods:[{provider:'MPESA',destinationId:String(destination._id),label:destination.label,
+      businessType:destination.mpesaBusinessType??'PAYBILL',shortCode:destination.mpesaShortCode,
+      accountReference:accountReference??null,currency:destination.currency,
+      verification:'OWNER_ATTESTED',canInitiateStk}]};
+  }
+
   static async createPaymentDestination(auth:AuthenticatedUser,organizationId:string,data:PaymentDestinationInput){
     const orgId=toId(organizationId);AuthorizationService.assertPermission(auth,'organization.settings.manage',orgId);
     const organization=await Organization.findById(orgId).select('regionalProfile').lean();
     if(!organization)throw new AppError(404,'ORGANIZATION_NOT_FOUND','Organization not found');
     if(data.provider!=='CRYPTO')assertOperatingRail(organization.regionalProfile,data.currency,data.provider);
     if(data.country!==(organization.regionalProfile?.countryCode??'KE'))throw new AppError(409,'PAYMENT_DESTINATION_COUNTRY_MISMATCH','Destination country must match the organization');
-    let providerFields:Record<string,unknown>;let status:'ACTIVE'|'PENDING_PROVIDER_SETUP'='PENDING_PROVIDER_SETUP';let verified=false;
+    let providerFields:Record<string,unknown>;let status:'ACTIVE'|'PENDING_PROVIDER_SETUP'='PENDING_PROVIDER_SETUP';
     if(data.provider==='PAYSTACK'){
-      await assertOperationalIntegrationAllowed(orgId);
-      const subaccount=await new PaystackProvider().createSubaccount({businessName:data.businessName,bankCode:data.bankCode,accountNumber:data.accountNumber,percentageCharge:data.percentageCharge,primaryContactEmail:data.contactEmail,primaryContactPhone:data.contactPhone,metadata:{organizationId}});
-      if (subaccount.currency?.toUpperCase() !== data.currency || subaccount.account_number?.slice(-4) !== data.accountNumber.slice(-4)) throw new AppError(409,'PAYSTACK_SUBACCOUNT_MISMATCH','Paystack returned different settlement account details');
-      verified=subaccount.active && subaccount.is_verified === true;
-      status=verified?'ACTIVE':'PENDING_PROVIDER_SETUP';
-      providerFields={paystackSubaccountCode:subaccount.subaccount_code,settlementBankCode:data.bankCode,accountName:subaccount.account_name??subaccount.business_name,accountNumberLast4:data.accountNumber.slice(-4)};
+      throw new AppError(409,'RENT_PAYSTACK_NOT_APPROVED','Paystack rent collection is unavailable pending a separate merchant agreement');
     }else if(data.provider==='MPESA'){
-      status=integrationConfig.mpesa.enabled&&integrationConfig.mpesa.shortCode===data.shortCode?'ACTIVE':'PENDING_PROVIDER_SETUP';verified=status==='ACTIVE';
-      providerFields={mpesaShortCode:data.shortCode,mpesaAccountReference:data.accountReference};
+      if(data.propertyId){const property=await ResourceScopeService.assertPropertyExistsInOrganization(data.propertyId,orgId);await ResourceScopeService.assertProperty(auth,property,'organization.settings.manage');}
+      status='ACTIVE';
+      providerFields={propertyId:data.propertyId,mpesaShortCode:data.shortCode,mpesaBusinessType:data.businessType,mpesaAccountReference:data.accountReference,ownerAttestedAt:new Date()};
     }else{
       providerFields={cryptoAsset:data.asset,cryptoNetwork:data.network,cryptoWalletAddress:data.walletAddress};
     }
-    const destination=await PaymentDestination.create({organizationId:orgId,provider:data.provider,label:data.label,status,isDefault:false,currency:data.currency,country:data.country,...providerFields,...(verified?{providerVerifiedAt:new Date()}:{}),createdBy:auth.userId,updatedBy:auth.userId});
-    if(data.isDefault){await PaymentDestination.updateMany({_id:{$ne:destination._id},organizationId:orgId,provider:data.provider,isDefault:true},{isDefault:false,updatedBy:auth.userId});destination.isDefault=true;await destination.save();}
+    const destination=await PaymentDestination.create({organizationId:orgId,provider:data.provider,label:data.label,status,isDefault:false,currency:data.currency,country:data.country,...providerFields,createdBy:auth.userId,updatedBy:auth.userId});
+    if(data.isDefault&&!('propertyId' in data&&data.propertyId)){await PaymentDestination.updateMany({_id:{$ne:destination._id},organizationId:orgId,provider:data.provider,isDefault:true},{isDefault:false,updatedBy:auth.userId});destination.isDefault=true;await destination.save();}
     await AuditService.record({organizationId:orgId,actorUserId:auth.userId,action:'payment.destination.created',resourceType:'PaymentDestination',resourceId:destination._id,metadata:{provider:data.provider,status}});
     return destination;
   }
@@ -100,17 +114,7 @@ export class FinanceService {
     const destination=await PaymentDestination.findById(id);
     if(!destination)throw new AppError(404,'PAYMENT_DESTINATION_NOT_FOUND','Payment destination not found');
     AuthorizationService.assertPermission(auth,'organization.settings.manage',destination.organizationId);
-    if(destination.provider!=='PAYSTACK'||destination.status==='DISABLED'||!destination.paystackSubaccountCode)throw new AppError(409,'PAYSTACK_DESTINATION_UNAVAILABLE','An enabled Paystack settlement destination is required');
-    const remote=await new PaystackProvider().getSubaccount(destination.paystackSubaccountCode);
-    if(remote.currency?.toUpperCase()!==destination.currency||remote.account_number?.slice(-4)!==destination.accountNumberLast4)throw new AppError(409,'PAYSTACK_SUBACCOUNT_MISMATCH','Paystack settlement account no longer matches this destination');
-    const before=destination.status;
-    const verified=remote.active&&remote.is_verified===true;
-    destination.status=verified?'ACTIVE':'PENDING_PROVIDER_SETUP';
-    destination.providerVerifiedAt=verified?destination.providerVerifiedAt??new Date():undefined;
-    destination.updatedBy=auth.userId;
-    await destination.save();
-    await AuditService.record({organizationId:destination.organizationId,actorUserId:auth.userId,action:'payment.destination.refreshed',resourceType:'PaymentDestination',resourceId:destination._id,metadata:{provider:'PAYSTACK',before,after:destination.status}});
-    return destination;
+    throw new AppError(409,'RENT_PAYSTACK_NOT_APPROVED','Paystack rent collection is unavailable pending a separate merchant agreement');
   }
 
   static async confirmPayment(auth:AuthenticatedUser,id:string,data:AllocationInput){
@@ -121,6 +125,7 @@ export class FinanceService {
         if(!payment)throw new AppError(404,'NOT_FOUND','Payment not found');
         ResourceScopeService.assertUnit(auth,payment,'payment.confirm',(await Tenant.findById(payment.tenantId).session(session).lean())?.userId);
         if(payment.status!=='PENDING')throw new AppError(409,'INVALID_PAYMENT_STATE','Only pending payments can be confirmed');
+        if(payment.provider||payment.providerTransactionId)throw new AppError(409,'PROVIDER_CONFIRMATION_REQUIRED','Provider-linked payments require independent provider verification');
         const paymentMinor=storedMinorUnits(payment.amount,payment.amountMinor,payment.currency);
         const sum=data.allocations.reduce((total,item)=>addMinorUnits(total,legacyMinorUnits(item.amount,payment.currency)),0);
         if(sum!==paymentMinor)throw new AppError(400,'ALLOCATION_MISMATCH','Allocation total must equal payment amount');
@@ -158,7 +163,7 @@ export class FinanceService {
           charge.updatedBy=auth.userId;
           await charge.save({session});
         }
-        payment.status='CONFIRMED';payment.confirmedAt=new Date();payment.paidAt=payment.paidAt??new Date();payment.updatedBy=auth.userId;
+        payment.status='CONFIRMED';payment.confirmationSource='MANUAL_ACKNOWLEDGED';payment.confirmedAt=new Date();payment.paidAt=payment.paidAt??new Date();payment.updatedBy=auth.userId;
         await payment.save({session});
         await AuditService.record({organizationId:payment.organizationId,actorUserId:auth.userId,action:'payment.confirmed',resourceType:'Payment',resourceId:payment._id,propertyId:payment.propertyId,buildingId:payment.buildingId,unitId:payment.unitId,metadata:{amount:payment.amount,currency:payment.currency,allocationCount:checked.length}},session);
         await AuditService.publish({organizationId:payment.organizationId,name:'payment.confirmed',aggregateType:'Payment',aggregateId:payment._id,actorUserId:auth.userId,source:'APPLICATION',payload:{propertyId:String(payment.propertyId),buildingId:String(payment.buildingId),unitId:String(payment.unitId),amountMajorUnits:payment.amount,currency:payment.currency,allocationCount:checked.length}},session);
@@ -251,13 +256,13 @@ export class FinanceService {
   static async report(auth:AuthenticatedUser,organizationId:string,data:ReportInput){const orgId=toId(organizationId);AuthorizationService.assertPermission(auth,'financial.report.view',orgId);const from=new Date(data.from);from.setHours(0,0,0,0);const to=new Date(data.to);to.setHours(23,59,59,999);const unitIds=await ResourceScopeService.scopedUnitIds(auth,orgId);const base:Record<string,unknown>={organizationId:orgId};if(data.propertyId)base.propertyId=toId(data.propertyId);if(unitIds)base.unitId={$in:unitIds};
     const [rent,paid,expenses,service,activeTenancies,arrears]=await Promise.all([
       RentCharge.aggregate([{$match:{...base,periodStart:{$gte:from,$lte:to},status:{$ne:'VOID'}}},{$group:{_id:null,billed:{$sum:'$totalAmount'},paidApplied:{$sum:'$paidAmount'},balance:{$sum:'$balanceAmount'},rent:{$sum:'$rentAmount'},serviceCharge:{$sum:'$serviceChargeAmount'}}}]),
-      Payment.aggregate([{$match:{...base,status:'CONFIRMED',paidAt:{$gte:from,$lte:to}}},{$group:{_id:null,collected:{$sum:'$amount'},count:{$sum:1}}}]),
+      Payment.aggregate([{$match:{...base,status:'CONFIRMED',paidAt:{$gte:from,$lte:to}}},{$group:{_id:null,collected:{$sum:'$amount'},providerConfirmed:{$sum:{$cond:[{$eq:['$confirmationSource','PROVIDER']},'$amount',0]}},manualAcknowledged:{$sum:{$cond:[{$eq:['$confirmationSource','MANUAL_ACKNOWLEDGED']},'$amount',0]}},count:{$sum:1}}}]),
       Expense.aggregate([{$match:{...base,incurredAt:{$gte:from,$lte:to},status:{$in:['APPROVED','PAID']}}},{$group:{_id:'$category',amount:{$sum:'$amount'},count:{$sum:1}}},{$sort:{amount:-1}}]),
       ServiceChargeAssessment.aggregate([{$match:{...base,periodStart:{$gte:from,$lte:to},status:{$ne:'VOID'}}},{$group:{_id:null,assessed:{$sum:'$amount'}}}]),
       Tenancy.countDocuments({organizationId:orgId,status:activeTenancyStatuses,...(unitIds?{unitId:{$in:unitIds}}:{})}),
       RentCharge.aggregate([{$match:{...base,dueDate:{$lt:new Date()},balanceAmount:{$gt:0},status:{$nin:['VOID','PAID']}}},{$group:{_id:null,amount:{$sum:'$balanceAmount'},count:{$sum:1}}}])
     ]);
-    const billed=rent[0]?.billed??0;const collected=paid[0]?.collected??0;const expenseTotal=expenses.reduce((a,x)=>a+Number(x.amount),0);return {period:{from,to},revenue:{rentBilled:rent[0]?.rent??0,serviceChargesBilled:rent[0]?.serviceCharge??0,totalBilled:billed,totalCollected:collected,collectionRate:billed?Number(((collected/billed)*100).toFixed(2)):0,outstanding:billed-collected},expenses:{total:expenseTotal,byCategory:expenses},profitAndLoss:{accrual:billed-expenseTotal,cash:collected-expenseTotal},arrears:{amount:arrears[0]?.amount??0,chargeCount:arrears[0]?.count??0},serviceCharges:{assessed:service[0]?.assessed??0},occupancy:{activeTenancies},payments:{count:paid[0]?.count??0}};
+    const billed=rent[0]?.billed??0;const collected=paid[0]?.collected??0;const providerConfirmed=paid[0]?.providerConfirmed??0;const manualAcknowledged=paid[0]?.manualAcknowledged??0;const expenseTotal=expenses.reduce((a,x)=>a+Number(x.amount),0);return {period:{from,to},revenue:{rentBilled:rent[0]?.rent??0,serviceChargesBilled:rent[0]?.serviceCharge??0,totalBilled:billed,totalCollected:collected,providerConfirmed,manualAcknowledged,legacyUnclassified:collected-providerConfirmed-manualAcknowledged,collectionRate:billed?Number(((collected/billed)*100).toFixed(2)):0,outstanding:billed-collected},expenses:{total:expenseTotal,byCategory:expenses},profitAndLoss:{accrual:billed-expenseTotal,cash:collected-expenseTotal},arrears:{amount:arrears[0]?.amount??0,chargeCount:arrears[0]?.count??0},serviceCharges:{assessed:service[0]?.assessed??0},occupancy:{activeTenancies},payments:{count:paid[0]?.count??0}};
   }
 
   static async listPeriods(auth:AuthenticatedUser,organizationId:string){const orgId=toId(organizationId);AuthorizationService.assertPermission(auth,'financial.period.view',orgId);return FinancialPeriod.find({organizationId:orgId}).sort({periodStart:-1}).lean();}

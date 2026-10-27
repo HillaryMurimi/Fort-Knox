@@ -8,6 +8,7 @@ export async function getRent(req:Request,res:Response){res.json(apiResponse(awa
 export async function listPayments(req:Request,res:Response){res.json(apiResponse(await FinanceService.listPayments(auth(req),requiredParam(req.params.organizationId,'organizationId'))));}
 export async function createPayment(req:Request,res:Response){res.status(201).json(apiResponse(await FinanceService.createPayment(auth(req),requiredParam(req.params.organizationId,'organizationId'),s.paymentSchema.parse(req.body))));}
 export async function listPaymentDestinations(req:Request,res:Response){res.json(apiResponse(await FinanceService.listPaymentDestinations(auth(req),requiredParam(req.params.organizationId,'organizationId'))));}
+export async function tenancyPaymentInstructions(req:Request,res:Response){res.json(apiResponse(await FinanceService.tenancyPaymentInstructions(auth(req),requiredParam(req.params.id,'id'))));}
 export async function createPaymentDestination(req:Request,res:Response){res.status(201).json(apiResponse(await FinanceService.createPaymentDestination(auth(req),requiredParam(req.params.organizationId,'organizationId'),s.paymentDestinationSchema.parse(req.body))));}
 export async function disablePaymentDestination(req:Request,res:Response){res.json(apiResponse(await FinanceService.disablePaymentDestination(auth(req),requiredParam(req.params.id,'id'))));}
 export async function refreshPaystackDestination(req:Request,res:Response){res.json(apiResponse(await FinanceService.refreshPaystackDestination(auth(req),requiredParam(req.params.id,'id'))));}

@@ -1,5 +1,14 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Direct-to-landlord rent boundary (2026-10-27)
+
+- The owner-supplied merchant restriction supersedes the 2026-10-26 Paystack rent subaccount readiness direction below. Dapinni Paystack is now limited to SaaS subscriptions: new rent checkout, new rent subaccounts and legacy destination refresh fail closed. Historical signed rent webhooks/reconciliation remain for existing transactions; no live destination or database record was changed.
+- Owner-attested M-Pesa PayBill/Till instructions are scoped to the authenticated active tenancy and property, with property overrides and organization fallback. Legacy unattested destinations are hidden from residents. STK requires a configured exact landlord organization ID plus matching Daraja shortcode and enabled credentials; otherwise the tenant sees instructions only. This is not account-ownership or transaction verification.
+- STK now resolves the landlord PayBill account template against the payment's scoped active tenancy and sends that reference to Daraja. A reference outside Daraja's 1-12 alphanumeric limit disables STK and fails closed at initiation; the manual instructions remain visible. Focused tests exercise the real tenant ownership check before destination lookup.
+- Verification: root typecheck, lint (0 errors; existing warnings), tests (385 backend passed/202 opt-in skipped; 291 frontend passed), and production build passed. No provider call, live account verification, database migration, Coolify staging smoke test or deployment was performed.
+- Generic payment creation rejects provider evidence supplied by a client; provider-linked payments cannot be manually confirmed. New ledger confirmations store manual/provider provenance, and reporting separates provider-confirmed, staff-acknowledged and unclassified historical totals. The Finance client now normalizes the actual nested report response for the existing flat dashboard view.
+- Remaining: official landlord Daraja authorization and callback acceptance, property destination index rollout review, bank instructions/statement import, provider-agnostic verification capabilities, exception workflow, refund/chargeback accounting, reconciliation/forecast upgrades, and Coolify staging tests. Do not enable live rent collection, run migrations, or infer legal approval from these code gates.
+
 ## Paystack rent settlement readiness (2026-10-26)
 
 - Confirmed the intended payout model is automatic Paystack subaccount settlement, not platform-funded transfer recipients or transfer calls. Existing subscription checkout, server-side verification, signed webhooks, reusable authorization and rent subaccount routing remain the payment architecture.

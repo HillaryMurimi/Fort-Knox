@@ -2,6 +2,7 @@ import { Schema, model, type InferSchemaType } from 'mongoose';
 
 const schema = new Schema({
   organizationId: { type: Schema.Types.ObjectId, ref: 'Organization', required: true, index: true },
+  propertyId: { type: Schema.Types.ObjectId, ref: 'Property' },
   provider: { type: String, enum: ['PAYSTACK', 'MPESA', 'CRYPTO'], required: true, index: true },
   label: { type: String, required: true, trim: true, maxlength: 120 },
   status: { type: String, enum: ['PENDING_PROVIDER_SETUP', 'ACTIVE', 'DISABLED'], required: true, default: 'PENDING_PROVIDER_SETUP', index: true },
@@ -13,7 +14,9 @@ const schema = new Schema({
   accountName: { type: String, trim: true, maxlength: 180 },
   accountNumberLast4: { type: String, trim: true, minlength: 4, maxlength: 4 },
   mpesaShortCode: { type: String, trim: true, maxlength: 20 },
+  mpesaBusinessType: { type: String, enum: ['PAYBILL', 'TILL'] },
   mpesaAccountReference: { type: String, trim: true, maxlength: 40 },
+  ownerAttestedAt: Date,
   cryptoAsset: { type: String, uppercase: true, trim: true, maxlength: 20 },
   cryptoNetwork: { type: String, uppercase: true, trim: true, maxlength: 40 },
   cryptoWalletAddress: { type: String, trim: true, maxlength: 180 },
@@ -27,6 +30,7 @@ schema.index(
   { unique: true, partialFilterExpression: { isDefault: true } },
 );
 schema.index({ organizationId: 1, paystackSubaccountCode: 1 }, { unique: true, sparse: true });
+schema.index({ organizationId: 1, provider: 1, propertyId: 1 }, { unique: true, partialFilterExpression: { propertyId: { $exists: true }, status: 'ACTIVE' } });
 
 export type PaymentDestinationDocument = InferSchemaType<typeof schema>;
 export const PaymentDestination = model('PaymentDestination', schema);

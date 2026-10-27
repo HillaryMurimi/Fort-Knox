@@ -204,6 +204,7 @@ export interface PaymentRefund {
 export interface PaymentDestination {
   _id: string;
   organizationId: string;
+  propertyId?: string;
   provider: "PAYSTACK" | "MPESA" | "CRYPTO";
   label: string;
   status: "PENDING_PROVIDER_SETUP" | "ACTIVE" | "DISABLED";
@@ -215,7 +216,9 @@ export interface PaymentDestination {
   accountName?: string;
   accountNumberLast4?: string;
   mpesaShortCode?: string;
+  mpesaBusinessType?: "PAYBILL" | "TILL";
   mpesaAccountReference?: string;
+  ownerAttestedAt?: string;
   cryptoAsset?: string;
   cryptoNetwork?: string;
   cryptoWalletAddress?: string;
@@ -312,6 +315,9 @@ export interface FinancialReport {
   serviceChargesBilled: number;
   totalBilled: number;
   totalCollected: number;
+  providerConfirmed?: number;
+  manualAcknowledged?: number;
+  legacyUnclassified?: number;
   collectionRate: number;
   outstanding: number;
   expensesByCategory: Record<string, number>;

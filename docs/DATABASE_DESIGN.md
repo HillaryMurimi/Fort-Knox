@@ -277,6 +277,15 @@ after checking for duplicate values.
 
 Financial collections still contain legacy major-unit Number fields. New
 `rent_charges` and `payments` also store optional integer minor-unit fields;
+`payments.confirmationSource` distinguishes new `PROVIDER` confirmations from
+`MANUAL_ACKNOWLEDGED` staff confirmations. Null on historical rows means the
+source was not captured and must not be relabeled as provider-verified.
+`payment_destinations` may have an optional `propertyId`, `mpesaBusinessType`
+(`PAYBILL`/`TILL`), and `ownerAttestedAt`. The latter records an authenticated
+owner declaration, not provider verification. The unique active property
+destination index must be reviewed before production rollout; an organization
+default continues to use the existing unique `isDefault` index. Old
+destinations without attestation are not tenant-visible.
 new `payment_allocations` store `amountMinor`. Current writes populate both
 representations. Transactional confirmation and reversal verify parity and
 reject drift, while old rows without minor fields use validated conversion.

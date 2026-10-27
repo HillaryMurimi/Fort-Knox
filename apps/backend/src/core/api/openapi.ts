@@ -668,10 +668,13 @@ export function buildOpenApiDocument() {
         get: { summary: "Get subscription entitlements" },
       },
       "/integrations/payments/{paymentId}/provider-initiate": {
-        post: { summary: "Initiate an M-Pesa or Paystack payment" },
+        post: { summary: "Initiate rent STK Push only for the explicitly bound landlord-owned M-Pesa shortcode; Paystack rent checkout is disabled" },
+      },
+      "/tenancies/{id}/payment-instructions": {
+        get: { summary: "Get owner-attested M-Pesa payment instructions for the authenticated tenancy and property" },
       },
       "/payment-destinations/{id}/refresh": {
-        post: { summary: "Refresh Paystack subaccount verification and settlement readiness (organization settings manager)" },
+        post: { summary: "Legacy Paystack rent destination refresh is blocked pending separate merchant approval" },
       },
       "/integrations/payments/{paymentId}/provider-reconcile": {
         post: { summary: "Reconcile provider payment" },

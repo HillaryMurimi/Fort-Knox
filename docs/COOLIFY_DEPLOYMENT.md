@@ -45,15 +45,17 @@ never be placed in `NEXT_PUBLIC_*` variables or Docker build arguments.
 - Set the Paystack browser return URL in `PAYSTACK_CALLBACK_URL`; do not use
   the webhook URL as the browser return. Configure the OAuth provider callback
   origins using `PUBLIC_API_URL`.
-- Check that Paystack and M-Pesa credentials are approved for the actual
-  merchant and environment. Tenant checkout now requires an active default
-  destination for the organization/provider. Set the landlord destination
-  before attempting a rent checkout.
-  For Paystack, complete any subaccount verification requested in the merchant
-  dashboard, then use the landlord's **Refresh status** action. A pending
-  destination cannot receive a new rent checkout. Confirm actual automatic
-  settlement in the Paystack dashboard and receiving bank separately; PMCC
-  does not initiate a second transfer from the platform balance.
+- Keep Dapinni's Paystack credentials for SaaS subscriptions only. New rent
+  Paystack checkout/subaccount setup is blocked regardless of credentials.
+  Do not re-enable it without a separate provider and legal review.
+- M-Pesa rent STK stays unavailable unless the deployment's Daraja credentials
+  belong to a landlord-owned shortcode, `MPESA_ENABLED=true`, and
+  `MPESA_RENT_ORGANIZATION_ID` is that landlord's exact organization ID. Set
+  the binding only after authorization and shortcode ownership are checked.
+  An owner-attested PayBill matching `MPESA_SHORT_CODE` is also required.
+  Other landlord accounts use instruction display only. Do not put a Dapinni
+  receiving shortcode here for rent. Verify callbacks and bank settlement in
+  staging separately.
 
 ## Verify and Operate
 

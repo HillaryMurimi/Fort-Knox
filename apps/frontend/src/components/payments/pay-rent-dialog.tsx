@@ -1,57 +1,62 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { CheckCircle2, CreditCard, Loader2, Smartphone } from 'lucide-react';
-import { StatusBadge, Alert, Button, Dialog, Input, Label, Select } from '@/components/ui';
-import { useCreatePaymentMutation, useRentChargesQuery } from '@/hooks/queries/use-finance-queries';
+import { useMemo, useState, type FormEvent } from 'react';
+import { Check, Copy, Loader2, Smartphone } from 'lucide-react';
+import { Alert, Button, Dialog, Input, Label, Select } from '@/components/ui';
+import { useCreatePaymentMutation, useRentChargesQuery, useTenancyPaymentInstructionsQuery } from '@/hooks/queries/use-finance-queries';
 import { useInitiateProviderPaymentMutation } from '@/hooks/queries/use-integration-queries';
-import type { PaystackChannel, ProviderPaymentResult } from '@/lib/data/integrations';
 
-const channels: Array<{value:PaystackChannel;label:string}>=[
-  {value:'card',label:'Card'},{value:'bank',label:'Bank'},{value:'bank_transfer',label:'Bank transfer'},
-  {value:'mobile_money',label:'Mobile money'},{value:'ussd',label:'USSD'},{value:'qr',label:'QR'},
-  {value:'apple_pay',label:'Apple Pay'},{value:'eft',label:'EFT'},{value:'capitec_pay',label:'Capitec Pay'},
-  {value:'payattitude',label:'Payattitude'},
-];
-
-export function PayRentDialog({organizationId,open,onOpenChange}:{organizationId:string|null;open:boolean;onOpenChange:(open:boolean)=>void}){
+export function PayRentDialog({organizationId,tenancyId,open,onOpenChange}:{organizationId:string|null;tenancyId:string|null;open:boolean;onOpenChange:(open:boolean)=>void}){
   const rent=useRentChargesQuery(organizationId);
+  const instructions=useTenancyPaymentInstructionsQuery(tenancyId,open);
   const createPayment=useCreatePaymentMutation(organizationId);
   const initiate=useInitiateProviderPaymentMutation(organizationId);
-  const eligible=useMemo(()=>(rent.data??[]).filter(charge=>['OPEN','PARTIALLY_PAID','OVERDUE'].includes(charge.status)&&charge.balanceAmount>0),[rent.data]);
+  const eligible=useMemo(()=>(rent.data??[]).filter(charge=>charge.tenancyId===tenancyId&&['OPEN','PARTIALLY_PAID','OVERDUE'].includes(charge.status)&&charge.balanceAmount>0),[rent.data,tenancyId]);
   const [chargeId,setChargeId]=useState('');
-  const [provider,setProvider]=useState<'MPESA'|'PAYSTACK'>('MPESA');
-  const [contact,setContact]=useState('');
-  const [selectedChannels,setSelectedChannels]=useState<PaystackChannel[]>(channels.map(channel=>channel.value));
-  const [result,setResult]=useState<ProviderPaymentResult|null>(null);
+  const [phone,setPhone]=useState('');
+  const [copied,setCopied]=useState<string|null>(null);
+  const [requested,setRequested]=useState(false);
   const charge=eligible.find(item=>item._id===chargeId)??eligible[0];
+  const method=instructions.data?.methods[0];
   const busy=createPayment.isPending||initiate.isPending;
 
-  async function submit(event:React.FormEvent<HTMLFormElement>){
-    event.preventDefault();if(!organizationId||!charge||busy)return;setResult(null);
-    const payment=await createPayment.mutateAsync({tenancyId:charge.tenancyId,amount:charge.balanceAmount,currency:charge.currency,method:provider==='MPESA'?'MPESA':'OTHER',notes:`Tenant rent payment for charge ${charge._id}`});
-    const response=await initiate.mutateAsync({paymentId:payment._id,input:{provider,...(provider==='MPESA'?{phone:contact}:{email:contact,...(selectedChannels.length===channels.length?{}:{paystackChannels:selectedChannels})})}});
-    setResult(response);
+  async function copy(value:string,label:string){
+    try{await navigator.clipboard.writeText(value);setCopied(label);}catch{setCopied(null);}
   }
 
-  const checkoutUrl=result?.checkoutUrl&&safeCheckoutUrl(result.checkoutUrl);
-  return <Dialog open={open} onOpenChange={onOpenChange} title="Pay rent" description="Payments remain pending until the provider confirms the transaction." className="max-w-2xl">
-    <form className="space-y-5" onSubmit={event=>void submit(event)}>
-      {rent.isLoading?<div className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="animate-spin" size={16}/>Loading your rent balance</div>:eligible.length===0?<Alert tone="success" title="Nothing due">Your rent ledger has no outstanding charge.</Alert>:<>
-        <div><Label htmlFor="rent-charge">Rent charge</Label><Select id="rent-charge" value={charge?._id??''} onChange={event=>setChargeId(event.target.value)} required>{eligible.map(item=><option key={item._id} value={item._id}>{new Date(item.dueDate).toLocaleDateString()} - {item.currency} {item.balanceAmount.toLocaleString()}</option>)}</Select></div>
-        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Payment provider">
-          <button type="button" aria-pressed={provider==='MPESA'} onClick={()=>{setProvider('MPESA');setContact('');setResult(null);}} className={`rounded-md border p-4 text-left ${provider==='MPESA'?'border-[var(--primary)] bg-[var(--accent-soft)]':'border-border bg-card'}`}><Smartphone size={18}/><div className="mt-3 text-sm font-semibold">M-Pesa STK Push</div><div className="mt-1 text-xs text-muted-foreground">Approve the prompt on your phone.</div></button>
-          <button type="button" aria-pressed={provider==='PAYSTACK'} onClick={()=>{setProvider('PAYSTACK');setContact('');setResult(null);}} className={`rounded-md border p-4 text-left ${provider==='PAYSTACK'?'border-[var(--primary)] bg-[var(--accent-soft)]':'border-border bg-card'}`}><CreditCard size={18}/><div className="mt-3 text-sm font-semibold">Paystack checkout</div><div className="mt-1 text-xs text-muted-foreground">Use any method enabled for this account.</div></button>
+  async function requestStk(event:FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    if(!organizationId||!tenancyId||!charge||!method?.canInitiateStk||busy)return;
+    setRequested(false);
+    try{
+      const payment=await createPayment.mutateAsync({tenancyId,amount:charge.balanceAmount,currency:charge.currency,method:'MPESA',notes:`Tenant rent payment for charge ${charge._id}`});
+      await initiate.mutateAsync({paymentId:payment._id,input:{provider:'MPESA',phone}});
+      setRequested(true);
+    }catch{/* Errors are rendered below; no payment is claimed as complete. */}
+  }
+
+  return <Dialog open={open} onOpenChange={onOpenChange} title="Pay rent" description="Pay directly to your property management account. Instructions are not proof of payment." className="max-w-xl">
+    <div className="space-y-5">
+      {instructions.isLoading?<p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin" size={16}/>Loading receiving details</p>:instructions.isError?<Alert tone="destructive">Payment details could not be loaded. <Button variant="link" onClick={()=>void instructions.refetch()}>Retry</Button></Alert>:!method?<Alert tone="warning" title="Payment instructions unavailable">Your landlord has not configured an attested receiving account for this home. Contact management before sending rent.</Alert>:<>
+        <div className="rounded-md border border-border p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold"><Smartphone size={17}/>{method.label}</div>
+          <p className="mt-1 text-xs text-muted-foreground">Owner-attested {method.businessType==='PAYBILL'?'M-Pesa PayBill':'M-Pesa Till'} instructions. Account ownership and this payment have not been independently verified.</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Instruction label={method.businessType==='PAYBILL'?'PayBill number':'Till number'} value={method.shortCode} copied={copied} onCopy={copy}/>
+            {method.accountReference&&<Instruction label="Account reference" value={method.accountReference} copied={copied} onCopy={copy}/>}
+          </div>
         </div>
-        <div><Label htmlFor="payer-contact">{provider==='MPESA'?'M-Pesa phone':'Receipt email'}</Label><Input id="payer-contact" type={provider==='MPESA'?'tel':'email'} value={contact} onChange={event=>setContact(event.target.value)} placeholder={provider==='MPESA'?'+254712345678':'you@example.com'} pattern={provider==='MPESA'?'[+][1-9][0-9]{6,14}':undefined} required/></div>
-        {provider==='PAYSTACK'&&<fieldset><legend className="field-label">Checkout methods</legend><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{channels.map(channel=><label key={channel.value} className="flex min-h-10 items-center gap-2 rounded-md border border-border px-3 text-xs"><input type="checkbox" checked={selectedChannels.includes(channel.value)} onChange={event=>setSelectedChannels(current=>event.target.checked?[...current,channel.value]:current.filter(value=>value!==channel.value))}/>{channel.label}</label>)}</div><p className="mt-2 text-xs text-muted-foreground">Paystack shows only methods available for the landlord account and country.</p></fieldset>}
-        <div className="flex items-center justify-between rounded-md border border-border bg-muted p-3"><div><div className="text-xs text-muted-foreground">Amount due</div><div className="mt-1 font-semibold">{charge?.currency} {charge?.balanceAmount.toLocaleString()}</div></div><StatusBadge status={charge?.status} domain="rent">{charge?.status}</StatusBadge></div>
+        {rent.isLoading?<p role="status" className="text-sm text-muted-foreground">Loading rent balance...</p>:eligible.length===0?<Alert tone="success" title="Nothing due">Your rent ledger has no outstanding charge.</Alert>:<div><Label htmlFor="rent-charge">Outstanding rent</Label><Select id="rent-charge" value={charge?._id??''} onChange={event=>setChargeId(event.target.value)}>{eligible.map(item=><option key={item._id} value={item._id}>{item.currency} {item.balanceAmount.toLocaleString('en-KE')} due {new Date(item.dueDate).toLocaleDateString('en-KE')}</option>)}</Select></div>}
+        <Alert tone="warning">Paying using these details does not mark rent as paid. Your balance changes only after authorized verification or an audited management acknowledgment.</Alert>
+        {method.canInitiateStk&&charge&&<form className="space-y-3 border-t border-border pt-4" onSubmit={event=>void requestStk(event)}><h3 className="text-sm font-semibold">M-Pesa STK Push</h3><div><Label htmlFor="payer-phone">Your M-Pesa phone</Label><Input id="payer-phone" type="tel" value={phone} onChange={event=>setPhone(event.target.value)} pattern="[+][1-9][0-9]{6,14}" placeholder="+254712345678" required/></div><Button type="submit" loading={busy} disabled={!phone}>Send payment prompt</Button></form>}
+        {(createPayment.error||initiate.error)&&<Alert tone="destructive">{createPayment.error?.message??initiate.error?.message}</Alert>}
+        {requested&&<Alert tone="warning" title="Payment request sent">Approve the prompt on your phone. Rent remains outstanding until the provider confirms and the ledger is updated.</Alert>}
       </>}
-      {(createPayment.error||initiate.error)&&<Alert tone="destructive">{createPayment.error?.message??initiate.error?.message}</Alert>}
-      {result&&<Alert tone={result.status==='FAILED'?'destructive':'success'} title={result.status==='PENDING'?'Payment request sent':'Provider response'}>{provider==='MPESA'?'Check your phone and enter your M-Pesa PIN.':result.customerMessage??'Continue in secure checkout.'}</Alert>}
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={()=>onOpenChange(false)}>Close</Button>{checkoutUrl?<a className="btn-primary inline-flex items-center justify-center gap-2" href={checkoutUrl} target="_blank" rel="noopener noreferrer"><CheckCircle2 size={16}/>Open secure checkout</a>:<Button type="submit" loading={busy} disabled={!charge||!contact||(provider==='PAYSTACK'&&selectedChannels.length===0)}>{provider==='MPESA'?'Send STK Push':'Continue to Paystack'}</Button>}</div>
-    </form>
+      <div className="flex justify-end"><Button type="button" variant="outline" onClick={()=>onOpenChange(false)}>Close</Button></div>
+    </div>
   </Dialog>;
 }
 
-function safeCheckoutUrl(value:string){try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password?url.href:undefined;}catch{return undefined;}}
+function Instruction({label,value,copied,onCopy}:{label:string;value:string;copied:string|null;onCopy:(value:string,label:string)=>void}){
+  return <div className="min-w-0 rounded-md bg-muted p-3"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-1 flex items-center justify-between gap-2"><span className="break-all font-mono text-sm font-semibold">{value}</span><Button type="button" variant="ghost" size="icon" aria-label={`Copy ${label}`} onClick={()=>onCopy(value,label)}>{copied===label?<Check size={16}/>:<Copy size={16}/>}</Button></div></div>;
+}

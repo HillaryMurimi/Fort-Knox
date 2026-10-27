@@ -106,15 +106,17 @@ Rent/deposit metadata.
 -   Rent schedules/charges.
 -   Payment recording.
 -   Provider payments.
--   Tenant-facing M-Pesa STK Push and Paystack hosted checkout initiation.
--   Paystack hosted checkout channel selection for card, bank, bank
-    transfer, mobile money, USSD, QR, Apple Pay, EFT, Capitec Pay, and
-    Payattitude, subject to Paystack account/country availability.
--   Organization-scoped landlord settlement destinations. Paystack bank
-    destinations are provisioned as subaccounts; matching configured
-    M-Pesa shortcodes may be activated. Crypto wallets are captured as
-    pending onboarding records and are not offered to tenants until a
-    verified processor and reconciliation path exist.
+-   Tenant-facing owner-attested M-Pesa PayBill/Till instructions scoped to
+    the authenticated tenancy, with a property override and organization
+    default. STK Push is shown only for an explicitly bound landlord-owned
+    PayBill integration. Instructions and tenant claims do not verify rent.
+-   Dapinni Paystack processes only SaaS subscription revenue. New rent
+    checkout and rent subaccount provisioning are blocked pending separate
+    merchant approval; historical provider events remain reconcilable.
+-   Crypto wallets remain pending and are not offered to tenants without a
+    verified processor and reconciliation path. Bank statement matching,
+    bank-transfer instructions, card-processor tenancy, and independent
+    settlement verification are future work.
 -   Signed Paystack webhook confirmation with amount/currency matching.
 -   Allocation.
 -   Receipts.

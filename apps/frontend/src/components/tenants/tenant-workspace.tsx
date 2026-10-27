@@ -95,7 +95,7 @@ export function TenantWorkspace() {
         <QuickActions onPayRent={() => setPayRentOpen(true)} onReport={() => setPanel('report')} onDocuments={() => setPanel('documents')} onContact={() => setPanel('contact')} />
       </div>}
     </div>
-    <PayRentDialog organizationId={activeOrganizationId} open={payRentOpen} onOpenChange={setPayRentOpen} />
+    <PayRentDialog organizationId={activeOrganizationId} tenancyId={tenancy?._id??null} open={payRentOpen} onOpenChange={setPayRentOpen} />
     <RentLedgerDialog open={panel === 'rent'} onOpenChange={(open) => setPanel(open ? 'rent' : null)} charges={rent} payments={payments} onPay={() => { setPanel(null); setPayRentOpen(true); }} />
     <MaintenanceDialog open={panel === 'maintenance'} onOpenChange={(open) => setPanel(open ? 'maintenance' : null)} requests={maintenance} onReport={() => setPanel('report')} />
     <ReportIssueDialog open={panel === 'report'} onOpenChange={(open) => setPanel(open ? 'report' : null)} organizationId={activeOrganizationId} tenantId={tenant?._id} unitId={tenancy?.unitId} />

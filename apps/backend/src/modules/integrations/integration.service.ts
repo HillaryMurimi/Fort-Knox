@@ -1,4 +1,5 @@
 import { PRODUCT_NAME } from '../../config/brand.js';
+import { env } from '../../config/env.js';
 import { assertOperationalIntegrationAllowed } from '../sales/pilot-safety.js';
 import { settlePrepaidInvoice, settlePrepaidRenewal } from '../billing/prepaid-billing.service.js';
 import mongoose, { Types } from 'mongoose';
@@ -20,11 +21,13 @@ import { Job } from '../../database/models/Job.js';
 import { RentCharge } from '../../database/models/RentCharge.js';
 import { PaymentAllocation } from '../../database/models/PaymentAllocation.js';
 import { Tenant } from '../../database/models/Tenant.js';
+import { Tenancy } from '../../database/models/Tenancy.js';
 import { SubscriptionInvoice } from '../../database/models/SubscriptionInvoice.js';
 import { SubscriptionPlan } from '../../database/models/SubscriptionPlan.js';
 import { OrganizationSubscription } from '../../database/models/OrganizationSubscription.js';
 import { BillingEvent } from '../../database/models/BillingEvent.js';
 import { integrationConfig } from '../../core/integrations/config.js';
+import { resolveMpesaAccountReference } from '../../core/integrations/mpesa-reference.js';
 import { verifyHmacSignature, hashPayload } from '../../core/integrations/webhook.security.js';
 import { withRetry } from '../../core/integrations/retry.js';
 import { toPaystackMinorUnits } from '../../core/integrations/paystack.provider.js';
@@ -61,6 +64,13 @@ export class IntegrationService {
     if (providerKey !== 'MPESA' && providerKey !== 'PAYSTACK') {
       throw new AppError(400, 'UNSUPPORTED_PAYMENT_PROVIDER', 'This provider cannot initiate rent checkout');
     }
+    if (providerKey === 'PAYSTACK') {
+      throw new AppError(409, 'RENT_PAYSTACK_NOT_APPROVED', 'Paystack rent checkout is unavailable pending a separate merchant agreement');
+    }
+    if (!env.MPESA_ENABLED || !integrationConfig.mpesa.enabled ||
+      integrationConfig.mpesa.rentOrganizationId !== String(p.organizationId)) {
+      throw new AppError(409, 'RENT_MPESA_NOT_AUTHORIZED', 'M-Pesa STK rent collection requires an authorized landlord-owned shortcode integration');
+    }
     await assertOperationalIntegrationAllowed(p.organizationId);
     const organization = await Organization.findById(p.organizationId).select('regionalProfile').lean();
     if (!organization) throw new AppError(404, 'ORGANIZATION_NOT_FOUND', 'Organization not found');
@@ -86,26 +96,34 @@ export class IntegrationService {
       ? await User.findById(tenant.userId).select('phone email').lean()
       : null;
     const payerPhone = phone ?? payer?.phone ?? undefined;
-    const payerEmail = email ?? payer?.email ?? undefined;
-    if (providerKey === 'MPESA' && !payerPhone) {
+    if (!payerPhone) {
       throw new AppError(400, 'MPESA_PHONE_REQUIRED', 'A payer phone number is required');
     }
-    if (providerKey === 'PAYSTACK' && !payerEmail) {
-      throw new AppError(400, 'PAYSTACK_EMAIL_REQUIRED', 'A payer email address is required');
-    }
 
-    const destination = await PaymentDestination.findOne({
+    const destinationFilter = {
       organizationId: p.organizationId,
       provider: providerKey,
-      status: 'ACTIVE',
-      isDefault: true,
+      status: 'ACTIVE' as const,
       currency: p.currency,
       country: organization.regionalProfile?.countryCode ?? 'KE',
-      ...(providerKey === 'PAYSTACK' ? { providerVerifiedAt: { $exists: true } } : {}),
-    }).lean();
-    if (!destination || (providerKey === 'PAYSTACK' && (!integrationConfig.paystack.enabled || !destination.paystackSubaccountCode)) ||
-      (providerKey === 'MPESA' && (!integrationConfig.mpesa.enabled || !destination.mpesaShortCode || destination.mpesaShortCode !== integrationConfig.mpesa.shortCode))) {
+      ownerAttestedAt: { $exists: true },
+    };
+    const destination = await PaymentDestination.findOne({ ...destinationFilter, propertyId: p.propertyId }).lean()
+      ?? await PaymentDestination.findOne({ ...destinationFilter, propertyId: { $exists: false }, isDefault: true }).lean();
+    if (!destination || !destination.mpesaShortCode || destination.mpesaShortCode !== integrationConfig.mpesa.shortCode || destination.mpesaBusinessType !== 'PAYBILL') {
       throw new AppError(409, 'PAYMENT_DESTINATION_REQUIRED', 'An active default settlement destination is required before checkout');
+    }
+    const tenancy = await Tenancy.findOne({
+      _id: p.tenancyId,
+      organizationId: p.organizationId,
+      propertyId: p.propertyId,
+      unitId: p.unitId,
+      tenantId: p.tenantId,
+      status: { $in: ['ACTIVE', 'NOTICE'] },
+    }).select('leaseNumber').lean();
+    const accountReference = tenancy && resolveMpesaAccountReference(destination.mpesaAccountReference, tenancy.leaseNumber);
+    if (!accountReference) {
+      throw new AppError(409, 'MPESA_STK_REFERENCE_UNAVAILABLE', 'The landlord PayBill reference must resolve to 1-12 alphanumeric characters for STK checkout');
     }
 
     const attempt = await IntegrationAttempt.create({
@@ -124,18 +142,8 @@ export class IntegrationService {
         amount: p.amount,
         currency: p.currency,
         phone: payerPhone,
-        email: payerEmail,
-        reference:
-          providerKey === 'PAYSTACK'
-            ? `pmcc-${p._id}`
-            : providerKey === 'MPESA'
-              ? `PMCC${String(p._id).slice(-8)}`
-              : p.receiptNumber ?? String(p._id),
+        reference: accountReference,
         description: p.notes ?? `${PRODUCT_NAME} payment`,
-        paystackChannels,
-        ...(providerKey === 'PAYSTACK' && destination?.paystackSubaccountCode
-          ? { paystackSubaccountCode: destination.paystackSubaccountCode }
-          : {}),
         metadata: destination ? { paymentDestinationId: String(destination._id) } : undefined,
       });
 
@@ -652,6 +660,7 @@ export class IntegrationService {
         if(remaining!==0)throw new AppError(409,'ALLOCATION_INCOMPLETE','Provider payment could not be fully allocated');
 
         current.status='CONFIRMED';
+        current.confirmationSource='PROVIDER';
         current.confirmedAt=new Date();
         current.paidAt=payment.paidAt??current.paidAt??new Date();
         if(payment.receiptNumber)current.receiptNumber=payment.receiptNumber;

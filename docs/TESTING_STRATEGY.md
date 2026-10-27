@@ -121,9 +121,12 @@ Critical user journeys through frontend/API.
 -   Manual refund review rejects missing/foreign Paystack IDs and unauthorized reviewers, never sends another provider refund POST, and rolls back review note/status when audit fails. Needs-attention notes do not imply the provider has processed the refund.
 -   New non-KES operational finance writes rejected until ledger migration.
 -   Cross-currency manual/provider allocation rejected before balance updates.
--   Unsupported regional payment rails and missing settlement destinations
-    must fail before contacting a provider or creating an integration attempt;
-    a valid Paystack checkout must carry its organization subaccount code.
+-   Paystack rent initiation and new rent subaccount creation must fail before
+    provider contact while SaaS subscription checkout remains covered by its
+    separate tests. M-Pesa initiation must fail without an exact landlord
+    organization/shortcode binding, and with an unattested or wrong-property
+    destination. Scoped tenant instructions must not expose legacy/unattested
+    or another property's details.
 -   KES cent-value allocations and reversals must not drift; over-precise
     payment input or historical balances must fail before any ledger write.
 -   Reconciliation.
@@ -317,12 +320,15 @@ See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARD
 # Landlord operations coverage (2026-10-26)
 
 Replica-set E2E coverage exercises anonymous/owner admin-route denial, owner consent, another organization's rejection, support-session write scoping and termination, one-use owner invitation, pilot expiry/extension and conversion without fake invoices. Frontend typecheck and production build cover the admin and owner workspaces. Manual staging acceptance still requires a real SUPER_ADMIN step-up, invitation delivery, owner approval on a second session/device, timed expiration, and owner-signed Paystack checkout/webhook reconciliation.
-## Paystack Destination Readiness
+## Superseded Paystack Destination Readiness
 
 Unit coverage asserts that new unverified subaccounts remain pending, provider
 refresh activates only a matching verified account, disabled/mismatched
 destinations cannot be refreshed into service, permission checks precede
 provider access, and rent checkout queries only verified active defaults.
-Staging must additionally prove signed webhook reconciliation and actual
-automatic settlement to the landlord's bank account; mocked provider responses
-cannot establish delivery of funds.
+This earlier test plan is retained as history only. Under the current
+merchant restriction, new Paystack rent subaccounts and checkout are blocked;
+signed historical events are still tested. Mocked provider responses cannot
+establish delivery of funds. New tests cover attested M-Pesa instruction
+resolution, the landlord shortcode binding, rejection of forged provider
+references, and distinct manual/provider confirmation provenance.

@@ -288,12 +288,15 @@ before writing and update both together. Historical records may lack the new
 fields. Reports and other collections remain on major units, so this is not
 yet an authoritative minor-unit cutover. A read-only Phase A inventory command
 identifies collections that require a verified backfill and cutover.
-The operating rail policy currently permits only KE/KES with M-Pesa or
-Paystack. Checkout rechecks the organization's regional profile and requires
-an active default destination matching organization, currency and country.
-Paystack rent checkout always passes its subaccount code; there is no silent
-platform-account fallback. This is a guarded Kenya deployment, not broad
-multi-country readiness.
+The current direct-to-landlord rent policy permits only KE/KES M-Pesa STK
+initiation for an explicitly configured landlord-owned organization/shortcode
+binding. It is disabled without that binding and an owner-attested matching
+PayBill destination. Property-specific instructions override an organization
+default. Paystack rent checkout and new rent subaccount provisioning are
+blocked because the platform merchant account is reserved for Dapinni SaaS
+subscriptions. Historical provider events remain reconcilable; no new rent
+charge is sent through the platform Paystack account. Tenant instructions are
+not payment confirmation. This is not broad multi-country readiness.
 PMCC verifies the signed `charge.success` payload, transaction reference,
 amount, and currency before applying a payment. M-Pesa success callbacks
 must match the server-initiated amount and KES currency before allocation.

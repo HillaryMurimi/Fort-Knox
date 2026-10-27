@@ -4,13 +4,15 @@ import { paymentDestinationSchema } from './finance.schemas.js';
 describe('payment destination validation',()=>{
   it('accepts Paystack, M-Pesa, and crypto onboarding destinations',()=>{
     expect(paymentDestinationSchema.parse({provider:'PAYSTACK',label:'Rent bank',businessName:'Dapini Homes',bankCode:'001',accountNumber:'1234567890'}).currency).toBe('KES');
-    expect(paymentDestinationSchema.parse({provider:'MPESA',label:'Rent paybill',shortCode:'123456'}).currency).toBe('KES');
+    expect(paymentDestinationSchema.parse({provider:'MPESA',label:'Rent paybill',shortCode:'123456',businessType:'PAYBILL',accountReference:'{{leaseNumber}}',ownershipAttested:true}).currency).toBe('KES');
     expect(paymentDestinationSchema.parse({provider:'CRYPTO',label:'USDC treasury',asset:'USDC',network:'BASE',walletAddress:'0x1234567890123456789012345678901234567890'}).currency).toBe('USDC');
   });
 
   it('rejects malformed settlement details',()=>{
     expect(()=>paymentDestinationSchema.parse({provider:'PAYSTACK',label:'Bank',businessName:'Dapini',bankCode:'001',accountNumber:'not-a-bank-account'})).toThrow();
-    expect(()=>paymentDestinationSchema.parse({provider:'MPESA',label:'Till',shortCode:'12'})).toThrow();
+    expect(()=>paymentDestinationSchema.parse({provider:'MPESA',label:'Till',shortCode:'12',businessType:'TILL',ownershipAttested:true})).toThrow();
+    expect(()=>paymentDestinationSchema.parse({provider:'MPESA',label:'Unattested',shortCode:'123456',businessType:'PAYBILL',accountReference:'Unit 1'})).toThrow();
+    expect(()=>paymentDestinationSchema.parse({provider:'MPESA',label:'No reference',shortCode:'123456',businessType:'PAYBILL',ownershipAttested:true})).toThrow();
     expect(()=>paymentDestinationSchema.parse({provider:'CRYPTO',label:'Wallet',asset:'DOGE',network:'BASE',walletAddress:'short'})).toThrow();
     expect(()=>paymentDestinationSchema.parse({provider:'PAYSTACK',label:'Rent bank',businessName:'Dapini Homes',bankCode:'001',accountNumber:'1234567890',currency:'USD'})).toThrow();
     expect(()=>paymentDestinationSchema.parse({provider:'PAYSTACK',label:'Rent bank',businessName:'Dapini Homes',bankCode:'001',accountNumber:'1234567890',country:'US'})).toThrow();

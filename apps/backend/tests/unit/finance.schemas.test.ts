@@ -27,6 +27,12 @@ describe('finance schemas', () => {
   it('rejects an inverted report range', () => {
     expect(() => reportSchema.parse({ from: '2026-10-01', to: '2026-09-01' })).toThrow();
   });
+  it('does not accept client-supplied provider evidence on a new payment', () => {
+    const tenancyId = '507f1f77bcf86cd799439011';
+    expect(() => paymentSchema.parse({ tenancyId, amount: 100, method: 'MPESA', provider: 'PAYSTACK' })).toThrow();
+    expect(() => paymentSchema.parse({ tenancyId, amount: 100, method: 'MPESA', providerTransactionId: 'forged-ref' })).toThrow();
+    expect(() => paymentSchema.parse({ tenancyId, amount: 100, method: 'MPESA', paidAt: '2026-10-27' })).toThrow();
+  });
   it('rejects amounts that cannot be represented in KES cents at input', () => {
     const tenancyId = '507f1f77bcf86cd799439011';
     expect(() => paymentSchema.parse({ tenancyId, amount: 0.001, method: 'CARD' })).toThrow();

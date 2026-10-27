@@ -101,12 +101,19 @@ Protect against IDOR/BOLA.
 -   New KES monetary inputs reject excess precision/unsafe values. Payment
     allocation and reversal arithmetic uses integer cents, but stored balances
     remain legacy major-unit numbers until the full migration is complete.
--   Rent checkout fails closed outside the KE/KES M-Pesa/Paystack matrix and
-    without an active organization-matched default settlement destination.
-    Paystack initiation cannot silently omit the landlord subaccount code.
--   Paystack bank account details are sent directly from the authenticated
-    setup request to Paystack subaccount provisioning; PMCC retains only the
-    provider subaccount code, account name, bank code, and final four digits.
+-   New Paystack rent checkout and subaccount provisioning fail closed because
+    Dapinni's merchant relationship is reserved for its SaaS subscriptions.
+    Historical signed rent events may still reconcile. Enabling a provider
+    flag does not override this compliance boundary.
+-   M-Pesa STK requires the exact landlord organization binding, enabled
+    Daraja credentials, and an attested matching PayBill. Instruction-only
+    PayBills and Tills do not provide independent ownership or payment proof.
+    A tenant may read only destinations resolved from their authorized active
+    tenancy/property. Property-specific writes require property scope.
+-   The generic payment-create API rejects client-supplied provider references
+    and timestamps. Manual confirmation cannot confirm provider-linked
+    payments; confirmation provenance is stored and older unknown records are
+    kept unclassified in reports.
 -   A pasted crypto wallet address is not proof of control or settlement.
     Crypto destinations remain unavailable for tenant checkout until a
     provider-verifiable, idempotent blockchain reconciliation path exists.
