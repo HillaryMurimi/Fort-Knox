@@ -320,6 +320,8 @@ audit metadata.
 
 ### expenses
 
+Phase 3 adds optional `classification`, `amountMinor`, invoice identity/dates, service period/due date, submit/reject/payment actor and times, and payment basis/reference to the existing collection. New API writes require classification and populate integer KES minor units; historical rows remain unclassified and are excluded from reported OPEX until reviewed. One expense record represents the original obligation; a draft or approved invoice is not a paid expense. The prior sparse source index needs a controlled replacement with a partial unique source-ID index; a new partial unique `(organizationId,propertyId,invoiceNumber)` index prevents duplicate property invoice identity. Back up and inspect existing indexes/duplicates before staging index rollout; do not silently rewrite old financial rows.
+
 -   organization/property/building
 -   category
 -   description

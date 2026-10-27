@@ -12,15 +12,18 @@ export type PaymentDestinationInput =
   | { provider:'MPESA';label:string;isDefault?:boolean;country?:string;currency?:'KES';propertyId?:string;businessType:'PAYBILL'|'TILL';ownershipAttested:true;shortCode:string;accountReference?:string }
   | { provider:'CRYPTO';label:string;isDefault?:boolean;country?:string;currency?:string;asset:'USDC'|'USDT'|'BTC'|'ETH';network:'BASE'|'ETHEREUM'|'POLYGON'|'BITCOIN';walletAddress:string };
 export interface AllocationInput { allocations: Array<{ rentChargeId: string; amount: number }>; verification: { checkedReceivingAccount: true; basis: string } }
-export interface ExpenseInput { propertyId: string; buildingId?: string; floorId?: string; unitId?: string; category: Expense['category']; description: string; amount: number; currency?: string; incurredAt: string; vendorName?: string; contractorId?: string; evidenceIds?: string[]; notes?: string; }
+export interface ExpenseInput { propertyId: string; buildingId?: string; floorId?: string; unitId?: string; category: Expense['category']; classification: NonNullable<Expense['classification']>; description: string; amount: number; currency?: string; incurredAt: string; invoiceNumber?: string|undefined; invoiceDate?: string; servicePeriodStart?: string; servicePeriodEnd?: string; dueDate?: string; vendorName?: string; contractorId?: string; evidenceIds?: string[]; notes?: string; }
+export interface ExpensePaymentInput { paidAt: string; paymentBasis: string; paymentReference?: string; notes?: string }
 export interface ServiceChargeInput { tenancyId: string; periodStart: string; periodEnd: string; amount: number; currency?: string; description?: string; }
 export interface ArrearsUpdateInput { status: Exclude<ArrearsCase['status'], 'OPEN'>; promiseDate?: string; notes?: string; }
 export interface FinancialPeriodInput { periodStart: string; periodEnd: string; notes?: string; }
 
 interface BackendFinancialReport {
   revenue: { rentBilled:number; serviceChargesBilled:number; totalBilled:number; totalCollected:number; providerConfirmed:number; manualAcknowledged:number; legacyUnclassified:number; collectionRate:number; outstanding:number };
-  expenses: { total:number; byCategory:Array<{_id:string;amount:number}> };
-  profitAndLoss: { accrual:number; cash:number };
+  expenses: { total:number; byCategory:Array<{_id:string;amount:number}>; unclassifiedCount?:number };
+  operatingPosition?: FinancialReport['operatingPosition'];
+  dataQuality?: FinancialReport['dataQuality'];
+  profitAndLoss: { accrual:number; cash:number|null };
   arrears: { amount:number; chargeCount:number };
   serviceCharges: { assessed:number };
   occupancy: { activeTenancies:number };
@@ -31,6 +34,8 @@ export function normalizeFinancialReport(report: BackendFinancialReport | Financ
   if (!('revenue' in report)) return report;
   return {
     ...report.revenue,
+    ...(report.operatingPosition ? { operatingPosition: report.operatingPosition } : {}),
+    ...(report.dataQuality ? { dataQuality: report.dataQuality } : {}),
     totalExpenses: report.expenses.total,
     expensesByCategory: Object.fromEntries(report.expenses.byCategory.map(item=>[item._id,item.amount])),
     accrualPnl: report.profitAndLoss.accrual,
@@ -80,8 +85,9 @@ export const financeClient = {
   expenses: {
     list: (organizationId: string) => api<Expense[]>(`/organizations/${organizationId}/expenses`),
     create: (organizationId: string, input: ExpenseInput) => api<Expense>(`/organizations/${organizationId}/expenses`, { method: 'POST', body: JSON.stringify(input) }),
+    submit: (id: string, notes?: string) => api<Expense>(`/expenses/${id}/submit`, { method: 'POST', body: JSON.stringify(notes ? { notes } : {}) }),
     approve: (id: string, notes?: string) => api<Expense>(`/expenses/${id}/approve`, { method: 'POST', body: JSON.stringify(notes ? { notes } : {}) }),
-    pay: (id: string, notes?: string) => api<Expense>(`/expenses/${id}/pay`, { method: 'POST', body: JSON.stringify(notes ? { notes } : {}) }),
+    pay: (id: string, input: ExpensePaymentInput) => api<Expense>(`/expenses/${id}/pay`, { method: 'POST', body: JSON.stringify(input) }),
     reject: (id: string, notes?: string) => api<Expense>(`/expenses/${id}/reject`, { method: 'POST', body: JSON.stringify(notes ? { notes } : {}) }),
   },
   serviceCharges: {

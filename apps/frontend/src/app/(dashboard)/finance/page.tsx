@@ -148,18 +148,19 @@ export default function FinancePage() {
           icon={I.CircleDollarSign}
         />
         <Stat
-          label="Expenses"
+          label="Reported OPEX"
           value={money(expenses)}
           sub="Selected reporting period"
           icon={I.CreditCard}
         />
         <Stat
-          label="Cash P&L"
-          value={money(report.data?.cashPnl ?? collected - expenses)}
-          sub="Collected less expenses"
+          label="Reported operating margin"
+          value={report.data?.operatingPosition ? money(report.data.operatingPosition.reportedOperatingMargin) : 'Unavailable'}
+          sub="Billed income less recorded OPEX, not cash flow"
           icon={I.BarChart3}
         />
       </div>
+      {report.data?.dataQuality && <div className="mt-3 border-b border-border pb-3 text-xs text-muted-foreground" role="status">Reported, not audited. {report.data.dataQuality.warnings.join(' ')} Cash flow is unavailable.</div>}
       {report.data && <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 border-b border-border pb-3 text-xs text-muted-foreground" aria-label="Collection verification breakdown">
         <span>Provider-confirmed: <strong className="text-foreground">{money(report.data.providerConfirmed ?? 0)}</strong></span>
         <span>Staff-acknowledged: <strong className="text-foreground">{money(report.data.manualAcknowledged ?? 0)}</strong></span>
@@ -328,15 +329,15 @@ export default function FinancePage() {
                   ['Service charges', report.data.serviceChargesBilled],
                   ['Collected', report.data.totalCollected],
                   ['Outstanding', report.data.outstanding],
-                  ['Accrual P&L', report.data.accrualPnl],
-                  ['Cash P&L', report.data.cashPnl],
+                  ['Reported operating margin', report.data.operatingPosition?.reportedOperatingMargin ?? null],
+                  ['Operating expense ratio', report.data.operatingPosition?.operatingExpenseRatio ?? null],
                 ].map(([label, value]) => (
                   <div
                     key={String(label)}
                     className="flex justify-between border-b border-border pb-2"
                   >
                     <span className="text-muted-foreground">{label}</span>
-                    <b>{money(Number(value))}</b>
+                    <b>{value == null ? 'Unavailable' : label === 'Operating expense ratio' ? `${Number(value).toFixed(2)}%` : money(Number(value))}</b>
                   </div>
                 ))}
               </>

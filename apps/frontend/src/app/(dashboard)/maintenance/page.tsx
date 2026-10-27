@@ -1,7 +1,7 @@
 'use client';
 import { useState, type ReactNode } from 'react';
 import * as I from '@/components/icons';
-import { StatusBadge, PageTitle, Stat, SectionHeader, EmptyState } from '@/components/ui';
+import { Alert, StatusBadge, PageTitle, Stat, SectionHeader, EmptyState } from '@/components/ui';
 import { useOrganization } from '@/hooks/use-organization';
 import {
   useMaintenanceQuery,
@@ -12,9 +12,10 @@ import {
 } from '@/hooks/queries/use-maintenance-queries';
 import { useContractorsQuery, useCreateContractorMutation } from '@/hooks/queries/use-contractor-queries';
 import { useExpensesQuery, useCreateExpenseMutation, useExpenseActionMutation } from '@/hooks/queries/use-finance-queries';
-import type { Contractor, Expense, MaintenanceRequest } from '@/lib/data/resource-types';
+import { usePropertiesQuery } from '@/hooks/queries/use-property-queries';
+import type { Contractor, Expense, MaintenanceRequest, Property } from '@/lib/data/resource-types';
 import type { CreateMaintenanceInput } from '@/lib/data/maintenance';
-import type { ExpenseInput } from '@/lib/data/finance';
+import type { ExpenseInput, ExpensePaymentInput } from '@/lib/data/finance';
 import type { ContractorInput } from '@/lib/data/contractors';
 
 type MaintenanceCategory = NonNullable<CreateMaintenanceInput['category']>;
@@ -30,10 +31,12 @@ export default function Maintenance() {
   const [tab, setTab] = useState<'maintenance' | 'contractors' | 'expenses'>('maintenance');
   const [q, setQ] = useState('');
   const m = useMaintenanceQuery(org), c = useContractorsQuery(org), e = useExpensesQuery(org);
+  const properties = usePropertiesQuery(org);
   const createM = useCreateMaintenanceMutation(org), createC = useCreateContractorMutation(org), createE = useCreateExpenseMutation(org);
   const triage = useTriageMaintenanceMutation(org), approve = useApproveMaintenanceMutation(org), progress = useProgressMaintenanceMutation(org);
   const expenseAction = useExpenseActionMutation(org);
   const [modal, setModal] = useState<'maintenance' | 'contractor' | 'expense' | null>(null);
+  const [payingExpense, setPayingExpense] = useState<Expense | null>(null);
   const maintenance = (m.data ?? []).filter((x) =>
     `${x.title} ${x.description} ${x.category} ${x.status}`.toLowerCase().includes(q.toLowerCase()),
   );
@@ -41,8 +44,8 @@ export default function Maintenance() {
   const urgent = maintenance.filter((x) => x.priority === 'EMERGENCY' || x.priority === 'HIGH').length;
   const cost = maintenance.reduce((a, x) => a + (x.actualAmount ?? x.approvedAmount ?? x.quoteAmount ?? 0), 0);
   const pendingApproval = maintenance.filter((x) => x.status === 'APPROVAL_REQUIRED').length;
-  const expenseTotal = (e.data ?? []).reduce((a, x) => a + x.amount, 0);
-  const paidExpense = (e.data ?? []).filter((x) => x.status === 'PAID').reduce((a, x) => a + x.amount, 0);
+  const expenseTotal = (e.data ?? []).filter(x=>x.classification==='OPEX'&&['APPROVED','PAID'].includes(x.status)).reduce((a, x) => a + x.amount, 0);
+  const paidExpense = (e.data ?? []).filter((x) => x.classification==='OPEX'&&x.status === 'PAID').reduce((a, x) => a + x.amount, 0);
 
   return (
     <div>
@@ -114,12 +117,15 @@ export default function Maintenance() {
       )}
       {tab === 'contractors' && <Contractors data={c.data ?? []} loading={c.isLoading} />}
       {tab === 'expenses' && (
+        <>
+        {(createE.error||expenseAction.error||e.error)&&<Alert tone="destructive" title="Expense operation failed">{createE.error?.message??expenseAction.error?.message??e.error?.message}</Alert>}
         <Expenses
           data={e.data ?? []}
           total={expenseTotal}
           paid={paidExpense}
-          onAction={(id, action) => expenseAction.mutate({ id, action })}
+          onAction={(expense, action) => action==='pay'?setPayingExpense(expense):expenseAction.mutate({ id:expense._id, action })}
         />
+        </>
       )}
       {modal === 'maintenance' && (
         <MaintenanceModal onClose={() => setModal(null)} busy={createM.isPending} onSubmit={(v) => createM.mutate(v, { onSuccess: () => setModal(null) })} />
@@ -128,8 +134,9 @@ export default function Maintenance() {
         <ContractorModal onClose={() => setModal(null)} busy={createC.isPending} onSubmit={(v) => createC.mutate(v, { onSuccess: () => setModal(null) })} />
       )}
       {modal === 'expense' && (
-        <ExpenseModal onClose={() => setModal(null)} busy={createE.isPending} onSubmit={(v) => createE.mutate(v, { onSuccess: () => setModal(null) })} />
+        <ExpenseModal properties={properties.data??[]} onClose={() => setModal(null)} busy={createE.isPending} onSubmit={(v) => createE.mutate(v, { onSuccess: () => setModal(null) })} />
       )}
+      {payingExpense && <ExpensePaymentModal expense={payingExpense} busy={expenseAction.isPending} onClose={()=>setPayingExpense(null)} onSubmit={input=>expenseAction.mutate({id:payingExpense._id,action:'pay',payment:input},{onSuccess:()=>setPayingExpense(null)})} />}
     </div>
   );
 }
@@ -180,12 +187,12 @@ function Contractors({ data, loading }: { data: Contractor[]; loading: boolean }
   );
 }
 
-function Expenses({ data, total, paid, onAction }: { data: Expense[]; total: number; paid: number; onAction: (id: string, a: 'approve' | 'pay' | 'reject') => void }) {
+function Expenses({ data, total, paid, onAction }: { data: Expense[]; total: number; paid: number; onAction: (expense: Expense, a: 'submit' | 'approve' | 'pay' | 'reject') => void }) {
   return (
     <>
       <div className="grid grid-cols-2 gap-4 mb-4">
-        <Stat label="Recorded spend" value={money(total)} sub="All operational expenses" icon={I.Wallet} />
-        <Stat label="Paid spend" value={money(paid)} sub="Posted as paid" icon={I.CircleDollarSign} />
+        <Stat label="Reported operating costs" value={money(total)} sub="Approved or paid OPEX only" icon={I.Wallet} />
+        <Stat label="Recorded paid OPEX" value={money(paid)} sub="Operator acknowledged, not bank-reconciled" icon={I.CircleDollarSign} />
       </div>
       <section className="card overflow-hidden">
         <SectionHeader title="Operational expense ledger" />
@@ -195,13 +202,15 @@ function Expenses({ data, total, paid, onAction }: { data: Expense[]; total: num
               <div key={x._id} className="px-5 py-4 flex flex-wrap items-center gap-4">
                 <div className="flex-1 min-w-[220px]">
                   <div className="font-medium text-sm">{x.description}</div>
+                  <div className="text-xs text-muted-foreground">{x.classification ?? 'Unclassified legacy'}{x.invoiceNumber ? ` · Invoice ${x.invoiceNumber}` : ''}</div>
                   <div className="text-xs text-muted-foreground">{x.category} · {x.sourceType} · {x.propertyId}</div>
                 </div>
                 <StatusBadge status={x.status} domain="expense">{x.status}</StatusBadge>
                 <div className="font-semibold">{money(x.amount, x.currency)}</div>
                 <div className="flex gap-2">
-                  {x.status === 'SUBMITTED' && <button className="btn-secondary" onClick={() => onAction(x._id, 'approve')}>Approve</button>}
-                  {x.status === 'APPROVED' && <button className="btn-secondary" onClick={() => onAction(x._id, 'pay')}>Pay</button>}
+                  {x.status === 'DRAFT' && <button className="btn-secondary" onClick={() => onAction(x, 'submit')}>Submit</button>}
+                  {x.status === 'SUBMITTED' && <><button className="btn-secondary" onClick={() => onAction(x, 'approve')}>Approve</button><button className="btn-secondary" onClick={() => onAction(x, 'reject')}>Reject</button></>}
+                  {x.status === 'APPROVED' && <button className="btn-secondary" onClick={() => onAction(x, 'pay')}>Record payment</button>}
                 </div>
               </div>
             ))
@@ -217,10 +226,10 @@ function Expenses({ data, total, paid, onAction }: { data: Expense[]; total: num
 function Modal({ title, children, onClose, busy }: { title: string; children: ReactNode; onClose: () => void; busy: boolean }) {
   return (
     <div className="modal-backdrop">
-      <div className="modal-panel max-w-xl w-full">
+      <div className="modal-panel max-w-xl w-full" role="dialog" aria-modal="true" aria-label={title}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-semibold">{title}</h2>
-          <button onClick={onClose}><I.X size={18} /></button>
+          <button type="button" aria-label="Close dialog" onClick={onClose}><I.X size={18} /></button>
         </div>
         {children}
         <button className="btn-primary w-full mt-5" disabled={busy} form="phase7-form">{busy ? 'Saving…' : 'Save'}</button>
@@ -270,23 +279,34 @@ function ContractorModal({ onClose, onSubmit, busy }: { onClose: () => void; onS
   );
 }
 
-function ExpenseModal({ onClose, onSubmit, busy }: { onClose: () => void; onSubmit: (v: ExpenseInput) => void; busy: boolean }) {
-  const [v, setV] = useState<ExpenseInput>({ propertyId: '', description: '', amount: 0, category: 'MAINTENANCE', incurredAt: new Date().toISOString().slice(0, 10) });
+function ExpenseModal({ properties, onClose, onSubmit, busy }: { properties: Property[]; onClose: () => void; onSubmit: (v: ExpenseInput) => void; busy: boolean }) {
+  const [v, setV] = useState<ExpenseInput>({ propertyId: '', description: '', amount: 0, category: 'MAINTENANCE', classification:'OPEX', incurredAt: new Date().toISOString().slice(0, 10) });
   return (
-    <Modal title="Record operational expense" onClose={onClose} busy={busy}>
-      <form id="phase7-form" onSubmit={(e) => { e.preventDefault(); onSubmit(v); }} className="space-y-3">
-        <input className="input" placeholder="Property ID" required value={v.propertyId} onChange={(e) => setV({ ...v, propertyId: e.target.value })} />
-        <input className="input" placeholder="Description" required value={v.description} onChange={(e) => setV({ ...v, description: e.target.value })} />
-        <input className="input" type="number" min="0" placeholder="Amount" required value={v.amount || ''} onChange={(e) => setV({ ...v, amount: Number(e.target.value) })} />
+    <Modal title="Record property expense" onClose={onClose} busy={busy}>
+      <form id="phase7-form" onSubmit={(e) => { e.preventDefault(); onSubmit({ ...v, ...(v.invoiceNumber?.trim()?{invoiceNumber:v.invoiceNumber.trim()}:{invoiceNumber:undefined}) }); }} className="space-y-3">
+        <label className="block text-sm">Property<select className="input mt-1" required value={v.propertyId} onChange={(e) => setV({ ...v, propertyId: e.target.value })}><option value="">Select property</option>{properties.map(property=><option key={property._id} value={property._id}>{property.name}</option>)}</select></label>
+        <label className="block text-sm">Description<input className="input mt-1" required value={v.description} onChange={(e) => setV({ ...v, description: e.target.value })} /></label>
+        <label className="block text-sm">Amount (KES)<input className="input mt-1" type="number" min="0.01" step="0.01" required value={v.amount || ''} onChange={(e) => setV({ ...v, amount: Number(e.target.value) })} /></label>
+        <label className="block text-sm">Financial classification<select className="input mt-1" value={v.classification} onChange={(e) => setV({ ...v, classification: e.target.value as ExpenseInput['classification'] })}>{[['OPEX','Operating expense'],['CAPEX','Capital investment'],['FINANCING','Financing cost'],['TAX','Tax or levy'],['OWNER_DISTRIBUTION','Owner distribution'],['SECURITY_DEPOSIT','Security deposit movement'],['INTERNAL_TRANSFER','Internal transfer']].map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
+        <label className="block text-sm">Category
         <select
-          className="input"
+          className="input mt-1"
           value={v.category}
           onChange={(e) => setV({ ...v, category: e.target.value as ExpenseCategory })}
         >
           {['MAINTENANCE', 'UTILITIES', 'SECURITY', 'CLEANING', 'INSURANCE', 'TAX', 'STAFF', 'MANAGEMENT', 'SUPPLIES', 'LEGAL', 'MARKETING', 'OTHER'].map((x) => <option key={x}>{x}</option>)}
-        </select>
-        <input className="input" type="date" required value={v.incurredAt} onChange={(e) => setV({ ...v, incurredAt: e.target.value })} />
+        </select></label>
+        <label className="block text-sm">Incurred date<input className="input mt-1" type="date" required value={v.incurredAt} onChange={(e) => setV({ ...v, incurredAt: e.target.value })} /></label>
+        <label className="block text-sm">Vendor<input className="input mt-1" value={v.vendorName??''} onChange={(e) => setV({ ...v, vendorName: e.target.value })} /></label>
+        <label className="block text-sm">Invoice number<input className="input mt-1" value={v.invoiceNumber??''} onChange={(e) => setV({ ...v, invoiceNumber: e.target.value })} /></label>
       </form>
     </Modal>
   );
+}
+
+function ExpensePaymentModal({expense,busy,onClose,onSubmit}:{expense:Expense;busy:boolean;onClose:()=>void;onSubmit:(input:ExpensePaymentInput)=>void}){
+  const [paidAt,setPaidAt]=useState(new Date().toISOString().slice(0,10));
+  const [paymentBasis,setPaymentBasis]=useState('');
+  const [paymentReference,setPaymentReference]=useState('');
+  return <Modal title="Record expense payment" onClose={onClose} busy={busy}><form id="phase7-form" className="space-y-3" onSubmit={event=>{event.preventDefault();onSubmit({paidAt,paymentBasis:paymentBasis.trim(),...(paymentReference.trim()?{paymentReference:paymentReference.trim()}:{})});}}><p className="text-sm text-muted-foreground">{expense.description} · {money(expense.amount,expense.currency)}. This is a manual acknowledgment, not bank reconciliation.</p><label className="block text-sm">Payment date<input className="input mt-1" type="date" required value={paidAt} onChange={event=>setPaidAt(event.target.value)}/></label><label className="block text-sm">Payment basis<textarea className="input mt-1" required minLength={10} maxLength={1000} value={paymentBasis} onChange={event=>setPaymentBasis(event.target.value)} placeholder="Describe the account record or receipt checked" /></label><label className="block text-sm">Transaction reference<input className="input mt-1" value={paymentReference} onChange={event=>setPaymentReference(event.target.value)} /></label></form></Modal>;
 }
