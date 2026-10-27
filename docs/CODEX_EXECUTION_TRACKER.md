@@ -1,5 +1,12 @@
 # Property Management Command Center - Codex Execution Tracker
 
+## Real-estate intelligence foundation (2026-10-27)
+
+- Audited existing finance, tenancy, expenses, maintenance, forecasts, entitlements, controls, jobs, notifications and audit boundaries. [INTELLIGENCE_FOUNDATION.md](INTELLIGENCE_FOUNDATION.md) records capability status, shared financial formulas, evidence classes, nine module contracts, dependency order, data-quality gates, security boundaries and Coolify compatibility.
+- Registered nine planned modules in the existing persistent Super Admin switch catalog. They default OFF; the backend rejects ON until a certified implementation exists, and the UI shows an activation-blocked planned state. Existing subscription plans, financial records, APIs, jobs and legacy decision-automation flows are unchanged.
+- Verification: root typecheck, lint (0 errors; 509 backend and 27 frontend existing warnings), tests (397 backend passed/202 opt-in skipped; 292 frontend passed), and production build passed. Focused switch/monitoring tests passed 36. No browser staging test was run.
+- Remaining: historical minor-unit and settlement evidence, expense/capex classification, period occupancy, module-specific entitlements/configuration, scoped calculators, data-quality checks, idempotent jobs, snapshot provenance, and staging acceptance. These are not production-ready modules. No migration, live provider call or deployment was performed.
+
 ## Direct-to-landlord rent boundary (2026-10-27)
 
 - The owner-supplied merchant restriction supersedes the 2026-10-26 Paystack rent subaccount readiness direction below. Dapinni Paystack is now limited to SaaS subscriptions: new rent checkout, new rent subaccounts and legacy destination refresh fail closed. Historical signed rent webhooks/reconciliation remain for existing transactions; no live destination or database record was changed.

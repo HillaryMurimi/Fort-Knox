@@ -410,7 +410,7 @@ export function buildOpenApiDocument() {
         get: {
           summary: "List platform switches (platform admin only)",
           responses: {
-            "200": { description: "Catalog; missing records default OFF" },
+            "200": { description: "Catalog; missing records default OFF. Planned intelligence entries include activationBlocked=true." },
             "403": { description: "Platform admin required" },
           },
         },
@@ -452,6 +452,7 @@ export function buildOpenApiDocument() {
             "200": { description: "Switch updated and audited" },
             "403": { description: "Platform admin required" },
             "404": { description: "Unknown switch" },
+            "409": { description: "INTELLIGENCE_MODULE_NOT_READY when a planned module is turned ON" },
           },
         },
       },

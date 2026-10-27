@@ -424,6 +424,8 @@ The landlord workflow extends Organization, OrganizationSubscription, Subscripti
 
 ## SUPER_ADMIN platform intelligence
 
+The nine-module real-estate intelligence roadmap uses the existing persistent PlatformSwitch catalog, billing entitlements, organization scope, jobs and audit boundaries. Its new entries are foundation-only and activation-blocked; no parallel financial engine or new collection is introduced. Shared calculation definitions, evidence classes, dependencies and promotion gates are in [INTELLIGENCE_FOUNDATION.md](INTELLIGENCE_FOUNDATION.md).
+
 The existing control plane now includes backend Mongo aggregation and retained PlatformBrief snapshots. It reuses organization/subscription/invoice/payment/monitoring authorities; the landlord Command Center remains organization scoped. See [SUPER_ADMIN business intelligence](SUPER_ADMIN_BUSINESS_INTELLIGENCE.md) for boundaries, queries and generation architecture.
 
 ## SUPER_ADMIN authentication

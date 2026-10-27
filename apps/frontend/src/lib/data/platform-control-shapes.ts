@@ -58,6 +58,7 @@ export const platformSwitchesShape = z.array(
     description: text,
     environment: text,
     reason: text,
+    activationBlocked: z.boolean().optional(),
   }),
 );
 export const launchReadinessShape = z.object({

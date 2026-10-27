@@ -109,6 +109,12 @@ describe("control-plane malformed response recovery", () => {
     expect(html).toContain("Alert records unavailable");
     expect(html).toContain("Switch monitoring not configured or unavailable");
   });
+  it("marks foundation intelligence controls as planned and prevents the ON command", () => {
+    state.switches = [{ _id: 'planned', key: 'INTELLIGENCE_RENT_LEDGER', kind: 'FEATURE', name: 'Universal rent ledger', description: 'Planned', environment: 'ALL', enabled: false, mode: 'OFF', reason: 'Not ready', activationBlocked: true }];
+    const html = renderToStaticMarkup(createElement(PlatformControls));
+    expect(html).toContain('Planned module. Activation requires a certified backend implementation.');
+    expect(html).toMatch(/disabled=""[^>]*>Turn ON<\/button>/);
+  });
   it("gives preview setup guidance before mounting privileged queries", () => {
     state.preview = true;
     const html = renderToStaticMarkup(createElement(PlatformPage));

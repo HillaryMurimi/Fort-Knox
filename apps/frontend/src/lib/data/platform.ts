@@ -11,7 +11,7 @@ export interface PlatformJob { _id: string; organizationId?: string; type: strin
 export interface PlatformAuditLog { _id: string; organizationId?: string; actorUserId?: string; actorRole?: string; action: string; resourceType: string; resourceId?: string; requestId?: string; occurredAt: string; }
 export interface PlatformDiagnostics { status: string; [key: string]: unknown }
 export type PlatformSwitchMode = 'ON' | 'OFF' | 'MAINTENANCE';
-export interface PlatformSwitch { _id: string; key: string; kind: 'SERVICE' | 'FEATURE'; name: string; description: string; environment: string; enabled: boolean; mode: PlatformSwitchMode; reason: string; modifiedBy?: string; modifiedAt?: string; }
+export interface PlatformSwitch { _id: string; key: string; kind: 'SERVICE' | 'FEATURE'; name: string; description: string; environment: string; enabled: boolean; mode: PlatformSwitchMode; reason: string; activationBlocked?: boolean; modifiedBy?: string; modifiedAt?: string; }
 
 export interface CreatePlanInput {
   key: string; name: string; description?: string; currency: string; amount: number;

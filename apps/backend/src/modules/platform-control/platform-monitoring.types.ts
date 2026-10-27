@@ -23,4 +23,11 @@ export const switchCoverage: Record<string, { coverage: 'PARTIAL' | 'NOT_ENFORCE
   TENANT_OTP_LOGIN: { coverage: 'NOT_ENFORCED', boundaries: 'None', dependencies: ['SMS_NOTIFICATIONS'], limitation: 'Catalog entry has no tenant-specific enforcement; SMS transport has a separate switch.' },
   DECISION_INTELLIGENCE: { coverage: 'NOT_ENFORCED', boundaries: 'None', dependencies: [], limitation: 'Intelligence service/worker boundaries are not gated.' },
   DECISION_AUTOMATION: { coverage: 'NOT_ENFORCED', boundaries: 'None', dependencies: [], limitation: 'Automation service/worker boundaries are not gated.' },
+  ...Object.fromEntries(intelligenceModuleRegistry.map(module => [module.key, {
+    coverage: 'NOT_ENFORCED' as const,
+    boundaries: 'No module-specific API or worker boundary is implemented',
+    dependencies: [...module.dependencies],
+    limitation: 'Foundation catalog only. Activation is blocked until entitlement, organization scope, data quality, calculation and audit gates are certified.',
+  }])),
 };
+import { intelligenceModuleRegistry } from './intelligence-module.registry.js';

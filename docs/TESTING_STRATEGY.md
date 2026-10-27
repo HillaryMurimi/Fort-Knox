@@ -2,6 +2,8 @@
 
 ## 1. Goal
 
+The real-estate intelligence foundation has registry/activation tests and a Super Admin UI planned-state test. Each future module needs scoped organization/property denial, plan and switch denial, dependency/environment validation, minor-unit calculation and provenance tests before activation. The full promotion checklist is in [INTELLIGENCE_FOUNDATION.md](INTELLIGENCE_FOUNDATION.md).
+
 Tests must prove business behavior, authorization boundaries,
 integration contracts, and critical workflows---not merely increase
 coverage percentages.

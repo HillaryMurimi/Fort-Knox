@@ -321,6 +321,8 @@ Exports must obey authorization and be audited when sensitive.
 
 ## 20. Property Intelligence
 
+The nine proposed real-estate intelligence modules are cataloged as OFF, planned controls only. Their Control/Fort Knox targets are not current plan grants, and the Super Admin cannot activate them until scoped APIs, entitlements, data-quality gates and tests exist. See [INTELLIGENCE_FOUNDATION.md](INTELLIGENCE_FOUNDATION.md).
+
 Potential insights: - Rising maintenance costs. - Repeat failures. -
 Long vacancies. - Arrears patterns. - Expense anomalies. - Contractor
 anomalies. - Security/access anomalies. - Utility anomalies.

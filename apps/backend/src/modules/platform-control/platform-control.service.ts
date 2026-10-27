@@ -7,6 +7,7 @@ import { PlatformSwitch } from '../../database/models/PlatformSwitch.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthenticatedUser } from '../../core/types/auth.js';
 import type { UpdateSwitchInput } from './platform-control.schemas.js';
+import { intelligenceModuleRegistry, isPlannedIntelligenceModule } from './intelligence-module.registry.js';
 
 export const platformSwitchCatalog = [
   ['EMAIL_OTP', 'FEATURE', 'Email OTP', 'Email verification for authentication; enabled for the initial launch.'],
@@ -24,6 +25,7 @@ export const platformSwitchCatalog = [
   ['TENANT_OTP_LOGIN', 'FEATURE', 'Tenant OTP login', 'Tenant phone OTP authentication.'],
   ['DECISION_INTELLIGENCE', 'FEATURE', 'Decision intelligence', 'Predictive intelligence and decision support surfaces.'],
   ['DECISION_AUTOMATION', 'FEATURE', 'Decision automation', 'Automated operational recommendations and actions.'],
+  ...intelligenceModuleRegistry.map(module => [module.key, 'FEATURE', module.name, module.description] as const),
 ] as const;
 
 export class PlatformControlService {
@@ -40,11 +42,15 @@ export class PlatformControlService {
 
   static async list() {
     await this.ensureCatalog();
-    return PlatformSwitch.find({}).sort({ kind: 1, name: 1 }).lean();
+    const switches = await PlatformSwitch.find({}).sort({ kind: 1, name: 1 }).lean();
+    return switches.map(control => ({ ...control, activationBlocked: isPlannedIntelligenceModule(control.key) }));
   }
 
   static async update(auth: AuthenticatedUser, key: string, input: UpdateSwitchInput) {
     AuthorizationService.assertPlatformAdmin(auth);
+    if (input.mode === 'ON' && isPlannedIntelligenceModule(key)) {
+      throw new AppError(409, 'INTELLIGENCE_MODULE_NOT_READY', 'This intelligence module has no certified server-side implementation');
+    }
     await this.ensureCatalog();
     const session = await mongoose.startSession();
     try {
