@@ -6,7 +6,7 @@ const money = z.number().finite().nonnegative().refine(isLegacyKesAmount, 'Use a
 export const organizationParamsSchema = z.object({ organizationId: oid }).strict();
 export const maintenanceParamsSchema = z.object({ maintenanceId: oid }).strict();
 export const createMaintenanceSchema = z.object({
-  unitId: oid, tenantId: oid.optional(), title: z.string().trim().min(3).max(180), description: z.string().trim().min(3).max(10000),
+  unitId: oid, tenantId: oid.optional(), assetId: oid.optional(), title: z.string().trim().min(3).max(180), description: z.string().trim().min(3).max(10000),
   category: z.enum(['PLUMBING','ELECTRICAL','STRUCTURAL','SECURITY','CLEANING','APPLIANCE','HVAC','PEST_CONTROL','OTHER']),
   priority: z.enum(['EMERGENCY','HIGH','MEDIUM','LOW']).default('MEDIUM'), evidenceIds: evidence
 }).strict();

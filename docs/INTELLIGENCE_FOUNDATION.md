@@ -78,6 +78,8 @@ The proposed `intelligence.*` entitlements in the registry are **not added to su
 
 Phase 5 preparation adds a pure user-input KES monthly scenario calculator under the existing decision-automation module. It is not a sourced forecast or customer API, does not supply NOI/cash flow, and does not alter the `INTELLIGENCE_FORECASTING` activation block or plan grants. Its explicit occupancy, collection and annual rent-change assumptions are illustrative, not predictions.
 
+Phase 6 preparation adds an optional validated `assetId` on new maintenance requests and replaces unit-wide inventory "history" with explicitly linked, bounded records. Historical unlinked requests are deliberately omitted; no repeated-failure or predictive-risk statistic can claim complete coverage from this history. The `INTELLIGENCE_MAINTENANCE` switch remains OFF and activation-blocked, without an entitlement, model, score or recommendation API.
+
 ## Data Quality And Promotion Gates
 
 Before any module turns ON, detect and surface missing lease dates/rent, unit asking rent versus tenancy rent disagreement, duplicate provider identities, confirmed but unallocated payments, overlapping/invalid occupancy intervals, unclassified expenses, charge/allocation/balance contradictions, stale snapshot cutoff or model version, and assumptions outside supported bounds. Distinguish blocking integrity errors from coverage warnings; never treat incomplete data as verified. Tests must include same-organization property scope, cross-organization denial, plan denial, switch OFF/MAINTENANCE, missing dependency, unsupported environment/currency, audit rollback, stale source and retry/idempotency. Existing financial and provider regression suites stay intact.

@@ -5,6 +5,7 @@ import { MaintenanceRequest, type MaintenanceRequestDocument } from '../../datab
 import { MaintenanceApprovalPolicy } from '../../database/models/MaintenanceApprovalPolicy.js';
 import { Contractor } from '../../database/models/Contractor.js';
 import { Unit } from '../../database/models/Unit.js';
+import { InventoryItem } from '../../database/models/InventoryItem.js';
 import { Tenant } from '../../database/models/Tenant.js';
 import { AuthorizationService } from '../../core/authorization/authorization.service.js';
 import { ResourceScopeService } from '../../core/authorization/resource-scope.service.js';
@@ -22,7 +23,7 @@ export class MaintenanceService {
   private static async persistTransition(auth:AuthenticatedUser,request:HydratedDocument<MaintenanceRequestDocument>,action:string){
     const session=await mongoose.startSession();try{await session.withTransaction(async()=>{
       await request.save({session});
-      await AuditService.record({organizationId:request.organizationId,actorUserId:auth.userId,action,resourceType:'MaintenanceRequest',resourceId:request._id,propertyId:request.propertyId,buildingId:request.buildingId,unitId:request.unitId,metadata:{status:request.status,assignedToUserId:request.assignedToUserId,contractorId:request.contractorId,quoteAmount:request.quoteAmount,approvedAmount:request.approvedAmount,actualAmount:request.actualAmount,evidenceIds:request.evidenceIds}},session);
+      await AuditService.record({organizationId:request.organizationId,actorUserId:auth.userId,action,resourceType:'MaintenanceRequest',resourceId:request._id,propertyId:request.propertyId,buildingId:request.buildingId,unitId:request.unitId,metadata:{assetId:request.assetId,status:request.status,assignedToUserId:request.assignedToUserId,contractorId:request.contractorId,quoteAmount:request.quoteAmount,approvedAmount:request.approvedAmount,actualAmount:request.actualAmount,evidenceIds:request.evidenceIds}},session);
     });}finally{await session.endSession();}return request;
   }
   static async list(auth: AuthenticatedUser, organizationId: string) {
@@ -58,6 +59,10 @@ export class MaintenanceService {
     const orgId=new Types.ObjectId(organizationId); const unit=await Unit.findOne({_id:data.unitId,organizationId:orgId}).lean(); if(!unit) throw new AppError(404,'UNIT_NOT_FOUND','Unit not found in this organization');
     let tenantId: Types.ObjectId | undefined;
     if(data.tenantId){ const tenant=await Tenant.findOne({_id:data.tenantId,organizationId:orgId}).lean(); if(!tenant) throw new AppError(404,'TENANT_NOT_FOUND','Tenant not found in this organization'); tenantId=tenant._id; ResourceScopeService.assertUnit(auth,unit,'maintenance.create',tenant.userId); } else ResourceScopeService.assertUnit(auth,unit,'maintenance.create');
+    if (data.assetId) {
+      const asset = await InventoryItem.exists({ _id: data.assetId, organizationId: orgId, unitId: unit._id, status: { $in: ['ACTIVE', 'UNDER_REPAIR'] } });
+      if (!asset) throw new AppError(404, 'ASSET_NOT_FOUND', 'Active asset not found in this unit');
+    }
     const request=new MaintenanceRequest({...data,organizationId:orgId,propertyId:unit.propertyId,buildingId:unit.buildingId,floorId:unit.floorId,unitId:unit._id,tenantId,reportedByUserId:auth.userId,status:'NEW',createdBy:auth.userId,updatedBy:auth.userId});
     await this.persistTransition(auth,request,'maintenance.reported');
     return request;

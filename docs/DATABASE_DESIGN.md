@@ -347,6 +347,7 @@ Explicit auditable adjustments; never silently mutate financial history.
 ### maintenance_requests
 
 -   organization/property/building/unit
+-   optional `assetId` referencing an `InventoryItem` in the same organization and unit (new writes are validated; historical requests remain unlinked unless explicitly reviewed)
 -   tenant/reporter
 -   category
 -   description
@@ -360,6 +361,8 @@ Explicit auditable adjustments; never silently mutate financial history.
 -   invoice IDs
 -   timestamps
 -   closedAt
+
+The partial `{ organizationId: 1, assetId: 1, createdAt: -1 }` index supports bounded asset history. Build it in staging after inspecting existing indexes and query plans; this change does not backfill or migrate historical records. Asset history is not a unit-wide text/category match.
 
 ### maintenance_transitions
 
