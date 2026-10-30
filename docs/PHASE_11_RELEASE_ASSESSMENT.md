@@ -66,7 +66,7 @@ The nine intelligence controls are catalogued OFF and activation-blocked with no
 
 ## M-N. Tests and CI/CD
 
-Local root typecheck, lint, test, build, static certification, 209 backend E2E tests and dependency-audit outcomes are recorded in [CODEX_EXECUTION_TRACKER.md](CODEX_EXECUTION_TRACKER.md). Sales, SUPER_ADMIN and self-service browser journeys passed; the status system passed 55 tests and 12 visual/status checks. GitHub-hosted CI was not observed in this assessment. The Compose file parsed with placeholders; Docker Desktop's Linux engine was unavailable, so Docker image builds and runtime health checks are NOT TESTED. Static `CERTIFIED_STATIC` is route/permission inventory, not a release certificate.
+Local root typecheck, lint, test, build, static certification, 209 backend E2E tests and dependency-audit outcomes are recorded in [CODEX_EXECUTION_TRACKER.md](CODEX_EXECUTION_TRACKER.md). Sales, SUPER_ADMIN and self-service browser journeys passed; the status system passed 55 tests and 12 visual/status checks. GitHub Quality [run 70](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/41041111542) passed backend and frontend jobs on implementation commit `2492e30`. The Compose file parsed with placeholders; Docker Desktop's Linux engine was unavailable, so Docker image builds and runtime health checks are NOT TESTED. Static `CERTIFIED_STATIC` is route/permission inventory, not a release certificate.
 
 ## O. Coolify readiness
 
@@ -97,7 +97,7 @@ Release-candidate checklist (PASS means the stated local evidence only):
 
 | Gate | Status | Evidence | Owner | Blocker / next action |
 | --- | --- | --- | --- | --- |
-| Backend and frontend quality | PASS | Local root typecheck, lint, tests, build | Engineering | Run hosted CI on the exact release commit. |
+| Backend and frontend quality | PASS | Local gates and GitHub Quality run 70 on implementation commit | Engineering | Repeat on the selected release candidate SHA after further changes. |
 | Authentication and SUPER_ADMIN MFA | PASS | Synthetic auth/admin E2E | Security | Repeat on hosted staging and commission independent testing. |
 | RBAC/ABAC and tenant isolation | BLOCKED | Synthetic denial tests, no hosted adversarial review | Security | Cross-role/property/organization penetration test. |
 | Financial ledger and reconciliation | BLOCKED | Transaction fixtures, Phase A cutover outstanding | Finance engineering | Parity migration and independent settlement evidence. |
@@ -122,7 +122,7 @@ Release-candidate checklist (PASS means the stated local evidence only):
 
 ## S. Recommended next actions
 
-1. Run hosted CI and Coolify staging image/health checks on this exact commit; triage remaining development-tool advisories.
+1. Build and verify the Coolify staging images and health checks; triage remaining development-tool advisories.
 2. Complete the Phase A minor-unit and settlement evidence cutover; stage Paystack SaaS and landlord-owned M-Pesa acceptance separately.
 3. Provision Coolify staging with verified email, TLS MongoDB, backups and alerts; run browser, load, restore and security acceptance.
 4. Complete source-certified financial/occupancy intelligence before enabling landlord brief or digital twin.
