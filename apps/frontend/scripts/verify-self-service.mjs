@@ -152,7 +152,7 @@ try {
       .getByRole("link", { name: /Compare plans/i })
       .last()
       .click();
-    await page.getByRole("heading", { name: /Choose/i }).waitFor();
+    await page.getByRole("heading", { level: 1, name: "Choose Your Level of Property Command." }).waitFor();
     const control = page.getByRole("link", { name: /Continue with Control/i });
     await control.click();
     await page.getByLabel("First name", { exact: true }).fill("Browser");

@@ -197,8 +197,14 @@ describe.skipIf(!process.env.RUN_E2E)(
         await SubscriptionPlan.create({
           key,
           name: key,
-          amount: 10000,
+          amount: key === "CONTROL" ? 10000 : 30000,
+          currency: "KES",
           billingInterval: "MONTH",
+          metadata: {
+            pricingModel: "BASE_PLUS_ACTIVE_UNITS",
+            includedUnits: 50,
+            additionalUnitAmount: key === "CONTROL" ? 200 : 300,
+          },
           entitlements: {
             maxProperties: -1,
             maxUnits: -1,
@@ -944,7 +950,7 @@ describe.skipIf(!process.env.RUN_E2E)(
           country: "KE",
           isDefault: false,
         } as never),
-      ).rejects.toMatchObject({ code: "PILOT_INTEGRATION_BLOCKED" });
+      ).rejects.toMatchObject({ code: "RENT_PAYSTACK_NOT_APPROVED" });
       const n = await Notification.create({
         organizationId: org,
         recipientUserId: ownerId,

@@ -22,29 +22,34 @@ variables rather than committing a deployment `.env` file.
    `WEB_ORIGIN` and `PUBLIC_API_URL` for your HTTPS domains, two distinct
    64+ character `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` values, and
    `REFRESH_COOKIE_SECURE=true` in production.
-3. For M-Pesa STK: complete Safaricom production approval, then provide
+3. For landlord-owned M-Pesa rent STK: complete Safaricom production approval, then provide
    `MPESA_BASE_URL`, `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`,
    `MPESA_SHORT_CODE`, `MPESA_PASSKEY`, and an HTTPS `MPESA_CALLBACK_URL`.
    Configure `MPESA_WEBHOOK_SECRET` only if your trusted callback gateway
-   actually signs callbacks. The deployment currently has one M-Pesa merchant
-   identity, not per-landlord credentials.
-4. For Paystack rent, settlement, and subscriptions: complete merchant
+   actually signs callbacks. Set `MPESA_RENT_ORGANIZATION_ID` only to the exact
+   organization that owns the configured shortcode, after ownership review;
+   require its owner-attested PayBill to match `MPESA_SHORT_CODE`. Other
+   landlord organizations have payment instructions only. The deployment has
+   one M-Pesa merchant identity, not per-landlord credentials.
+4. For Paystack SaaS subscriptions only: complete merchant
    approval/KYB and settlement-bank verification, then provide
    `PAYSTACK_SECRET_KEY` and HTTPS `PAYSTACK_CALLBACK_URL`. Register
    `/api/v1/integrations/webhooks/PAYSTACK` at the public API host. Check
-   enabled channels, recurring-card eligibility, and subaccount capability
-   in your specific merchant account; code support does not grant merchant
-   approval. Use test keys for staging, live keys only for the live deployment.
-   Each landlord organization must create an active default Paystack or M-Pesa
-   destination before tenant checkout on that rail. PMCC no longer falls back
-   to a platform-only Paystack transaction when a destination is missing.
-   Review any older destinations lacking country or currency metadata and
-   recreate them through the verified setup flow before accepting rent.
+   enabled channels and recurring-card eligibility in your merchant account;
+   code support does not grant merchant approval. Use test keys for staging,
+   live keys only for the live deployment. New Paystack rent checkout and
+   subaccount provisioning are blocked because the platform merchant account
+   is reserved for SaaS billing. Historical signed rent events may still be
+   reconciled, but no new rent transaction may use this platform account.
+   Review any older rent destinations lacking country or currency metadata
+   before relying on instruction display or historical reconciliation.
 5. For production login and notifications: configure
    `SMS_PROVIDER=TWILIO`, `SMS_FROM`, `TWILIO_ACCOUNT_SID`,
-   `TWILIO_AUTH_TOKEN`, `EMAIL_PROVIDER=SENDGRID`, `EMAIL_FROM`, and
-   `SENDGRID_API_KEY`. Verify sender/domain setup and OTP delivery. Add the
-   optional WhatsApp pair only if approved and enabled.
+   `TWILIO_AUTH_TOKEN` only if SMS is enabled. Configure `EMAIL_PROVIDER=RESEND`
+   with `RESEND_API_KEY`, or `EMAIL_PROVIDER=SENDGRID` with `SENDGRID_API_KEY`,
+   plus `EMAIL_FROM`, `EMAIL_SENDING_DOMAIN` and `EMAIL_DOMAIN_VERIFIED=true`
+   only after actual DNS/provider verification. Verify sender/domain setup and
+   OTP delivery. Add the optional WhatsApp pair only if approved and enabled.
 6. For private documents and CCTV: configure `S3_BUCKET`, `S3_REGION`,
    `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (and `S3_ENDPOINT` for a
    compatible service), plus `CCTV_PROVIDER_BASE_URL` and
