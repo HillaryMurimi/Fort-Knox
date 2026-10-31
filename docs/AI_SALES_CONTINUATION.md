@@ -54,7 +54,7 @@ Optional env fields (backend and shared Coolify API/worker environment): SALES_A
 | External calendar booking/synchronization | Pending next milestones |
 | Automatic verified identity resolution and merge review | Implemented; optional autolink policy defaults OFF |
 | Durable lifecycle projection/replay/backfill | Implemented on existing Jobs, DomainEvent and AuditLog |
-| Campaigns, secure links and attribution | Pending next milestones |
+| Campaigns, secure links and attribution | Implemented; governed campaigns, consented first/last/referral evidence and deduplicated commercial projections |
 | Follow-up state machine and quiet-hour/suppression policy | Pending next milestones |
 | Proactive assistance and building/floor activity | Pending next milestones |
 | Revenue/campaign analytics and retention controls | Pending next milestones |
@@ -109,3 +109,32 @@ Verification: full opt-in regression 239 PASS before the additional approval-pay
 Review passes: architecture reuses existing event/audit/job/commercial authority; security preserves scope, fresh approvals and merge suppression; correctness covers cursor pairs, idempotency and monotonic financial evidence; UX adds bounded history and explicit identity review; operational review adds index readiness and durable health/error evidence. Campaigns, delivery, external calendar, follow-ups, assistance and analytics remain implementation work; continuation proceeds after this commit.
 
 Final identity/lifecycle gates: root typecheck PASS; root lint PASS with zero errors (514 backend / 27 frontend warnings). Reviewed git diff and whitespace checks. All implementation files are scoped to this milestone; pre-existing .continue/ remains untouched.
+
+
+## Milestone 4 - campaigns and first-party attribution (2026-11-01)
+
+Campaigns persist owner, audience, market, channel, assigned outreach service identity, schedule, message, selection criteria, daily/per-contact ceilings, follow-up offsets, integer micro-USD budget and attribution window. The state machine is DRAFT -> PENDING_APPROVAL -> APPROVED -> ACTIVE, with explicit rejection, pause/resume, completion and cancellation paths. Only drafts may be edited at the current revision; all approved behavioral fields are hash-bound. Approval/activation/resume require fresh dual-channel SUPER_ADMIN proof. Campaign governance is platform-admin-only in this milestone; ordinary delegated CRM permissions do not grant it. Activation does not dispatch messages.
+
+Opaque 256-bit invitation tokens appear only in the create response and /r/{token} URL. The database stores their hashes; lists and audits never expose tokens or intended-contact hashes. Destinations are a fixed PLANS/SIGNUP/DEMO map. Expiry is at most 90 days and within the campaign. Lookup rechecks active campaign integrity/schedule and source/canonical opt-out. Links can be revoked independently. Resolving does not collect analytics or reveal the intended customer. The invitation page offers an explicit consent choice; declining clears/pauses existing optional acquisition analytics. Accepting extends the existing AcquisitionJourney, never a parallel tracking identity. At most 20 distinct link touches are retained per anonymous session; repeated visits preserve first time and update last time. Anonymous acquisition TTL remains 30 days. No IP/device identity is introduced.
+
+Attribution uses the existing acquisition signup binding and lifecycle worker. A current verified owner with canonical active LANDLORD membership, linked CRM identity, consented pre-registration touch and matching immutable intended-email hash is required to claim a campaign conversion. Pending identity review stays pending. Forwarded/mismatched invitations remain unattributed. First/last eligible touches use each campaign's 1-90-day window; explicit referral uses the last eligible touch. Registration attribution freezes as a cohort, and later milestones inherit it, preventing later clicks from stealing paid attribution. Unique organization/milestone indexes deduplicate registration, checkout, verified payment, activation and onboarding-completion projections. Verified payment uses existing signed-contract, matching paid Paystack invoice and subscription evidence; checkout is never paid proof. Financial records remain read-only. observedAt means projection observation time, not a fabricated provider event time.
+
+New models: SalesCampaign, SalesTrackingLink and SalesAttribution. AcquisitionJourney adds consent/touch metadata. Additive indexes are installed by sales:create-indexes; production tracking and attribution fail closed without the link-token and conversion unique indexes. SALES_CAMPAIGNS, SALES_TRACKING and SALES_ATTRIBUTION default OFF; no production switch was changed. Attribution is consumed by existing lifecycle jobs, so enable the lifecycle scanner to keep projections current.
+
+API: paginated GET/POST /sales/success/campaigns; PATCH /campaigns/:id for current drafts; POST /campaigns/:id/commands; GET/POST /campaigns/:id/links; POST /tracking-links/:linkId/revoke. Public rate-limited POST /acquisition/referrals/resolve and /visits use strict body schemas, no-store responses and consent=true for recording. OpenAPI includes all routes. Frontend adds Campaigns governance and public /r/[token] consent surface. Analytics reporting and dispatch remain subsequent milestones.
+
+Security review: exact campaign hash prevents content/limit changes after approval; safe cancellation/revocation remain available when collection is disabled; arbitrary redirects are rejected; generic notification APIs are not used for prospect sends; contact opt-out is checked even if the enum was changed but optedOutAt remains. Attribution batches bounded source reads and never scans contacts by name/IP. Existing CRM, meetings, delegation and runtime were regression-tested.
+
+
+### Verified campaign milestone gates
+
+- Typecheck: PASS, both applications; final backend strict check covers persisted commercial proof references.
+- Lint: PASS, zero errors (530 backend / 27 frontend warnings).
+- Default backend tests: 491 PASS, 242 skipped. Opt-in tests are reported separately.
+- Frontend tests: 317 PASS.
+- Sales regression: 40 PASS across CRM, identity, runtime and campaigns at that review point; final campaign suite 9 PASS, including draft-revision controls, exact approval, expiry/revocation/opt-out, consent, same-millisecond first/last ordering, forwarded-contact mismatch, windows, paid deduplication and immutable invoice evidence.
+- Root production build: PASS, both applications. Backend rebuilt after final commercial proof-reference changes.
+- Browser: PASS, existing Control/Fort Knox/pilot/commercial/CRM flows plus campaign submit/dual-channel step-up/approve/activate and invitation consent acceptance/decline. Light/dark, 1440/834/390 widths, keyboard, zero console errors. Browser response correlation now requires the actual command kind, preserving existing amount/state assertions.
+- No live provider request, production switch change, real send, payment initiation, deployment or production migration was performed.
+
+Paid conversions retain the exact contract, invoice and subscription references from the verified read projection, plus source time when available; source occurrence and projection observation remain distinct. The next research/outreach milestone continues after the campaign push.

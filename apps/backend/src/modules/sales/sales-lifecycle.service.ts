@@ -287,7 +287,10 @@ export class SalesLifecycleService {
   static async batch(organizationId: Types.ObjectId) {
     try {
       if (await active()) await assertLifecycleIndexes();
-      return await this.projectBatch(organizationId);
+      const result = await this.projectBatch(organizationId);
+      const { SalesAttributionService } = await import('./sales-attribution.service.js');
+      await SalesAttributionService.project(organizationId);
+      return result;
     } catch (error) {
       const code = error instanceof AppError ? error.code : 'LIFECYCLE_PROJECTION_FAILED';
       await SalesProjectionCheckpoint.updateOne({ organizationId }, { $set: { lastErrorCode: code } }, { upsert: true }).catch(() => undefined);

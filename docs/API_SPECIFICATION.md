@@ -677,3 +677,8 @@ The existing sales CRM now integrates durable model tasks, fixed agent tools, cu
 ### Sales identity and lifecycle continuation (2026-10-31)
 
 Exact verified identity review, preserved-history merges, bounded permission-filtered history and durable idempotent commercial/inventory projections are implemented. Lifecycle/autolink default OFF. Authoritative billing and organization scope remain unchanged. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for API/model changes, index prerequisites, verification evidence and remaining milestones.
+
+
+### Governed sales campaigns and attribution (2026-11-01)
+
+Campaign states and exact-payload approval, consented opaque invitations, existing acquisition-journey touches and verified deduplicated conversion projection are implemented. Campaign governance requires SUPER_ADMIN; all new features default OFF. Billing remains read-only. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for the API/models, consent rules, index prerequisites, evidence and remaining delivery/analytics work.

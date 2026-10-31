@@ -51,6 +51,7 @@ export class PlatformControlService {
   static async update(auth: AuthenticatedUser, key: string, input: UpdateSwitchInput) {
     AuthorizationService.assertPlatformAdmin(auth);
     if (input.mode === 'ON' && ['SALES_LIFECYCLE', 'SALES_AUTOLINK'].includes(key)) await (await import('../sales/sales-success-indexes.js')).assertLifecycleIndexes();
+    if (input.mode === 'ON' && ['SALES_CAMPAIGNS', 'SALES_TRACKING', 'SALES_ATTRIBUTION'].includes(key)) await (await import('../sales/sales-success-indexes.js')).assertCampaignIndexes();
     if (input.mode === 'ON' && isPlannedSalesFeature(key)) throw new AppError(409, 'SALES_FEATURE_NOT_READY', 'This optional sales capability has not been implemented yet');
     if (input.mode === 'ON' && isPlannedIntelligenceModule(key)) {
       throw new AppError(409, 'INTELLIGENCE_MODULE_NOT_READY', 'This intelligence module has no certified server-side implementation');

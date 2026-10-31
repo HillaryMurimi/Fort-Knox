@@ -82,5 +82,5 @@ export const salesFeatureCatalog = [
 ] as const;
 export function isPlannedSalesFeature(key: string) {
   return salesFeatureCatalog.some(([candidate]) => candidate === key) &&
-    !['SALES_DASHBOARD', 'SALES_AI_RUNTIME', 'SALES_APPROVALS', 'SALES_LIFECYCLE', 'SALES_AUTOLINK', ...agentKeys.map(k => `SALES_AGENT_${k}`)].includes(key);
+    !['SALES_DASHBOARD', 'SALES_AI_RUNTIME', 'SALES_APPROVALS', 'SALES_LIFECYCLE', 'SALES_AUTOLINK', 'SALES_CAMPAIGNS', 'SALES_TRACKING', 'SALES_ATTRIBUTION', ...agentKeys.map(k => `SALES_AGENT_${k}`)].includes(key);
 }

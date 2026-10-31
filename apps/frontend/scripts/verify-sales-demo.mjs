@@ -9,6 +9,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
+import mongoose from "../../backend/node_modules/mongoose/index.js";
 import { MongoMemoryReplSet } from "../../backend/node_modules/mongodb-memory-server/index.js";
 import { MongoInstance } from "../../backend/node_modules/mongodb-memory-server-core/lib/util/MongoInstance.js";
 const root = fileURLToPath(new URL("../../..", import.meta.url)),
@@ -216,6 +217,74 @@ try {
   await page.getByRole("button", { name: "AI Agents", exact: true }).click();
   await page.getByRole("heading", { name: "Lead Researcher", exact: true }).waitFor();
   assert.equal(await page.getByText(/NOT CONFIGURED.*instructions v1/).count(), 6);
+  await page.getByRole('button', { name: 'Campaigns', exact: true }).click();
+  await page.getByLabel('Campaign name', { exact: true }).fill('Browser owner campaign');
+  await page.getByLabel('Description', { exact: true }).fill('Controlled browser campaign for customer invitation verification.');
+  await page.getByLabel('Target audience', { exact: true }).fill('Property owners requesting a migration briefing');
+  await page.getByLabel('Market', { exact: true }).fill('Kenya');
+  const localDate = n => new Date(n - new Date(n).getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  await page.getByLabel('Start (your local time)', { exact: true }).fill(localDate(Date.now() - 60000));
+  await page.getByLabel('End (your local time)', { exact: true }).fill(localDate(Date.now() + 86400000));
+  await page.getByLabel('Message for review', { exact: true }).fill('Explore Dapinni plans and request a guided demonstration.');
+  await page.getByLabel('Lead selection criteria', { exact: true }).fill('Manually reviewed customers who requested a demonstration');
+  await page.getByRole('button', { name: 'Save draft campaign', exact: true }).click();
+  const card = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Browser owner campaign', exact: true }) });
+  await card.waitFor();
+  for (const [action, state] of [['SUBMIT', 'PENDING APPROVAL'], ['APPROVE', 'APPROVED'], ['ACTIVATE', 'ACTIVE']]) {
+    await card.getByRole('combobox', { name: 'Campaign action', exact: true }).selectOption(action);
+    await card.getByLabel('Review reason', { exact: true }).fill('Reviewed the exact campaign scope, content and limits.');
+    await card.getByRole('button', { name: 'Apply reviewed action', exact: true }).click();
+    if (action === 'APPROVE') {
+      const proof = page.getByRole('dialog', { name: 'Confirm administrator identity', exact: true });
+      await proof.waitFor();
+      deliveredCodes.delete('EMAIL'); deliveredCodes.delete('SMS');
+      await proof.getByLabel('Current password', { exact: true }).fill(password);
+      await proof.getByRole('button', { name: 'Verify identity', exact: true }).click();
+      await proof.getByLabel('Email verification code', { exact: true }).fill(await deliveredCode('EMAIL'));
+      await proof.getByRole('button', { name: 'Verify email', exact: true }).click();
+      await proof.getByLabel('SMS verification code', { exact: true }).fill(await deliveredCode('SMS'));
+      await proof.getByRole('button', { name: 'Complete identity verification', exact: true }).click();
+      await proof.getByRole('button', { name: 'Continue', exact: true }).click();
+      await card.getByRole('button', { name: 'Apply reviewed action', exact: true }).click();
+    }
+    await card.getByText(state, { exact: true }).waitFor();
+  }
+  const fixtureDb = await mongoose.createConnection(mongo.getUri('sales-browser-test')).asPromise();
+  try {
+    const customer = await fixtureDb.collection('salesleads').findOne({ name: 'Customer Success Browser' });
+    assert.ok(customer);
+    await card.getByRole('button', { name: 'Manage invitations', exact: true }).click();
+    await page.getByLabel('Customer ID', { exact: true }).fill(String(customer._id));
+    await page.getByLabel('Expires (your local time)', { exact: true }).fill(localDate(Date.now() + 3600000));
+    await page.getByRole('button', { name: 'Create invitation for active campaign', exact: true }).click();
+    const generated = page.getByLabel('Generated invitation link', { exact: true });
+    await generated.waitFor();
+    const invitationHref = await generated.inputValue();
+    assert.match(invitationHref, /\/r\/[\w-]{43}$/);
+    const publicContext = await browser.newContext();
+    const invite = await publicContext.newPage();
+    invite.on('pageerror', e => runtimeErrors.push(e.message));
+    try {
+      await invite.goto(invitationHref);
+      await invite.getByRole('button', { name: 'Allow analytics and continue', exact: true }).waitFor();
+      assert.equal(await fixtureDb.collection('acquisitionjourneys').countDocuments({ salesTrackingConsentAt: { $exists: true } }), 0);
+      for (const theme of ['light', 'dark']) {
+        await invite.evaluate(t => { document.documentElement.classList.remove('light', 'dark'); document.documentElement.classList.add(t); }, theme);
+        for (const width of [390, 834, 1440]) {
+          await invite.setViewportSize({ width, height: 1000 });
+          assert.ok(await invite.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+          await invite.screenshot({ path: temporaryRoot + `/pcc-invitation-${theme}-${width}.png`, fullPage: true });
+        }
+      }
+      await invite.getByRole('link', { name: 'Continue without analytics', exact: true }).click();
+      await invite.waitForURL(url => url.pathname === '/plans');
+      assert.equal(await fixtureDb.collection('acquisitionjourneys').countDocuments({ salesTrackingConsentAt: { $exists: true } }), 0);
+      await invite.goto(invitationHref);
+      await invite.getByRole('button', { name: 'Allow analytics and continue', exact: true }).click();
+      await invite.waitForURL(url => url.pathname === '/plans');
+      assert.equal(await fixtureDb.collection('acquisitionjourneys').countDocuments({ salesTrackingConsentAt: { $exists: true } }), 1);
+    } finally { await publicContext.close(); }
+  } finally { await fixtureDb.close(); }
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(origin + "/sales-demo");
   await page
@@ -226,8 +295,10 @@ try {
     .getByRole("heading", { name: "Acacia Discovery Portfolio", exact: true })
     .waitFor();
   async function action(name) {
+    const kinds = { 'Simulate payment': 'SIMULATE_PAYMENT', 'Simulate tenant reporting a leak': 'REPORT_LEAK', 'Triage request': 'TRIAGE', 'Assign caretaker / contractor': 'ASSIGN', 'Submit simulated quotation': 'QUOTE', 'Approve maintenance': 'APPROVE_MAINTENANCE', 'Start work': 'START_WORK', 'Complete repair': 'COMPLETE_REPAIR', 'After evidence': 'READ_EVIDENCE', 'Simulate 02:14 AM security event': 'SIMULATE_SECURITY', 'Retrieve incident evidence': 'READ_EVIDENCE', 'Investigate incident': 'INVESTIGATE_INCIDENT', 'Escalate response': 'ESCALATE_INCIDENT', 'Resolve incident': 'RESOLVE_INCIDENT' };
+    assert.ok(kinds[name], 'Browser action must identify its actual command');
     const done = page.waitForResponse(
-      (r) => r.url().includes("/commands") && r.request().method() === "POST",
+      (r) => r.url().includes('/sales/demos/') && r.url().endsWith('/commands') && r.request().method() === 'POST' && r.request().postDataJSON()?.kind === kinds[name],
     );
     await page.getByRole("button", { name, exact: true }).click();
     const response = await done;
@@ -593,7 +664,7 @@ try {
         "Fort Knox security and evidence",
         "guided pilot validation, import and owner activation milestone",
         "existing commercial activation handoff without paid-access bypass",
-        "sales conversion intelligence", "customer creation, qualification, notes and meeting outcomes",
+        "sales conversion intelligence", "customer creation, qualification, notes and meeting outcomes", "campaign approval and consented first-party invitations",
       ],
       viewports: sizes,
       themes: ["light", "dark"],

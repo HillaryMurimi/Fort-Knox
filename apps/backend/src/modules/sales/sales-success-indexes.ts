@@ -3,6 +3,14 @@ import { AppError } from "../../core/errors/AppError.js";
 import { SalesLead } from "../../database/models/SalesLead.js";
 import { SalesAgent, SalesAgentRun, SalesAgentApproval } from '../../database/models/SalesAgent.js';
 import { Job } from '../../database/models/Job.js';
+import { SalesTrackingLink, SalesAttribution } from '../../database/models/SalesCampaign.js';
+export async function assertCampaignIndexes() {
+  if (env.NODE_ENV !== 'production') return;
+  for (const [model, name, key] of [[SalesTrackingLink, 'sales_link_token_unique', { tokenHash: 1 }], [SalesAttribution, 'sales_conversion_unique', { organizationId: 1, milestone: 1 }]] as const) {
+    const indexes = await model.collection.indexes().catch(() => []);
+    if (!indexes.some(i => i.name === name && i.unique && JSON.stringify(i.key) === JSON.stringify(key))) throw new AppError(503, 'SALES_INDEXES_REQUIRED', 'Install campaign tracking and conversion indexes before enabling attribution');
+  }
+}
 import { SalesActivity } from '../../database/models/SalesActivity.js';
 import { SalesIdentityMatch, SalesProjectionCheckpoint } from '../../database/models/SalesIdentity.js';
 export async function assertLifecycleIndexes() {

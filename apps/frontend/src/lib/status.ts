@@ -15,8 +15,11 @@ export const statusGroups = {
     "ACCOUNT_CREATED",
     "UNSUBSCRIBED",
     "UNLINKED",
+    "ATTRIBUTED",
+    "UNATTRIBUTED",
   ],
   pending: [
+    "PENDING_APPROVAL",
     "PENDING",
     "QUEUED",
     "AWAITING",

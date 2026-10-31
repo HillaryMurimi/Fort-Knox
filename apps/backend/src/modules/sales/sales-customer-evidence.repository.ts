@@ -130,6 +130,10 @@ export const SalesCustomerEvidenceRepository = {
       contractStatus: contract?.status ?? "NONE",
       checkoutStarted: !!subscription?.providerCheckoutReference,
       verifiedPayment,
+      verificationEvidence: verifiedPayment && invoice && contract && subscription ? {
+        invoiceId: invoice._id, contractId: contract._id, subscriptionId: subscription._id,
+        verifiedAt: org.onboarding?.paymentVerifiedAt,
+      } : null,
       subscriptionStatus: subscription?.status ?? "NONE",
       properties,
       buildings,

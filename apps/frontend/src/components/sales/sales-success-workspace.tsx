@@ -8,6 +8,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { SalesAgentControl } from "./sales-agent-control";
+import { SalesCampaigns } from './sales-campaigns';
 import { SalesCustomerIdentity } from "./sales-customer-identity";
 import { SalesCustomerHistory } from "./sales-customer-history";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -125,7 +126,7 @@ export function SalesSuccessWorkspace() {
         </Link>
       </header>
       <nav aria-label="Sales workspace" className="flex flex-wrap gap-2">
-        {["Customers", "AI Agents", ...(admin ? ["Permissions"] : [])].map(
+        {["Customers", "AI Agents", ...(admin ? ["Campaigns", "Permissions"] : [])].map(
           (t) => (
             <Button
               key={t}
@@ -138,6 +139,7 @@ export function SalesSuccessWorkspace() {
           ),
         )}
       </nav>
+      {tab === 'Campaigns' && <SalesCampaigns />}
       {feedback && (
         <div role="status">
           <Alert>{feedback}</Alert>

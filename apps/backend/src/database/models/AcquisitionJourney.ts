@@ -17,6 +17,8 @@ const schema = new Schema(
     signupStartedAt: Date,
     organizationId: { type: Schema.Types.ObjectId, ref: "Organization" },
     salesLeadId: { type: Schema.Types.ObjectId, ref: 'SalesLead' },
+    salesTouches: { type: [new Schema({ linkId: { type: Schema.Types.ObjectId, ref: 'SalesTrackingLink', required: true }, at: { type: Date, required: true }, lastAt: Date }, { _id: false })], default: [] },
+    salesTrackingConsentAt: Date,
     retentionClass: {
       type: String,
       enum: ["ANONYMOUS", "ACCOUNT"],
