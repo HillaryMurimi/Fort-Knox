@@ -149,6 +149,12 @@ export class JobService {
       }
       return;
     }
+    if (job.type === 'sales.research.expire') {
+      const { z } = await import('zod');
+      const input = z.object({ runId: z.string().regex(/^[a-f\d]{24}$/i) }).strict().parse(job.payload);
+      await (await import('../sales/sales-agent.service.js')).SalesAgentService.expireResearch(input.runId);
+      return;
+    }
     if (job.type === 'sales.agent.execute') {
       const { objectId } = await import('../sales/sales-success.schemas.js');
       const payload = job.payload as { runId?: unknown };

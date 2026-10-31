@@ -831,6 +831,7 @@ const delegatedPermissions = [
   "sales.onboarding.read",
   "sales.agents.read",
   "sales.agents.execute",
+  "sales.research.execute",
 ];
 function PermissionForm({
   pending,

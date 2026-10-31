@@ -4,6 +4,7 @@ import {
   agentConfigurationSchema,
   approvalDecisionSchema,
   runControlSchema,
+  researchImportSchema,
 } from "./sales-agent.schemas.js";
 const responses = {
   "200": { description: "Scoped execution or decision result" },
@@ -38,6 +39,7 @@ const op = (summary: string, name?: string, schema?: z.ZodType) => ({
     : {}),
 });
 export const salesAgentPaths = {
+  '/sales/success/approvals/{approvalId}/import-customer': { post: op('Fresh SUPER_ADMIN imports explicitly reviewed CRM fields from an approved exact-source research proposal; consent remains UNKNOWN', 'approvalId', researchImportSchema) },
   "/sales/success/agents/{key}": {
     patch: op(
       "Fresh SUPER_ADMIN configures versioned agent policy and hard daily limits",

@@ -122,7 +122,7 @@ export class SalesSuccessService {
     ]);
     return { items, total, page, pageSize: 20 };
   }
-  static async create(auth: AuthenticatedUser, raw: unknown) {
+  static async create(auth: AuthenticatedUser, raw: unknown, onCreated?: (leadId: Types.ObjectId, session: ClientSession) => Promise<void>) {
     assertSuccessPermission(auth, "sales.leads.create");
     const input = schemas.customerSchema.parse(raw);
     // Names are not identities; possible duplicates require a human decision.
@@ -155,6 +155,7 @@ export class SalesSuccessService {
           "Unable to create customer",
         );
       await activity(auth, lead._id, "sales.lead.created", session);
+        if (onCreated) await onCreated(lead._id, session);
       return { id: String(lead._id) };
     });
   }

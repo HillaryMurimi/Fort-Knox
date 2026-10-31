@@ -49,7 +49,7 @@ Optional env fields (backend and shared Coolify API/worker environment): SALES_A
 | Existing CRM / meetings / delegation | Preserved; baseline and regressions executed |
 | Durable executable six-agent model runtime | Implemented; controlled adapters, not live-provider certified |
 | Configuration, limits, cancellation, approvals, history UI | Implemented |
-| Real lead discovery connector and source ingestion | Pending next milestones |
+| Real lead discovery connector and source ingestion | Implemented optional licensed connector, scoped research evidence and reviewed CRM promotion; live acceptance pending |
 | Outbound delivery/replies/verified webhooks | Pending next milestones |
 | External calendar booking/synchronization | Pending next milestones |
 | Automatic verified identity resolution and merge review | Implemented; optional autolink policy defaults OFF |
@@ -138,3 +138,36 @@ Security review: exact campaign hash prevents content/limit changes after approv
 - No live provider request, production switch change, real send, payment initiation, deployment or production migration was performed.
 
 Paid conversions retain the exact contract, invoice and subscription references from the verified read projection, plus source time when available; source occurrence and projection observation remain distinct. The next research/outreach milestone continues after the campaign push.
+
+
+## Milestone 5a - permitted research and reviewed prospect promotion
+
+Connected research extends the existing LEAD_RESEARCHER task rather than adding another queue/runtime. Optional researchQuery is accepted only for that agent and requires sales.research.execute in addition to existing execution, notes, meetings and assigned-lead scope. The existing worker revalidates permissions/features before and after model execution. A fixed Brave HTTPS connector uses an authenticated header, a ten-second timeout and redirects disabled. It never scrapes returned URLs or private/social account data. Unsafe/local/credential-bearing source URLs are excluded. The implementation follows the [official Web Search API](https://api-dashboard.search.brave.com/app/documentation/web-search). Before enabling, the owner must review the provider plan's storage, display and AI-processing rights; no license entitlement or live authentication is inferred from a key.
+
+Source snapshots are bounded to three references supplied to the model, each with URL, title, excerpt, provider and retrieval time. Source text is untrusted evidence, not identity, company ownership, accurate contact, portfolio size or consent proof. Model citations must exactly match supplied sources. Invented citations fail validation before approval. No direct contact scraping or inferred email generation occurs. Research is reserved within existing per-agent daily run/concurrency/token/budget limits. A configured per-request micro-USD estimate is separate from model cost; reservations are conservative and never a provider bill. Missing provider/license/cost policy blocks safely. Test mode never falls back to live search credentials.
+
+An approved LEAD_PROPOSAL can be promoted through POST /sales/success/approvals/:approvalId/import-customer. Fresh dual-channel SUPER_ADMIN supplies manually reviewed fields using the existing customer schema. The exact approval hash and cited source must still exist and be unexpired. Existing CRM contact detection and registered verified-owner checks require review instead of automatic linking/merging. Imports reuse SalesSuccessService.create, including its validation, assignment, transaction and history. The source is recorded, consent remains UNKNOWN and no organization is linked. Per-source approval markers prevent re-imports; a shared research-config revision serializes imports and repeats contact checks within the creation transaction. Failed/racing imports roll back the new lead and marker together. Names and source URLs are not treated as verified business identity.
+
+Source content retention is configurable from 1-30 days, default 7. Snapshot persistence atomically schedules existing Job type sales.research.expire. Expiry hides source/generated content at the read boundary and the durable worker redacts source excerpts, generated output, proposal payloads and research-generated CRM note content. Pending proposals expire and awaiting runs cancel. Original payload/source hashes, actor/time/decision metadata, import references and manually reviewed CRM facts remain. A resumed expired source generation is redacted before collecting fresh evidence. Cleanup remains subject to functioning workers and existing retry/dead-letter monitoring; it does not depend on the research feature remaining ON. Ordinary human CRM notes and audit records are not edited.
+
+Additive configuration: SALES_RESEARCH_API_KEY, SALES_RESEARCH_LICENSE_REVIEWED (false), SALES_RESEARCH_REQUEST_MICRO_USD (0), SALES_RESEARCH_RETENTION_DAYS (7), shared between existing Coolify API/worker. SALES_RESEARCH defaults OFF. Additive SalesAgentRun fields hold query, bounded evidence/hash/expiry, redaction time and research cost estimate; the existing SalesAgent operational document holds an import revision. Existing unique runtime/Job indexes remain prerequisites; no new collection or production migration was introduced. New sales.research.execute permission uses existing explicit audited delegation. Generic role and job paths remain restricted.
+
+Frontend: optional researcher query field, connector configuration state, escaped source provenance, expiry/limitations and a manually completed reviewed-prospect import form. Source links open with noreferrer/noopener. Delegates may read assigned-customer evidence with constituent permissions; only fresh SUPER_ADMIN can import. Import refreshes existing CRM queries. The AI output remains advisory; approved outreach/booking/assistance proposals still need their domain dispatch workflows in subsequent milestones.
+
+New files: integrations/research/sales-research.provider.ts, tests/unit/sales-research-provider.test.ts, frontend components/sales/sales-research-evidence.tsx and lib/data/sales-research.test.tsx. Modified existing agent contracts/model/service/controller/OpenAPI/router/UI/client, customer-create transactional hook, permission delegation lists, central env/Coolify example and existing Job dispatcher. No live research or model request, message, payment or deployment was performed.
+
+Review passes: architecture reuses Jobs/runtime/customer creation; security enforces exact source citation and assigned scope, fresh import and unknown consent; correctness fences cancellation, expiry, concurrent duplicates and atomic cleanup scheduling; UX exposes unverified provenance and manual fact review; operations keep credentials server-side, source rights explicit, cleanup durable and live certification unavailable.
+
+
+### Verified research milestone gates
+
+- Root typecheck PASS; final root production build PASS for both applications on the final code.
+- Root lint PASS, zero errors (530 backend / 27 frontend warnings); the new source-expiry UI purity warning was fixed.
+- Focused agent/research tests: 26 PASS (18 MongoDB runtime cases and 8 connector cases), including resumed expired evidence, durable expiry dispatch, exact citations, manual import, transactional rollback and concurrent contact deduplication.
+- Adjacent CRM/identity/campaign/model-policy regression: 43 PASS across five suites.
+- Frontend: 321 PASS across 40 suites, including escaped source rendering, expired content, import permission boundaries and exact-hash transport.
+- Browser verifier PASS: controlled sourced-prospect review/import and source viewport checks, existing campaigns/consent, CRM/meetings, Control/Fort Knox, pilot/commercial and analytics regression; zero console errors. Browser research evidence is explicitly seeded in the isolated test database; no live search/model request is implied.
+- Static release check: CERTIFIED_STATIC, 39 dashboard route files, 167 permissions and 10 critical paths. This is static/local evidence, not production/provider acceptance.
+- Full default backend baseline previously passed 491 tests in the campaign milestone. The current research milestone used the focused/adjacent suites above; no unexecuted whole-repository result is claimed.
+
+The research milestone is complete at the provider-independent and controlled-adapter level. Real provider authentication, licensed-plan confirmation, approved budgets and source-use acceptance remain owner operations. Outreach, verified replies, external calendars, follow-up automation, assistance dispatch, analytics and broader operational hardening remain code work and continue after this commit.

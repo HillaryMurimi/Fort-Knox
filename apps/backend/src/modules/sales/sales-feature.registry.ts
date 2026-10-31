@@ -23,6 +23,7 @@ export const salesFeatureCatalog = [
     "Sales outreach emergency control",
     "OFF prevents new sales sends; already-dispatched provider requests cannot be recalled.",
   ],
+  ['SALES_RESEARCH', 'Permitted prospect research', 'Configured licensed search connector; source evidence never establishes identity or outbound consent.'],
   [
     "SALES_CAMPAIGNS",
     "Sales campaign management",
@@ -82,5 +83,5 @@ export const salesFeatureCatalog = [
 ] as const;
 export function isPlannedSalesFeature(key: string) {
   return salesFeatureCatalog.some(([candidate]) => candidate === key) &&
-    !['SALES_DASHBOARD', 'SALES_AI_RUNTIME', 'SALES_APPROVALS', 'SALES_LIFECYCLE', 'SALES_AUTOLINK', 'SALES_CAMPAIGNS', 'SALES_TRACKING', 'SALES_ATTRIBUTION', ...agentKeys.map(k => `SALES_AGENT_${k}`)].includes(key);
+    !['SALES_DASHBOARD', 'SALES_AI_RUNTIME', 'SALES_APPROVALS', 'SALES_LIFECYCLE', 'SALES_AUTOLINK', 'SALES_CAMPAIGNS', 'SALES_TRACKING', 'SALES_ATTRIBUTION', 'SALES_RESEARCH', ...agentKeys.map(k => `SALES_AGENT_${k}`)].includes(key);
 }

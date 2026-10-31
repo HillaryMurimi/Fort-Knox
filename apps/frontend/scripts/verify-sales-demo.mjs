@@ -3,7 +3,7 @@ import {
   assertDomainStatus,
 } from "./status-visual-checks.mjs";
 import { spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -284,6 +284,35 @@ try {
       await invite.waitForURL(url => url.pathname === '/plans');
       assert.equal(await fixtureDb.collection('acquisitionjourneys').countDocuments({ salesTrackingConsentAt: { $exists: true } }), 1);
     } finally { await publicContext.close(); }
+    // Controlled persisted research evidence exercises the review/import UI; no search or model request is made.
+    const adminFixture = await fixtureDb.collection('users').findOne({ email: 'platform-browser@example.test' });
+    const sourceUrl = 'https://research.example.com/company-services', now = new Date(), expiry = new Date(Date.now() + 86400000);
+    const source = [{ title: 'Controlled public business reference', url: sourceUrl, excerpt: 'Unverified source excerpt for a manually reviewed test prospect.', provider: 'BRAVE', retrievedAt: now }];
+    const proposed = { tool: 'LEAD_PROPOSAL', text: 'Review this sourced prospect before importing verified CRM estimates.', subject: null, reason: 'Controlled permitted-source example', sourceUrls: [sourceUrl] };
+    const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+    const run = await fixtureDb.collection('salesagentruns').insertOne({ agent: 'LEAD_RESEARCHER', leadId: customer._id, requestedBy: adminFixture._id, serviceIdentity: 'sales:LEAD_RESEARCHER', objective: 'Review controlled source provenance', instructionVersion: 1, status: 'COMPLETED', attempt: 1, commandId: randomUUID(), commandHash: hash(proposed), researchQuery: 'public property company services', researchSources: source, researchHash: hash(source), researchExpiresAt: expiry, output: { summary: 'Controlled sourced proposal', evidence: ['Public reference, unverified business facts'], confidence: 'LOW', limitation: 'No verified contact or consent.', action: proposed }, createdAt: now, updatedAt: now });
+    await fixtureDb.collection('salesagentapprovals').insertOne({ runId: run.insertedId, generation: 1, leadId: customer._id, requestedBy: adminFixture._id, tool: 'LEAD_PROPOSAL', payload: proposed, payloadHash: hash(proposed), status: 'APPROVED', requiredPermission: 'sales.leads.read', risk: 'HIGH', expiresAt: expiry, decisionBy: adminFixture._id, decisionAt: now, createdAt: now, updatedAt: now });
+    await fixtureDb.collection('salesagents').updateOne({ key: 'LEAD_RESEARCHER' }, { $setOnInsert: { key: 'LEAD_RESEARCHER', enabled: false, paused: true, revision: 0, instructionVersion: 1, maxDailyRuns: 20, maxOutputTokens: 1500, maxDailyTokens: 50000, dailyBudgetMicroUsd: 0, importRevision: 0, dailyRuns: 0, reservedTokens: 0, reservedMicroUsd: 0, usedTokens: 0, createdAt: now, updatedAt: now } }, { upsert: true });
+    await page.getByRole('button', { name: 'AI Agents', exact: true }).click();
+    await page.getByRole('button').filter({ hasText: 'LEAD RESEARCHER' }).first().click();
+    const researchForm = page.locator('form').filter({ has: page.getByRole('heading', { name: 'Import reviewed prospect', exact: true }) });
+    await researchForm.waitFor();
+    await researchForm.getByLabel('Reviewed company / customer name', { exact: true }).fill('Research Browser Prospect');
+    await researchForm.getByLabel('Public business email (optional)', { exact: true }).fill('research-browser@example.test');
+    await researchForm.getByLabel('Reviewed property estimate', { exact: true }).fill('2');
+    await researchForm.getByLabel('Reviewed unit estimate', { exact: true }).fill('40');
+    await researchForm.getByLabel('Known customer needs', { exact: true }).fill('Reviewed need for an owner migration briefing.');
+    await page.getByText('Permitted-source evidence (unverified)', { exact: true }).click();
+    for (const width of [390, 834, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Research review fits ' + width);
+      await page.getByRole('region', { name: 'Research evidence review', exact: true }).screenshot({ path: temporaryRoot + `/pcc-research-review-${width}.png` });
+    }
+    const importedResponse = page.waitForResponse(r => r.url().endsWith('/import-customer') && r.request().method() === 'POST');
+    await researchForm.getByRole('button', { name: 'Import with unknown consent', exact: true }).click();
+    const imported = await importedResponse; assert.equal(imported.status(), 201, await imported.text());
+    const importedCustomer = await fixtureDb.collection('salesleads').findOne({ name: 'Research Browser Prospect' });
+    assert.equal(importedCustomer.consent, 'UNKNOWN'); assert.equal(importedCustomer.sourceUrl, sourceUrl);
   } finally { await fixtureDb.close(); }
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(origin + "/sales-demo");
@@ -664,7 +693,7 @@ try {
         "Fort Knox security and evidence",
         "guided pilot validation, import and owner activation milestone",
         "existing commercial activation handoff without paid-access bypass",
-        "sales conversion intelligence", "customer creation, qualification, notes and meeting outcomes", "campaign approval and consented first-party invitations",
+        "sales conversion intelligence", "customer creation, qualification, notes and meeting outcomes", "campaign approval and consented first-party invitations", "controlled sourced-prospect review and CRM import",
       ],
       viewports: sizes,
       themes: ["light", "dark"],

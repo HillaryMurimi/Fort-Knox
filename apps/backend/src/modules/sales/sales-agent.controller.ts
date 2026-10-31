@@ -51,3 +51,6 @@ export async function decide(req: Request, res: Response) {
     ),
   );
 }
+export async function importResearch(req: Request, res: Response) {
+  res.status(201).json(apiResponse(await service.importResearch(auth(req), objectId.parse(req.params.approvalId), req.body)));
+}

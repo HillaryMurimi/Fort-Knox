@@ -1,6 +1,7 @@
 "use client";
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { SalesResearchEvidence } from "./sales-research-evidence";
 import { useAuth } from "@/hooks/use-auth";
 import { Alert, Button, StatusBadge } from "@/components/ui";
 import {
@@ -87,6 +88,7 @@ export function SalesAgentControl({ leadId }: { leadId?: string | undefined }) {
             Outbound emergency control:{" "}
             {catalog.data.outboundSuspended ? "SUSPENDED" : "ENABLED"} · model:{" "}
             {catalog.data.integrations.ai}
+            {' · research: '}{catalog.data.integrations.research}
           </p>
           <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
             {catalog.data.agents.map((a) => (
@@ -119,6 +121,7 @@ export function SalesAgentControl({ leadId }: { leadId?: string | undefined }) {
                           agent: a.key,
                           leadId: String(d.get("leadId")),
                           objective: String(d.get("objective")),
+                          ...(String(d.get('researchQuery') ?? '').trim() ? { researchQuery: String(d.get('researchQuery')).trim() } : {}),
                           commandId: crypto.randomUUID(),
                         });
                         setSelected(run.id);
@@ -146,6 +149,10 @@ export function SalesAgentControl({ leadId }: { leadId?: string | undefined }) {
                         className={field}
                       />
                     </label>
+                    {a.key === 'LEAD_RESEARCHER' && can('sales.research.execute') && <label className="block text-sm">Optional permitted-source search
+                      <input name="researchQuery" className={field} minLength={3} maxLength={300} placeholder="Rental property management companies in Kenya" />
+                      <span className="mt-1 block text-xs text-muted-foreground">Uses the configured licensed connector. Do not include private contact details. Source excerpts are unverified evidence for review.</span>
+                    </label>}
                     <Button
                       type="submit"
                       disabled={busy || !a.executionEnabled}
@@ -261,6 +268,8 @@ export function SalesAgentControl({ leadId }: { leadId?: string | undefined }) {
               <p className="text-sm">Reason: {displayedAction?.reason}</p>
             </>
           )}
+          <SalesResearchEvidence run={current.run} approval={current.approval} canImport={admin} busy={busy}
+            onImport={(id, body) => act(async () => { await client.importResearch(id, body); await cache.invalidateQueries({ queryKey: ['sales-success'] }); })} />
           {current.approval && (
             <>
               <p className="text-xs">

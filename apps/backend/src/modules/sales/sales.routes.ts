@@ -29,6 +29,7 @@ salesRouter.get('/success/agent-runs/:runId', asyncHandler(agents.view));
 salesRouter.post('/success/agent-runs/:runId/control', asyncHandler(agents.control));
 salesRouter.get('/success/approvals', asyncHandler(agents.approvals));
 salesRouter.post('/success/approvals/:approvalId/decisions', asyncHandler(agents.decide));
+salesRouter.post('/success/approvals/:approvalId/import-customer', asyncHandler(agents.importResearch));
 salesRouter.get('/success/customers/:id/identity', asyncHandler(identity.matches));
 salesRouter.post('/success/customers/:id/identity/decisions', asyncHandler(identity.review));
 salesRouter.get('/success/customers/:id/history', asyncHandler(identity.history));

@@ -34,6 +34,10 @@ export interface AgentRun {
   costMicroUsd?: number;
   costBasis?: string;
   objective?: string;
+  researchQuery?: string;
+  researchCostMicroUsd?: number;
+  researchExpiresAt?: string;
+  researchSources?: Array<{ title: string; url: string; excerpt: string; provider: string; retrievedAt: string }>;
   output?: {
     summary: string;
     evidence: string[];
@@ -83,4 +87,5 @@ export const salesAgentClient = {
     write(`/agent-runs/${id}/control`, body),
   decide: (id: string, body: unknown) =>
     write(`/approvals/${id}/decisions`, body),
+  importResearch: (id: string, body: unknown) => write<{ id: string }>(`/approvals/${id}/import-customer`, body),
 };

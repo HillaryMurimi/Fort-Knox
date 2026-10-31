@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { objectId } from "./sales-success.schemas.js";
+import { objectId, customerSchema } from "./sales-success.schemas.js";
+export const researchImportSchema = z.object({
+  payloadHash: z.string().regex(/^[a-f0-9]{64}$/), sourceUrl: z.string().url().max(1000), customer: customerSchema,
+}).strict();
 export const agentKeys = [
   "LEAD_RESEARCHER",
   "SALES_OUTREACH",
@@ -52,9 +55,10 @@ export const agentTaskSchema = z
     agent: agentKeySchema,
     leadId: objectId,
     objective: z.string().trim().min(5).max(2000),
+    researchQuery: z.string().trim().min(3).max(300).refine(v => !/@|\+\d{8,}/.test(v), { message: 'Research queries must not contain private contact details' }).optional(),
     commandId: z.uuid(),
   })
-  .strict();
+  .strict().refine(v => !v.researchQuery || v.agent === 'LEAD_RESEARCHER', { message: 'Connected research is available only to the lead researcher' });
 export const agentConfigurationSchema = z
   .object({
     revision: z.number().int().nonnegative(),

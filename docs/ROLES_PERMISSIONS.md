@@ -394,3 +394,8 @@ See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCE
 ## Sales continuation - executable runtime (2026-10-31)
 
 The existing sales CRM now integrates durable model tasks, fixed agent tools, current-permission worker checks, versioned human approvals and operational controls. Provider delivery/campaign/lifecycle milestones remain separate work. See [continuation implementation and acceptance log](AI_SALES_CONTINUATION.md) for schema/API/configuration details, security reviews, actual tests and remaining work.
+
+
+### Permitted sales research
+
+sales.research.execute is a separately delegated sales permission. It permits optional connected research only together with existing agent execution, current assigned-customer scope and constituent notes/meetings access. It never grants fresh administrator review, campaign governance, source import, organization linking, financial mutation or outbound delivery. Only a fresh dual-channel SUPER_ADMIN can promote an approved exact-source proposal using manually reviewed customer fields; consent remains UNKNOWN. Existing generic role mutation routes cannot add reserved sales permissions. Research evidence reads preserve the same customer scope and constituent read permissions as agent output.

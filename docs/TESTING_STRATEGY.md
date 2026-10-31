@@ -356,3 +356,8 @@ Exact verified identity review, preserved-history merges, bounded permission-fil
 ### Governed sales campaigns and attribution (2026-11-01)
 
 Campaign states and exact-payload approval, consented opaque invitations, existing acquisition-journey touches and verified deduplicated conversion projection are implemented. Campaign governance requires SUPER_ADMIN; all new features default OFF. Billing remains read-only. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for the API/models, consent rules, index prerequisites, evidence and remaining delivery/analytics work.
+
+
+### Connected sales research (2026-11-01)
+
+The existing lead-researcher runtime supports an optional permitted-source connector, exact citations, fresh reviewed CRM import with unknown consent, and durable source-content retention. sales.research.execute is separately delegated; research defaults OFF and requires reviewed source-use rights and cost configuration. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for contracts, tests, configuration and remaining delivery/booking work.

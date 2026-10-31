@@ -37,6 +37,8 @@ import {
 } from "../../src/modules/sales/sales-agent.schemas.js";
 import type { AuthenticatedUser } from "../../src/core/types/auth.js";
 import { completedAdminFixture } from "../helpers/admin-assurance.js";
+import { setSalesResearchTestProvider } from '../../src/integrations/research/sales-research.provider.js';
+import { Organization } from '../../src/database/models/Organization.js';
 const output = (key: AgentKey): AgentOutput => ({
   summary: "Review actual customer context",
   evidence: ["Customer expressed a migration concern."],
@@ -129,6 +131,7 @@ describe.skipIf(!process.env.RUN_E2E)(
       for (const key of [
         "SALES_AI_RUNTIME",
         "SALES_APPROVALS",
+        "SALES_RESEARCH",
         ...agentKeys.map((k) => "SALES_AGENT_" + k),
       ])
         await PlatformSwitch.create({
@@ -140,7 +143,7 @@ describe.skipIf(!process.env.RUN_E2E)(
           mode: "ON",
         });
     });
-    afterEach(() => setSalesModelTestProvider(undefined));
+    afterEach(() => { setSalesModelTestProvider(undefined); setSalesResearchTestProvider(undefined); });
     async function configure(
       key: AgentKey,
       overrides: Record<string, unknown> = {},
@@ -403,6 +406,81 @@ describe.skipIf(!process.env.RUN_E2E)(
           status: "CANCELLED",
         }),
       ).toBe(1);
+    });
+    it('executes permitted-source research, binds citations and imports explicitly reviewed CRM fields once', async () => {
+      await configure('LEAD_RESEARCHER');
+      const sourceUrl = 'https://company.example.com/rental-services';
+      setSalesResearchTestProvider({ key: 'BRAVE', search: async query => {
+        expect(query).toBe('rental property management companies Kenya');
+        return [{ title: 'Company public services', url: sourceUrl, excerpt: 'Public source excerpt; not identity or consent proof.', provider: 'BRAVE', retrievedAt: new Date() }];
+      } });
+      setSalesModelTestProvider(provider('LEAD_RESEARCHER', async input => {
+        expect(JSON.stringify(input.context)).toContain(sourceUrl);
+        return { output: { ...output('LEAD_RESEARCHER'), action: { ...output('LEAD_RESEARCHER').action, sourceUrls: [sourceUrl] } }, requestId: 'controlled-research-response', model: 'test', inputTokens: 150, outputTokens: 100 };
+      }));
+      const task = await service.create(admin, { agent: 'LEAD_RESEARCHER', leadId, objective: 'Find suitable companies using permitted public sources', researchQuery: 'rental property management companies Kenya', commandId: randomUUID() });
+      await service.execute(task.id);
+      const reviewed = await service.view(admin, task.id);
+      expect(reviewed.run.status).toBe('AWAITING_APPROVAL'); expect(reviewed.run.researchSources).toHaveLength(1);
+      expect((await service.list(admin, {})).items[0]).not.toHaveProperty('researchSources');
+      if (!reviewed.approval) throw new Error('Research approval missing');
+      const body = { payloadHash: reviewed.approval.payloadHash, sourceUrl, customer: { name: 'Reviewed business prospect', email: 'public-business@example.test', properties: 2, units: '40', challenge: 'Reviewed migration requirement', source: 'Reviewed permitted research' } };
+      await expect(service.importResearch(admin, String(reviewed.approval._id), body)).rejects.toMatchObject({ code: 'APPROVAL_CHANGED' });
+      await service.decide(admin, String(reviewed.approval._id), { decision: 'APPROVE', payloadHash: reviewed.approval.payloadHash, reason: 'Reviewed exact cited source and limitations' });
+      const imported = await service.importResearch(admin, String(reviewed.approval._id), body);
+      expect(await SalesLead.findById(imported.id).lean()).toMatchObject({ sourceUrl, consent: 'UNKNOWN', assignedTo: admin.userId });
+      await expect(service.importResearch(admin, String(reviewed.approval._id), { ...body, customer: { ...body.customer, email: 'different-review@example.test' } })).rejects.toMatchObject({ code: 'RESEARCH_SOURCE_IMPORTED' });
+      expect(await SalesLead.countDocuments()).toBe(2);
+      await expect(service.importResearch({ ...admin, adminDualChannel: false }, String(reviewed.approval._id), body)).rejects.toMatchObject({ code: 'FRESH_AUTH_REQUIRED' });
+      const existingOwner = await User.create({ phone: '+254700005020', email: 'existing-owner@example.test', firstName: 'Existing', lastName: 'Owner', emailVerifiedAt: new Date() });
+      await Organization.create({ name: 'Existing registered organization', slug: 'research-existing-org', onboarding: { ownerUserId: existingOwner._id } });
+      await expect(service.importResearch(admin, String(reviewed.approval._id), { ...body, customer: { ...body.customer, email: existingOwner.email } })).rejects.toMatchObject({ code: 'EXISTING_ACCOUNT_REVIEW' });
+      expect(await Job.countDocuments({ type: 'sales.research.expire' })).toBe(1);
+      await SalesAgentRun.updateOne({ _id: task.id }, { $set: { researchExpiresAt: new Date(0) } });
+      expect((await service.view(admin, task.id)).run.output).toBeUndefined();
+      expect(await service.expireResearch(task.id)).toEqual({ redacted: true });
+      expect((await SalesAgentApproval.findById(reviewed.approval._id))?.payloadHash).toBe(body.payloadHash);
+      expect((await SalesAgentApproval.findById(reviewed.approval._id))?.payload).toMatchObject({ redacted: true });
+      expect((await SalesLead.findById(imported.id))?.sourceUrl).toBe(sourceUrl);
+      expect(await service.expireResearch(task.id)).toEqual({ redacted: false });
+    });
+    it('blocks missing research configuration and fabricated citations without creating approvals', async () => {
+      await configure('LEAD_RESEARCHER'); setSalesModelTestProvider(provider('LEAD_RESEARCHER'));
+      const raw = { agent: 'LEAD_RESEARCHER', leadId, objective: 'Find permitted public business sources', researchQuery: 'rental property companies', commandId: randomUUID() };
+      const missing = await service.create(admin, raw); await service.execute(missing.id);
+      expect(await SalesAgentRun.findById(missing.id).lean()).toMatchObject({ status: 'BLOCKED', errorCode: 'RESEARCH_NOT_CONFIGURED' });
+      setSalesResearchTestProvider({ key: 'BRAVE', search: async () => [] });
+      setSalesModelTestProvider(provider('LEAD_RESEARCHER', async () => ({ output: { ...output('LEAD_RESEARCHER'), action: { ...output('LEAD_RESEARCHER').action, sourceUrls: ['https://invented.example.com/claim'] } }, requestId: 'invalid-source-test', model: 'test', inputTokens: 100, outputTokens: 100 })));
+      const invalid = await service.create(admin, { ...raw, commandId: randomUUID() }); await expect(service.execute(invalid.id)).rejects.toMatchObject({ code: 'RESEARCH_EVIDENCE_REQUIRED' });
+      expect(await SalesAgentRun.findById(invalid.id).lean()).toMatchObject({ errorCode: 'RESEARCH_EVIDENCE_REQUIRED' });
+      expect(await SalesAgentApproval.countDocuments()).toBe(0);
+      await expect(service.create(admin, { ...raw, researchQuery: 'private-contact@example.test', commandId: randomUUID() })).rejects.toThrow();
+      await expect(service.create(admin, { ...raw, agent: 'CRM_INTELLIGENCE', commandId: randomUUID() })).rejects.toThrow();
+      setSalesModelTestProvider(provider('LEAD_RESEARCHER'));
+      const pending = await service.create(admin, { ...raw, commandId: randomUUID() }); await service.execute(pending.id);
+      await service.control(admin, pending.id, { action: 'PAUSE', reason: 'Review source evidence before resuming' });
+      await SalesAgentRun.updateOne({ _id: pending.id }, { $set: { researchExpiresAt: new Date(0) } });
+      await service.control(admin, pending.id, { action: 'RESUME', reason: 'Collect fresh permitted-source evidence' });
+      await service.execute(pending.id);
+      expect((await SalesAgentApproval.findOne({ runId: pending.id, generation: 1 }))?.payload).toMatchObject({ redacted: true });
+      expect((await SalesAgentRun.findById(pending.id))?.status).toBe('AWAITING_APPROVAL');
+      await SalesAgentRun.updateOne({ _id: pending.id }, { $set: { researchExpiresAt: new Date(0) } });
+      await JobService.execute({ type: 'sales.research.expire', payload: { runId: pending.id } });
+      expect((await SalesAgentRun.findById(pending.id))?.status).toBe('CANCELLED');
+      expect((await SalesAgentApproval.findOne({ runId: pending.id }).sort({ generation: -1 }))?.status).toBe('EXPIRED');
+    });
+    it('serializes simultaneous reviewed imports so separate sources cannot duplicate the same contact', async () => {
+      await configure('LEAD_RESEARCHER');
+      const urls = ['https://company.example.com/source-one', 'https://company.example.com/source-two'];
+      setSalesResearchTestProvider({ key: 'BRAVE', search: async () => urls.map(url => ({ title: 'Public company source', url, excerpt: 'Unverified public business excerpt', provider: 'BRAVE' as const, retrievedAt: new Date() })) });
+      setSalesModelTestProvider(provider('LEAD_RESEARCHER', async () => ({ output: { ...output('LEAD_RESEARCHER'), action: { ...output('LEAD_RESEARCHER').action, sourceUrls: urls } }, requestId: 'concurrent-import-test', model: 'test', inputTokens: 100, outputTokens: 100 })));
+      const task = await service.create(admin, { agent: 'LEAD_RESEARCHER', leadId, researchQuery: 'rental management companies', objective: 'Review sourced companies for explicit import', commandId: randomUUID() }); await service.execute(task.id);
+      const approval = await SalesAgentApproval.findOne({ runId: task.id }); if (!approval) throw new Error('Approval missing');
+      await service.decide(admin, String(approval._id), { decision: 'APPROVE', payloadHash: approval.payloadHash, reason: 'Reviewed exact permitted-source references' });
+      const results = await Promise.allSettled(urls.map(sourceUrl => service.importResearch(admin, String(approval._id), { payloadHash: approval.payloadHash, sourceUrl, customer: { name: 'One business customer', email: 'one-business@example.test', properties: 2, units: '40', challenge: 'Reviewed customer requirements', source: 'Reviewed research' } })));
+      expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
+      expect(results.find(r => r.status === 'rejected')).toMatchObject({ reason: { code: 'POSSIBLE_DUPLICATE' } });
+      expect(await SalesLead.countDocuments({ email: 'one-business@example.test' })).toBe(1);
     });
     it("requires authenticated, authorized HTTP access and fresh administrator decisions", async () => {
       expect(
