@@ -660,3 +660,10 @@ See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARD
 `POST /support-sessions` requests narrowly scoped `PROPERTY_SETUP` access for a verified organization-wide owner; `GET /organizations/:organizationId/support-sessions` lists history. The designated owner alone can `POST /support-sessions/:id/approve` or `/reject`; either the owner or the requesting admin session can `/end`. An approved one-hour grant is required for `/support-sessions/:id/units` and `/property-setups`. The latter accepts the ordinary property-setup body. Authorization and grant status are rechecked in the domain write transaction; frontend preview grants no access. Requests expire after 24 hours. All sensitive writes are audited.
 
 `POST /organizations/:id/pilot` grants an unpaid Control or Fort Knox pilot to a verified owner, `/pilot/extend` extends an active pilot within a 60-day cumulative limit, and `/pilot/terminate` ends it. `POST /organizations/:id/pilot/prepare-conversion` snapshots actual active units and the published plan price, then prepares owner onboarding; it does **not** sign a contract, create a paid subscription, or confirm payment. Existing owner signature and Paystack confirmation remain authoritative. All pilot commands require fresh admin step-up.
+
+
+## AI Sales & Customer Success - 2026-10-31
+
+Added authenticated /api/v1/sales/success customer, notes, meeting, onboarding, agent-context and step-up delegation APIs. Schemas are registered in OpenAPI. Existing sales routes remain.
+
+See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).

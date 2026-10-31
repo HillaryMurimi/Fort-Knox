@@ -21,6 +21,9 @@ import {
 describe("domain-aware status semantics", () => {
   it.each([
     ["CHANNEL", "auth", "pending"],
+    ["RESCHEDULED", "sales", "pending"],
+    ["NO_SHOW", "sales", "attention"],
+    ["NOT_HELD", "sales", "inactive"],
     ["PAYMENT_FAILED", "onboarding", "failed"],
     ["CHECKOUT_PREPARATION_FAILED", "onboarding", "failed"],
     ["PAYMENT_RECONCILIATION_REQUIRED", "onboarding", "review"],

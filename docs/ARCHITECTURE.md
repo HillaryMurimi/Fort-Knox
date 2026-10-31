@@ -446,3 +446,10 @@ and provider receipt evidence. Resend extends the existing EmailProvider alongsi
 SendGrid. Auth-critical delivery stays synchronous with short-lived codes;
 ordinary notifications retain their existing durable worker boundary. See
 [OTP_AUTHENTICATION_CHANNELS.md](OTP_AUTHENTICATION_CHANNELS.md).
+
+
+## AI Sales & Customer Success - 2026-10-31
+
+Extended SalesLead with customer identity/assignment; new transactional SalesMeeting and append-only SalesActivity records. Existing roles/audit/events/billing remain authoritative. Agent definitions/context are not executable agents.
+
+See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).

@@ -21,6 +21,7 @@ export const statusGroups = {
     "AWAITING",
     "REQUESTED",
     "SCHEDULED",
+    "RESCHEDULED",
     "RESERVED",
     "DUE",
     "OPEN",
@@ -78,6 +79,7 @@ export const statusGroups = {
     "WATCH",
     "AT_RISK",
     "NEEDS_ACTION",
+    "NO_SHOW",
     "NEEDS_ATTENTION",
     "REQUIRES_ATTENTION",
     "DEGRADED",
@@ -162,6 +164,7 @@ export const statusGroups = {
   paused: ["PAUSED", "SUSPENDED", "ON_HOLD", "MAINTENANCE"],
   inactive: [
     "CANCELLED",
+    "NOT_HELD",
     "DISABLED",
     "INACTIVE",
     "DEACTIVATED",

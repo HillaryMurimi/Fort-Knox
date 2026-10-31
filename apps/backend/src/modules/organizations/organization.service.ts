@@ -1,3 +1,4 @@
+import { assertSalesGrantAuthority } from '../sales/sales-delegation.service.js';
 import { Types } from "mongoose";
 import { Organization } from "../../database/models/Organization.js";
 import { OrganizationMembership } from "../../database/models/OrganizationMembership.js";
@@ -122,6 +123,8 @@ export class OrganizationService {
         "INVALID_ROLES",
         "One or more roles are not assignable in this organization",
       );
+    assertSalesGrantAuthority(auth, roles.flatMap(role => role.permissions));
+    if (roles.some(role => role.key.startsWith("SALES_DELEGATE_"))) throw new AppError(403, "USE_SALES_DELEGATION", "Sales delegate roles are bound to their original user");
     return OrganizationMembership.findOneAndUpdate(
       { userId: data.userId, organizationId },
       {

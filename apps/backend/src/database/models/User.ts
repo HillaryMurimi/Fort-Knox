@@ -9,6 +9,7 @@ const userSchema = new Schema({
   status: { type: String, enum: ['ACTIVE', 'SUSPENDED', 'DEACTIVATED'], default: 'ACTIVE', index: true },
   isPlatformAdmin: { type: Boolean, default: false, index: true },
   lastLoginAt: Date,
+  salesCalendarRevision: { type: Number, default: 0, select: false },
   verifiedAt: Date,
   emailVerifiedAt: Date,
   phoneVerifiedAt: Date,

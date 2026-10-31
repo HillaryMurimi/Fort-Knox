@@ -334,3 +334,10 @@ signed historical events are still tested. Mocked provider responses cannot
 establish delivery of funds. New tests cover attested M-Pesa instruction
 resolution, the landlord shortcode binding, rejection of forged provider
 references, and distinct manual/provider confirmation provenance.
+
+
+## AI Sales & Customer Success - 2026-10-31
+
+New sales-success unit and Mongo replica-set HTTP tests cover default denial, delegation/revocation, assigned-record scope, note visibility/context permissions, duplicate review, stale revisions, meeting conflicts/outcomes and truthful inventory/payment projection. Existing sales browser verifier includes CRM/meeting workflow and responsive checks.
+
+See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).

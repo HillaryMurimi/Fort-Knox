@@ -179,6 +179,44 @@ try {
   await page.getByLabel("SMS verification code").fill(await deliveredCode("SMS"));
   await page.getByRole('button', { name: "Verify phone and sign in", exact: true }).click();
   await page.waitForURL((url) => url.pathname !== "/login");
+  await page.goto(origin + "/sales-success");
+  await page.getByRole("heading", { name: "AI Sales & Customer Success", exact: true }).waitFor();
+  await page.getByText("Create lead", { exact: true }).click();
+  await page.getByLabel("Customer / company", { exact: true }).fill("Customer Success Browser");
+  await page.getByLabel("Email", { exact: true }).fill("success-browser@example.test");
+  await page.getByLabel("Estimated units", { exact: true }).fill("120");
+  await page.getByLabel("Customer needs", { exact: true }).fill("Needs tenant migration assistance across three properties.");
+  await page.getByRole("button", { name: "Create customer", exact: true }).click();
+  await page.getByRole("heading", { name: "Customer Success Browser", exact: true }).waitFor();
+  await page.getByLabel("Qualification", { exact: true }).selectOption("Qualified");
+  await page.getByRole("button", { name: "Save customer", exact: true }).click();
+  await page.getByText(/Qualified.*UNKNOWN/).waitFor();
+  await page.getByLabel("Add customer note", { exact: true }).fill("Customer asked for a guided migration briefing next Tuesday.");
+  await page.getByRole("button", { name: "Save note to shared history", exact: true }).click();
+  await page.getByText("Customer asked for a guided migration briefing next Tuesday.", { exact: true }).waitFor();
+  await page.getByText("Schedule meeting", { exact: true }).click();
+  await page.getByLabel("Starts", { exact: true }).fill("2026-11-15T10:00");
+  await page.getByLabel("Ends", { exact: true }).fill("2026-11-15T11:00");
+  await page.getByLabel("Description and customer requirements", { exact: true }).fill("Review migration of 120 units and address customer objections.");
+  await page.getByRole("button", { name: "Schedule internal meeting", exact: true }).click();
+  await page.getByLabel("Meeting status", { exact: true }).waitFor();
+  await page.getByLabel("Outcome, objections and promised actions", { exact: true }).fill("Meeting completed. Customer requests a migration plan.");
+  await page.getByRole("button", { name: "Record outcome", exact: true }).click();
+  await page.getByText(/DEMO.*COMPLETED/).waitFor();
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate(t => { document.documentElement.classList.remove("light", "dark"); document.documentElement.classList.add(t); }, theme);
+    for (const width of [390, 834, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.waitForTimeout(350);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "Customer workspace fits " + width);
+      await page.screenshot({ path: temporaryRoot + `/pcc-success-${theme}-${width}.png`, fullPage: true });
+    }
+  }
+  await page.getByRole("button", { name: "AI Agents", exact: true }).click();
+  await page.getByRole("heading", { name: "Lead Researcher", exact: true }).waitFor();
+  assert.equal(await page.getByText(/NOT CONFIGURED.*instructions v1/).count(), 6);
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(origin + "/sales-demo");
   await page
     .getByLabel("Prospect / company name")
@@ -555,7 +593,7 @@ try {
         "Fort Knox security and evidence",
         "guided pilot validation, import and owner activation milestone",
         "existing commercial activation handoff without paid-access bypass",
-        "sales conversion intelligence",
+        "sales conversion intelligence", "customer creation, qualification, notes and meeting outcomes",
       ],
       viewports: sizes,
       themes: ["light", "dark"],

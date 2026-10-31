@@ -1383,3 +1383,10 @@ See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARD
 Implemented a scoped SUPER_ADMIN landlord directory, verified-owner invitation, consented support session, assisted property/unit setup, bounded direct pilot and actual-inventory conversion preparation. Added landlord approval/revocation UI and OpenAPI entries. No impersonation, backend RBAC bypass, fake invoice or payment assertion. Verified: repository typecheck, lint (warnings only), backend unit suite (370 passing, 202 intentionally skipped), frontend suite (290 passing after adding ENDED status), focused replica-set E2E (3 passing), and production build. The E2E suite is opt-in via `RUN_E2E=1`.
 
 Remaining preview/production gaps: external invitation and support-request delivery require a configured channel or deliberate secure manual process; run a two-device staging consent and owner-checkout test; production indexes need controlled rollout; the directory detail currently caps property/floor lists at 100/500 and needs pagination for larger portfolios; pilot conversion prepares a quote but owner-entered unit count can still differ before contract signature, so final contract inventory locking/validation remains a billing control gap. Deposit, occupancy, tenant/staff setup and bulk unit-import controls are not part of the new support workspace; existing authorized workflows remain separate. Real Paystack credentials, webhook URL and Coolify environment values remain operator-provided.
+
+
+## AI Sales & Customer Success - 2026-10-31
+
+Implemented the CRM/meeting/monitor/delegation vertical slice in the current checkout. Complete requested AI sales department is unfinished; provider runtimes, campaigns and scheduled outreach require further engineering. Final verification results and concrete review limitations are recorded in the implementation report.
+
+See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).

@@ -17,10 +17,18 @@ const salesLeadSchema = new Schema({
   nextAction: { type: String, default: 'Schedule demo' },
   nextActionDate: Date,
   createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  assignedTo: { type: Schema.Types.ObjectId, ref: 'User', index: true },
+  organizationId: { type: Schema.Types.ObjectId, ref: 'Organization' },
+  contacts: { type: [new Schema({ name: { type: String, required: true }, email: String, phone: String, title: String }, { _id: false })], default: [] },
+  optedOutAt: Date,
+  consent: { type: String, enum: ['UNKNOWN', 'OPTED_IN', 'OPTED_OUT'], default: 'UNKNOWN' },
+  revision: { type: Number, default: 0 },
   demoProfile: { type: Schema.Types.Mixed },
   pilotOrganizationId: { type: Schema.Types.ObjectId, ref: 'Organization' },
   crm: { type: Map, of: Schema.Types.Mixed, default: () => ({}) },
 }, { timestamps: true });
 
 salesLeadSchema.index({ email: 1, createdAt: -1 });
+salesLeadSchema.index({ organizationId: 1 }, { unique: true, partialFilterExpression: { organizationId: { $type: 'objectId' } }, name: 'sales_customer_org_unique' });
+salesLeadSchema.index({ assignedTo: 1, createdAt: -1 });
 export const SalesLead = model('SalesLead', salesLeadSchema);
