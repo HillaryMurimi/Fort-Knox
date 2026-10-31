@@ -5,9 +5,12 @@ import {
 } from "../src/database/models/SalesDemoSession.js";
 import { Organization } from "../src/database/models/Organization.js";
 import { AcquisitionJourney } from "../src/database/models/AcquisitionJourney.js";
+import { SalesLead } from "../src/database/models/SalesLead.js";
+import { SalesMeeting } from "../src/database/models/SalesMeeting.js";
+import { SalesActivity } from "../src/database/models/SalesActivity.js";
 await connectDatabase();
 try {
-  for (const model of [SalesDemoSession, SalesValueEvent, AcquisitionJourney])
+  for (const model of [SalesDemoSession, SalesValueEvent, AcquisitionJourney, SalesLead, SalesMeeting, SalesActivity])
     await model.createIndexes();
   for (const [key, options] of Organization.schema.indexes())
     if (options.name?.startsWith("guided_pilot_"))

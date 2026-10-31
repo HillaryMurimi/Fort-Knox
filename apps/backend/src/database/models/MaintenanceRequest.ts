@@ -6,6 +6,7 @@ const maintenanceRequestSchema = new Schema({
   buildingId: { type: Schema.Types.ObjectId, ref: 'Building', required: true, index: true },
   floorId: { type: Schema.Types.ObjectId, ref: 'Floor', required: true, index: true },
   unitId: { type: Schema.Types.ObjectId, ref: 'Unit', required: true, index: true },
+  assetId: { type: Schema.Types.ObjectId, ref: 'InventoryItem' },
   tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', index: true },
   reportedByUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   assignedToUserId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
@@ -31,6 +32,7 @@ const maintenanceRequestSchema = new Schema({
   updatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true, optimisticConcurrency:true });
 maintenanceRequestSchema.index({ organizationId: 1, unitId: 1, status: 1, createdAt: -1 });
+maintenanceRequestSchema.index({ organizationId: 1, assetId: 1, createdAt: -1 }, { partialFilterExpression: { assetId: { $exists: true } } });
 maintenanceRequestSchema.index({ organizationId: 1, contractorId: 1, status: 1 });
 maintenanceRequestSchema.index({ organizationId: 1, priority: 1, status: 1 });
 export type MaintenanceRequestDocument = InferSchemaType<typeof maintenanceRequestSchema>;

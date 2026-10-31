@@ -205,3 +205,10 @@ Implemented Plan Performance and retained platform Morning Brief without a paral
 ## Pain-first sales demonstration and guided pilot (2026-10-02)
 
 The pain-first demo and guided activation release extends existing authorities rather than replacing working demo/auth/finance/commercial functionality. New flows are tracked by verified business outcomes and conversion, with realistic deterministic seed scenarios. See SALES_DEMO_AUDIT.md, SALES_RUNBOOK.md and SALES_DEMO_RELEASE_REPORT.md.
+
+
+## AI Sales & Customer Success - 2026-10-31
+
+AI Sales & Customer Success is an explicitly requested later-phase extension: CRM/meeting vertical slice implemented; complete agent department, lifecycle projection, campaigns/attribution and follow-up automation remain outstanding. Do not treat this as full-phase acceptance.
+
+See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).

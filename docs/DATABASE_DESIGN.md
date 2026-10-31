@@ -347,6 +347,7 @@ Explicit auditable adjustments; never silently mutate financial history.
 ### maintenance_requests
 
 -   organization/property/building/unit
+-   optional `assetId` referencing an `InventoryItem` in the same organization and unit (new writes are validated; historical requests remain unlinked unless explicitly reviewed)
 -   tenant/reporter
 -   category
 -   description
@@ -360,6 +361,8 @@ Explicit auditable adjustments; never silently mutate financial history.
 -   invoice IDs
 -   timestamps
 -   closedAt
+
+The partial `{ organizationId: 1, assetId: 1, createdAt: -1 }` index supports bounded asset history. Build it in staging after inspecting existing indexes and query plans; this change does not backfill or migrate historical records. Asset history is not a unit-wide text/category match.
 
 ### maintenance_transitions
 
@@ -650,3 +653,10 @@ See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARD
 # Assisted support and pilot records (2026-10-26)
 
 `AdminSupportSession` stores organization, designated owner, requesting admin user and privileged session, purpose, fixed `PROPERTY_SETUP` permission, requested/approved/expiry/end timestamps, state (`REQUESTED`, `ACTIVE`, `REJECTED`, `ENDED`) and use count. Records remain for audit; there is no TTL deletion. Index by organization/request date and admin/session/state. The organization-scoped `guidedPilot` structure now permits an admin-origin pilot with no sales lead or demo session; sales attribution is emitted only when those references exist. `Invitation` accepts a `LANDLORD` role only through the assisted-organization creation service, with a one-use hashed token and seven-day expiry. Its schema defines one TTL index on `expiresAt`, rather than two conflicting declarations. Production MongoDB deployments with index auto-creation disabled must create the new support-session indexes through the normal controlled index rollout and check whether an existing plain `expiresAt_1` invitation index needs a scheduled TTL migration.
+
+
+## AI Sales & Customer Success - 2026-10-31
+
+Additive SalesLead assignment/organization/contacts/consent/revision fields; new SalesMeeting and SalesActivity; hidden User.salesCalendarRevision serializes reservations. Partial unique sales_customer_org_unique requires the extended sales:create-indexes command before production linking.
+
+See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).

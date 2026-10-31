@@ -170,6 +170,7 @@ export const ROLE_NAVIGATION: Record<SystemRoleKey, NavSection[]> = {
         item("Landlord operations", "/landlord-operations", "Building2"),
         item("Sales demonstration", "/sales-demo", "Workflow"),
         item("Sales intelligence", "/sales-intelligence", "LineChart"),
+        item("AI Sales & Customer Success", "/sales-success", "Users"),
         item("Organizations", "/platform?tab=organizations", "Building2"),
         item("Users & Access", "/platform?tab=access", "Users"),
         item("Roles & Permissions", "/platform?tab=access", "KeyRound"),
@@ -215,7 +216,10 @@ export function navigationFor(
   permissions: readonly string[] = [],
   preview = false,
 ): NavSection[] {
-  const navigation = ROLE_NAVIGATION[role] ?? [];
+  const base = ROLE_NAVIGATION[role] ?? [];
+  const navigation = role !== 'SUPER_ADMIN' && !preview && permissions.some(p => p === 'sales.leads.read' || p === 'sales.agents.read')
+    ? [...base, { label: 'Sales access', items: [item('AI Sales & Customer Success', '/sales-success', 'Users')] }]
+    : base;
 
   return navigation
     .map((section) => ({

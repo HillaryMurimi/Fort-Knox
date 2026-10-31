@@ -1,6 +1,6 @@
 # Production Readiness and Owner Runbook
 
-Last updated: 2026-09-24
+Last updated: 2026-10-30
 
 ## Release Position
 
@@ -17,19 +17,19 @@ Run from the repository root:
 npm run verify:production
 ```
 
-The API must also start successfully with the real production environment. Startup intentionally fails when required secrets or providers are missing, when M-Pesa still points to sandbox, when cookies are insecure, or when a localhost database is configured.
+The API must also start successfully with the real production environment. Startup rejects missing required secrets, incomplete configuration for enabled providers, an enabled M-Pesa rail pointed at sandbox, insecure cookies, or a localhost database. Disabled optional providers may remain unconfigured.
 
-The checked-in quality gate currently exits successfully, but lint still reports 265 backend warnings and 24 frontend warnings. These are tracked cleanup debt rather than launch-blocking errors; review and reduce them as modules are touched, especially non-null assertions and React 19 effect/ref warnings.
+The latest Phase 11 local baseline is recorded in [CODEX_EXECUTION_TRACKER.md](CODEX_EXECUTION_TRACKER.md). Passing static certification and local quality gates does not certify provider settlement, tenant isolation under production data, disaster recovery, or live security operations.
 
 ## Real External APIs
 
 | Capability | Code status | Production service/account required |
 | --- | --- | --- |
-| M-Pesa STK Push | Real Daraja adapter | Safaricom production app, consumer key/secret, production shortcode, passkey, public callback URL. Unsigned callbacks only trigger an authenticated STK query; they do not independently confirm payment. |
-| Paystack checkout | Real Paystack initialize/verify/webhook adapter | Live secret key, approved business, settlement bank details, HTTPS callback and webhook registration. Landlord destinations use Paystack subaccounts. |
+| M-Pesa rent STK Push | Real Daraja adapter with a restricted direct-to-landlord policy | A landlord-owned shortcode matching the deployment credentials, exact `MPESA_RENT_ORGANIZATION_ID` binding, an owner-attested matching PayBill, Safaricom approval and a public callback. Unsigned callbacks only trigger authenticated STK query; they do not independently confirm payment. Other organizations have instructions only. |
+| Paystack rent checkout | New initiation and subaccount provisioning blocked | The platform Paystack merchant account is reserved for Dapinni SaaS billing. Do not configure landlord rent subaccounts or represent rent checkout as available without a separate merchant/legal arrangement and a reviewed code change. Historical signed provider events remain reconcilable. |
 | Paystack billing | Hosted card checkout for recurring subscriptions | Live secret, registered signed webhook, verified currency and recurring-card eligibility for the merchant account. |
-| SMS and OTP | Real Twilio adapter | Twilio account, production sender/phone number, Kenya delivery approval, funded balance. Production login now sends OTP through this adapter. |
-| Email | Real SendGrid adapter | Verified sending domain, API key, sender address, SPF, DKIM and DMARC. |
+| SMS and OTP | Real Twilio adapter when SMS is enabled | Twilio account, production sender/phone number, Kenya delivery approval and funded balance. The email-only launch uses the configured verified email channel; SMS must be tested separately before activation. |
+| Email | Resend or SendGrid adapter | Configure the selected `EMAIL_PROVIDER`, corresponding API key, verified sending domain/address, SPF, DKIM and DMARC. Coolify defaults to Resend. |
 | WhatsApp | Real Meta Cloud adapter, optional | Approved Meta business, phone number ID, access token and approved templates where Meta requires them. |
 | Documents/evidence | Real S3/S3-compatible adapter | Private bucket, least-privilege credentials, encryption, CORS, lifecycle and backup policy. Local storage is disabled in production. |
 | CCTV | Generic HTTPS gateway adapter | A separately deployed WebRTC/HLS gateway connected to cameras/NVRs. Raw RTSP credentials must never reach PMCC or the browser. |
@@ -52,7 +52,7 @@ These options must remain disabled or hidden until implemented and security-test
 
 ### Accounts and credentials
 
-- Create production Safaricom Daraja, Paystack, Twilio, SendGrid, object-storage and CCTV-gateway accounts.
+- Create only the provider accounts required for the approved launch scope. The email-only Coolify baseline requires a verified Resend or SendGrid sender; optional SMS, M-Pesa, Paystack billing, object storage and CCTV need separate readiness evidence before their flags are enabled.
 - Complete provider KYB/KYC, settlement-bank verification and live-mode approval.
 - Generate two different random JWT secrets of at least 64 characters in a secret manager. Never place live secrets in Git or frontend variables.
 - Configure the required keys from `apps/backend/.env.example` as Coolify environment variables for the Git-backed Compose application. Do not commit or mount a `.env.production` file for Coolify. The separate non-Coolify reference Compose file still expects an external env file.
@@ -61,7 +61,7 @@ These options must remain disabled or hidden until implemented and security-test
 ### Networking and callbacks
 
 - Provision separate HTTPS domains for web and API, DNS, TLS renewal, WAF/rate limits and reverse-proxy request-size limits.
-- Register `POST /api/v1/integrations/webhooks/PAYSTACK` and `/MPESA` with enabled providers.
+- Register `POST /api/v1/integrations/webhooks/PAYSTACK` and `/MPESA` only for enabled, approved provider workflows. Paystack webhook registration does not enable rent checkout.
 - Put M-Pesa behind an allow-listed callback gateway that adds the configured HMAC header when possible; authenticated STK reconciliation remains mandatory.
 - Restrict MongoDB, storage and CCTV gateway network access to application infrastructure.
 
@@ -87,7 +87,7 @@ These options must remain disabled or hidden until implemented and security-test
 - Build both Docker images with the real public API URL and scan images/dependencies for vulnerabilities.
 - Exercise login/OTP, invitation, tenant onboarding, rent payment, signed webhook confirmation, reversal, maintenance media, every role workspace, CCTV authorization and cross-organization denial in staging.
 - Confirm `/api/v1/health/live` returns 200 and `/api/v1/health/ready` returns 200 only while MongoDB is connected.
-- Perform a small real-money M-Pesa and Paystack transaction, refund/reversal and settlement reconciliation before opening access broadly.
+- Before enabling a payment rail, perform small authorized real-money transactions and reconcile provider, ledger, bank settlement and refund/reversal evidence for that rail. Do not use the platform Paystack account to collect rent.
 - Complete [Paystack billing staging acceptance](PAYSTACK_STAGING_ACCEPTANCE.md) for hosted checkout, a genuine renewal and cancellation before enabling paid subscriptions for customers.
 
 ## Deployment Notes

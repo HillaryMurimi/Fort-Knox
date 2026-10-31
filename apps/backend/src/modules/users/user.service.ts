@@ -1,3 +1,4 @@
+import { assertSalesGrantAuthority } from '../sales/sales-delegation.service.js';
 import { Types } from 'mongoose';
 import { normalizePhone } from '../auth/auth.service.js';
 import { availableChannels } from '../auth/otp-policy.js';
@@ -14,6 +15,9 @@ export class UserService {
     await EntitlementService.assertCapacity(organizationId, 'USERS');
     const roleCount = await Role.countDocuments({ _id:{$in:data.roleIds}, $or:[{organizationId:null,system:true},{organizationId:new Types.ObjectId(organizationId)}] });
     if (roleCount !== data.roleIds.length) throw new AppError(400,'INVALID_ROLES','One or more roles are not valid for this organization');
+    const assignedRoles = await Role.find({ _id: { $in: data.roleIds } }).lean();
+    assertSalesGrantAuthority(auth, assignedRoles.flatMap(role => role.permissions));
+    if (assignedRoles.some(role => role.key.startsWith("SALES_DELEGATE_"))) throw new AppError(403, "USE_SALES_DELEGATION", "Sales delegate roles are bound to their original user");
     data.phone = normalizePhone(data.phone);
     if (!(await availableChannels()).includes('SMS') && !data.email) throw new AppError(400, 'EMAIL_REQUIRED', 'An email address is required while SMS authentication is unavailable.');
     let user = await User.findOne({phone:data.phone});

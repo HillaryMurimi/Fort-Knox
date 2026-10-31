@@ -357,6 +357,8 @@ POST   /maintenance/:id/evidence
 
 `POST /maintenance/:id/evidence` accepts authenticated `multipart/form-data` with up to five `media` parts. Supported formats are JPEG, PNG, WebP, HEIC/HEIF, MP4, WebM, and QuickTime. Photos are limited to 10 MB and videos to 25 MB per file. The server verifies maintenance-resource scope, stores the bytes through `StorageProvider`, creates audited Evidence records, and appends their IDs to the maintenance request.
 
+`POST /organizations/:organizationId/maintenance` accepts an optional `assetId` in addition to its existing `unitId`. The server first authorizes the unit, then requires the asset to be active or under repair in that same organization and unit. A missing or mismatched asset returns `ASSET_NOT_FOUND`; no asset is inferred for older or unlinked requests. `GET /inventory/:inventoryId/maintenance-history` returns at most 100 newest requests explicitly linked to that asset. It requires both `inventory.view` and `maintenance.view` within the asset's unit scope; TENANT principals see only requests they reported. The inventory list and service-due endpoints also require `inventory.view`. Direct `PATCH /inventory/:inventoryId` cannot change `unitId`; an audited transfer workflow is not implemented.
+
 Transition endpoints should enforce valid state transitions.
 
 The caretaker workspace uses the implemented maintenance create, evidence,
@@ -658,3 +660,10 @@ See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARD
 `POST /support-sessions` requests narrowly scoped `PROPERTY_SETUP` access for a verified organization-wide owner; `GET /organizations/:organizationId/support-sessions` lists history. The designated owner alone can `POST /support-sessions/:id/approve` or `/reject`; either the owner or the requesting admin session can `/end`. An approved one-hour grant is required for `/support-sessions/:id/units` and `/property-setups`. The latter accepts the ordinary property-setup body. Authorization and grant status are rechecked in the domain write transaction; frontend preview grants no access. Requests expire after 24 hours. All sensitive writes are audited.
 
 `POST /organizations/:id/pilot` grants an unpaid Control or Fort Knox pilot to a verified owner, `/pilot/extend` extends an active pilot within a 60-day cumulative limit, and `/pilot/terminate` ends it. `POST /organizations/:id/pilot/prepare-conversion` snapshots actual active units and the published plan price, then prepares owner onboarding; it does **not** sign a contract, create a paid subscription, or confirm payment. Existing owner signature and Paystack confirmation remain authoritative. All pilot commands require fresh admin step-up.
+
+
+## AI Sales & Customer Success - 2026-10-31
+
+Added authenticated /api/v1/sales/success customer, notes, meeting, onboarding, agent-context and step-up delegation APIs. Schemas are registered in OpenAPI. Existing sales routes remain.
+
+See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).

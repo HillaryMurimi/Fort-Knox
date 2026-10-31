@@ -446,3 +446,10 @@ See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARD
 # Assisted landlord operations (2026-10-26)
 
 SUPER_ADMIN can search the landlord onboarding directory, create a real organization with an owner invitation, request owner-consented property setup access, grant/extend/end a bounded unpaid pilot, and prepare a plan quote from real configured units. A LANDLORD sees pending and active support requests, can approve/reject them, and can revoke access. Assisted setup uses the existing property wizard with session-bound backend writes. Admin conversion preparation hands off to the existing owner signing and verified payment flow; it is not a payment simulator.
+
+
+## AI Sales & Customer Success - 2026-10-31
+
+Added persisted AI Sales & Customer Success workspace for customer records, qualification/consent, append-only notes, internal meeting outcomes and actual onboarding monitoring. Six agent definitions are unavailable; campaigns, outreach, agent runtime and configurable follow-up workflows remain unfinished.
+
+See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).

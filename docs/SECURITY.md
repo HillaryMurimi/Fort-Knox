@@ -274,3 +274,10 @@ See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARD
 # Consented platform support (2026-10-26)
 
 The landlord operations UI requires a real SUPER_ADMIN session; dev role preview is presentation only. Creating an organization, requesting support, and pilot/conversion mutations require recent platform-admin step-up. A support request names one verified organization-wide landlord and records its stated purpose. Only that owner may approve or reject it. An approved grant is tied to one admin user, one privileged session, one organization, one permission, and a one-hour expiry. The owner or requesting admin can end it. Property/unit writes lock and recheck the grant in the same MongoDB transaction as the data mutation, then record attributed audit events; no impersonation token or backend authorization bypass is issued. In-app notification is created with the request, but external email/SMS delivery is not claimed. One-use owner invitations are returned to the admin for **manual secure delivery**; never put them in logs or public tickets.
+
+
+## AI Sales & Customer Success - 2026-10-31
+
+Sales delegates have explicit action permissions and assigned-record scope. Reserved delegation roles cannot be changed through ordinary role routes. Shared context excludes secrets/Mixed metadata and treats notes as untrusted; no AI or outbound execution is enabled. Sales APIs use no-store; frontend query caches include identity and permissions.
+
+See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).

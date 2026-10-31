@@ -382,3 +382,10 @@ sales.demo.manage is an explicitly delegated organization-wide salesperson permi
 # Assisted support authorization (2026-10-26)
 
 SUPER_ADMIN may request but may not self-approve a support session. The designated verified organization-wide LANDLORD alone approves/rejects; either the owner or the requesting administrator in the same privileged session can end it. Even SUPER_ADMIN property and unit writes on the assisted routes require an active grant for that organization and session. No caretaker, manager, contractor, tenant, dev-preview role, or unrelated landlord can exercise these endpoints. The owner still signs their own commercial contract and authorizes Paystack checkout.
+
+
+## AI Sales & Customer Success - 2026-10-31
+
+Sales success defaults to SUPER_ADMIN. Explicit per-user staff roles use existing organization membership with assignedTo record scope. Only fresh dual-channel SUPER_ADMIN may replace/revoke grants; normal organization role/user assignment paths cannot transfer these roles. Notes and meetings have distinct read permissions.
+
+See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).
