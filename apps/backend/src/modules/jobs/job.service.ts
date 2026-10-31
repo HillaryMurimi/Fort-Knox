@@ -131,6 +131,24 @@ export class JobService {
     payload: unknown;
     organizationId?: Types.ObjectId | null;
   }) {
+    if (['sales.lifecycle.replay', 'sales.lifecycle.scan', 'domain-event.sales-lifecycle', 'domain-event.sales-audit'].includes(job.type)) {
+      const { z } = await import('zod');
+      const { SalesLifecycleService } = await import('../sales/sales-lifecycle.service.js');
+      if (job.type === 'sales.lifecycle.scan') { await SalesLifecycleService.scan(job.payload); return; }
+      if (!job.organizationId) throw new AppError(400, 'INVALID_JOB_PAYLOAD', 'Lifecycle jobs require a bound organization');
+      if (job.type === 'sales.lifecycle.replay') {
+        const input = z.object({ organizationId: z.string().regex(/^[a-f\d]{24}$/i) }).strict().parse(job.payload);
+        if (input.organizationId !== String(job.organizationId)) throw new AppError(403, 'INVALID_JOB_SCOPE', 'Job organization does not match payload');
+        await SalesLifecycleService.batch(job.organizationId);
+      } else if (job.type === 'domain-event.sales-lifecycle') {
+        const input = z.object({ eventId: z.uuid() }).strict().parse(job.payload);
+        await SalesLifecycleService.consume(input.eventId, job.organizationId);
+      } else {
+        const input = z.object({ auditId: z.string().regex(/^[a-f\d]{24}$/i) }).strict().parse(job.payload);
+        await SalesLifecycleService.consumeAudit(input.auditId, job.organizationId);
+      }
+      return;
+    }
     if (job.type === 'sales.agent.execute') {
       const { objectId } = await import('../sales/sales-success.schemas.js');
       const payload = job.payload as { runId?: unknown };

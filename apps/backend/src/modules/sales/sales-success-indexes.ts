@@ -3,6 +3,16 @@ import { AppError } from "../../core/errors/AppError.js";
 import { SalesLead } from "../../database/models/SalesLead.js";
 import { SalesAgent, SalesAgentRun, SalesAgentApproval } from '../../database/models/SalesAgent.js';
 import { Job } from '../../database/models/Job.js';
+import { SalesActivity } from '../../database/models/SalesActivity.js';
+import { SalesIdentityMatch, SalesProjectionCheckpoint } from '../../database/models/SalesIdentity.js';
+export async function assertLifecycleIndexes() {
+  if (env.NODE_ENV !== 'production') return;
+  await assertCustomerIdentityIndex();
+  for (const [model, name] of [[SalesActivity, 'sales_activity_source_unique'], [SalesIdentityMatch, 'sales_identity_match_unique'], [SalesProjectionCheckpoint, 'organizationId_1'], [Job, 'dedupeKey_1']] as const) {
+    const indexes = await model.collection.indexes().catch(() => []);
+    if (!indexes.some(i => i.name === name && i.unique)) throw new AppError(503, 'SALES_INDEXES_REQUIRED', 'Install lifecycle and identity indexes before enabling projection');
+  }
+}
 export async function assertAgentIndexes() {
   if (env.NODE_ENV !== 'production') return;
   for (const [model, name, key] of [

@@ -6,4 +6,5 @@ const schema = new Schema({
   payload:{type:Schema.Types.Mixed,required:true}, occurredAt:{type:Date,required:true,index:true}, publishedAt:{type:Date,index:true}
 },{timestamps:true,versionKey:false});
 schema.index({organizationId:1,name:1,occurredAt:-1}); schema.index({organizationId:1,occurredAt:-1}); schema.index({aggregateType:1,aggregateId:1,version:1},{unique:true});
+schema.index({organizationId:1,name:1,createdAt:1,_id:1},{name:'sales_projection_source_cursor'});
 export type DomainEventDocument=InferSchemaType<typeof schema>; export const DomainEvent=model('DomainEvent',schema);

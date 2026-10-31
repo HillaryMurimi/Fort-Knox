@@ -1,3 +1,4 @@
+import { salesLifecycleAudits } from '../sales/sales-lifecycle.catalog.js';
 import { Types, type ClientSession } from 'mongoose';
 import { AuditLog } from '../../database/models/AuditLog.js';
 import { DomainEvent } from '../../database/models/DomainEvent.js';
@@ -27,7 +28,9 @@ export interface AuditInput {
 export class AuditService {
   static async record(input:AuditInput, session?:ClientSession){
     const entry={...input,occurredAt:new Date()};
-    if(session){const [created]=await AuditLog.create([entry],{session});return created;}
+    if(session){const [created]=await AuditLog.create([entry],{session});
+      if(created && input.organizationId && (salesLifecycleAudits as readonly string[]).includes(input.action)) await (await import('../sales/sales-lifecycle.service.js')).SalesLifecycleService.scheduleAudit({ _id:created._id, organizationId:input.organizationId, action:input.action }, session);
+      return created;}
     return AuditLog.create(entry);
   }
   static async list(auth:AuthenticatedUser, query:{organizationId:string;resourceType?:string;resourceId?:string;actorUserId?:string;action?:string;from?:Date;to?:Date;limit:number}){

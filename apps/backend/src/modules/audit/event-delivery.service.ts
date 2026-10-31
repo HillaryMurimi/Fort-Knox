@@ -1,4 +1,5 @@
 import mongoose, { Types, type ClientSession } from "mongoose";
+import { salesLifecycleEvents } from '../sales/sales-lifecycle.catalog.js';
 import { z } from "zod";
 import { AppError } from "../../core/errors/AppError.js";
 import { DomainEvent } from "../../database/models/DomainEvent.js";
@@ -31,6 +32,7 @@ export class EventDeliveryService {
     event: { eventId: string; organizationId: Types.ObjectId; name: string },
     session: ClientSession,
   ) {
+    if ((salesLifecycleEvents as readonly string[]).includes(event.name)) await (await import('../sales/sales-lifecycle.service.js')).SalesLifecycleService.schedule(event, session);
     await (
       await import("../onboarding/onboarding-recovery.service.js")
     ).OnboardingRecoveryService.schedule(event, session);

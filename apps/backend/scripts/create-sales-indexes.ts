@@ -1,3 +1,6 @@
+import { SalesIdentityMatch, SalesMergeRequest, SalesProjectionCheckpoint } from '../src/database/models/SalesIdentity.js';
+import { AuditLog } from '../src/database/models/AuditLog.js';
+import { DomainEvent } from '../src/database/models/DomainEvent.js';
 import { connectDatabase, disconnectDatabase } from "../src/config/database.js";
 import {
   SalesDemoSession,
@@ -12,7 +15,7 @@ import { SalesAgent, SalesAgentRun, SalesAgentApproval } from '../src/database/m
 import { Job } from '../src/database/models/Job.js';
 await connectDatabase();
 try {
-  for (const model of [SalesDemoSession, SalesValueEvent, AcquisitionJourney, SalesLead, SalesMeeting, SalesActivity, SalesAgent, SalesAgentRun, SalesAgentApproval, Job])
+  for (const model of [SalesDemoSession, SalesValueEvent, AcquisitionJourney, SalesLead, SalesMeeting, SalesActivity, SalesAgent, SalesAgentRun, SalesAgentApproval, Job, SalesIdentityMatch, SalesMergeRequest, SalesProjectionCheckpoint, AuditLog, DomainEvent])
     await model.createIndexes();
   for (const [key, options] of Organization.schema.indexes())
     if (options.name?.startsWith("guided_pilot_"))

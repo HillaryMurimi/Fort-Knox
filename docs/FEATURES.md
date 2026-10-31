@@ -458,3 +458,8 @@ See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCE
 ## Sales continuation - executable runtime (2026-10-31)
 
 The existing sales CRM now integrates durable model tasks, fixed agent tools, current-permission worker checks, versioned human approvals and operational controls. Provider delivery/campaign/lifecycle milestones remain separate work. See [continuation implementation and acceptance log](AI_SALES_CONTINUATION.md) for schema/API/configuration details, security reviews, actual tests and remaining work.
+
+
+### Sales identity and lifecycle continuation (2026-10-31)
+
+Exact verified identity review, preserved-history merges, bounded permission-filtered history and durable idempotent commercial/inventory projections are implemented. Lifecycle/autolink default OFF. Authoritative billing and organization scope remain unchanged. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for API/model changes, index prerequisites, verification evidence and remaining milestones.

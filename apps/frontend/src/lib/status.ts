@@ -14,6 +14,7 @@ export const statusGroups = {
     "PRE_REGISTERED",
     "ACCOUNT_CREATED",
     "UNSUBSCRIBED",
+    "UNLINKED",
   ],
   pending: [
     "PENDING",
@@ -66,6 +67,8 @@ export const statusGroups = {
     "SUBMITTED",
     "UNDER_REVIEW",
     "CHANGES_REQUESTED",
+    "MATCH_SUGGESTED",
+    "LINK_PENDING_REVIEW",
     "REVIEW",
     "APPROVAL_REQUIRED",
     "AWAITING_APPROVAL",
@@ -99,6 +102,7 @@ export const statusGroups = {
   ],
   blocked: [
     "BLOCKED",
+    "CONFLICT",
     "OVERDUE",
     "CRITICAL",
     "EMERGENCY",
@@ -116,6 +120,7 @@ export const statusGroups = {
   failed: [
     "FAILED",
     "REJECTED",
+    "LINK_REJECTED",
     "ERROR",
     "DENIED",
     "INVALIDATED",
@@ -124,6 +129,7 @@ export const statusGroups = {
   success: [
     "APPROVED",
     "VERIFIED",
+    "LINKED",
     "HEALTHY",
     "SUCCESSFUL",
     "CONFIRMED",

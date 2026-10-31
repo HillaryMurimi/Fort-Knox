@@ -49,6 +49,7 @@ export interface AgentRun {
   };
 }
 export interface AgentApproval {
+  payload?: NonNullable<AgentRun["output"]>["action"];
   _id: string;
   status: string;
   payloadHash: string;

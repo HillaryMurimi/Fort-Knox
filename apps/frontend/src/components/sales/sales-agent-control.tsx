@@ -62,6 +62,8 @@ export function SalesAgentControl({ leadId }: { leadId?: string | undefined }) {
   if (!can("sales.agents.read"))
     return <Alert>Explicit agent-read permission is required.</Alert>;
   const current = detail.error ? undefined : detail.data;
+  const displayedAction =
+    current?.approval?.payload ?? current?.run.output?.action;
   return (
     <section className="space-y-5" aria-label="AI agent control center">
       <Alert>
@@ -248,19 +250,15 @@ export function SalesAgentControl({ leadId }: { leadId?: string | undefined }) {
                 {current.run.output.limitation}
               </p>
               <h3 className="font-semibold">
-                Proposed {current.run.output.action.tool.replaceAll("_", " ")}
+                Proposed {displayedAction?.tool.replaceAll("_", " ")}
               </h3>
-              {current.run.output.action.subject && (
-                <p className="font-medium">
-                  {current.run.output.action.subject}
-                </p>
+              {displayedAction?.subject && (
+                <p className="font-medium">{displayedAction?.subject}</p>
               )}
               <p className="whitespace-pre-wrap break-words rounded-lg bg-muted p-4 text-sm">
-                {current.run.output.action.text}
+                {displayedAction?.text}
               </p>
-              <p className="text-sm">
-                Reason: {current.run.output.action.reason}
-              </p>
+              <p className="text-sm">Reason: {displayedAction?.reason}</p>
             </>
           )}
           {current.approval && (

@@ -8,6 +8,8 @@ import {
 } from "react";
 import Link from "next/link";
 import { SalesAgentControl } from "./sales-agent-control";
+import { SalesCustomerIdentity } from "./sales-customer-identity";
+import { SalesCustomerHistory } from "./sales-customer-history";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Alert, Button } from "@/components/ui";
@@ -457,6 +459,11 @@ export function SalesSuccessWorkspace() {
                     </details>
                   )}
                 </section>
+                <SalesCustomerIdentity
+                  id={data.customer.id}
+                  revision={data.customer.revision}
+                  organizationId={data.customer.organizationId}
+                />
                 {can("sales.onboarding.read") && (
                   <section className={panelClass}>
                     <h2 className="text-lg font-semibold">
@@ -558,6 +565,11 @@ export function SalesSuccessWorkspace() {
                         }
                       />
                     ))}
+                    <SalesCustomerHistory
+                      id={data.customer.id}
+                      kind="MEETINGS"
+                      initialCursor={data.historyCursors?.meetings}
+                    />
                     {can("sales.meetings.create") && (
                       <MeetingForm
                         pending={pending}
@@ -593,6 +605,11 @@ export function SalesSuccessWorkspace() {
                         </li>
                       ))}
                     </ol>
+                    <SalesCustomerHistory
+                      id={data.customer.id}
+                      kind="ACTIVITIES"
+                      initialCursor={data.historyCursors?.activities}
+                    />
                   </section>
                 )}
                 {can("sales.notes.create") && (
@@ -627,7 +644,9 @@ export function SalesSuccessWorkspace() {
           </main>
         </div>
       )}
-      {tab === "AI Agents" && <SalesAgentControl leadId={selected || undefined} />}
+      {tab === "AI Agents" && (
+        <SalesAgentControl leadId={selected || undefined} />
+      )}
       {tab === "Permissions" && admin && (
         <section className={panelClass}>
           <h2 className="text-lg font-semibold">

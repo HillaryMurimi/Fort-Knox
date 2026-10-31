@@ -52,8 +52,8 @@ Optional env fields (backend and shared Coolify API/worker environment): SALES_A
 | Real lead discovery connector and source ingestion | Pending next milestones |
 | Outbound delivery/replies/verified webhooks | Pending next milestones |
 | External calendar booking/synchronization | Pending next milestones |
-| Automatic verified identity resolution and merge review | Pending next milestones |
-| Durable lifecycle projection/replay/backfill | Pending next milestones |
+| Automatic verified identity resolution and merge review | Implemented; optional autolink policy defaults OFF |
+| Durable lifecycle projection/replay/backfill | Implemented on existing Jobs, DomainEvent and AuditLog |
 | Campaigns, secure links and attribution | Pending next milestones |
 | Follow-up state machine and quiet-hour/suppression policy | Pending next milestones |
 | Proactive assistance and building/floor activity | Pending next milestones |
@@ -92,3 +92,20 @@ New frontend files: lib/data/sales-agents.ts, components/sales/sales-agent-contr
 - No live provider use, real messages, payment initiation, deployment or production index changes.
 
 Every successful verified milestone is committed and pushed to the existing branch under the owner's standing instruction. The complete continuation remains active after this runtime milestone.
+
+
+## Verified identity and lifecycle milestone
+
+Implemented exact verified-owner-email resolution with active canonical LANDLORD membership checks. Unique matches are suggested until fresh administrator review or the separate SALES_AUTOLINK policy permits linking. Ambiguous, conflicting, rejected and unverified identities never auto-link. Manual linking remains available. Customer merges require exact payload/revision approval, shared contact evidence and an unlinked source; linked identity remains canonical. Source records and histories are preserved, and opt-out propagates.
+
+Lifecycle projection consumes existing DomainEvent and AuditLog sources through existing leased Jobs. A durable five-minute scan pages active organizations, discovers pending verified identities and backfills actual inventory records. Source timestamps and IDs form paired ordered cursors; unique source keys prevent replay duplicates. Actual record backfill is explicitly labelled as record evidence. Payment/activation advancement requires existing verified commercial records; tenant rent or checkout claims cannot confirm subscriptions. No payment or inventory data is mutated.
+
+New API: customer identity suggestions/decisions, bounded cursor history, merge proposals/decisions, lifecycle replay and projection health. All identity decisions, merges, replay and health require platform administration; decisions require fresh dual-channel assurance. Delegated histories retain assigned-customer scope and constituent notes/onboarding permissions. UI provides these actions in Customer 360, including historical paging. Agent CRM notes now execute the exact hashed approval payload; revoked requesters cannot execute, while reviewers can safely reject their pending proposals.
+
+Database additions: SalesIdentityMatch, SalesMergeRequest and SalesProjectionCheckpoint; additive lead identity/merge fields, activity actor/source metadata and unique source index, acquisition referral lead field and source cursor indexes. Run the existing sales:create-indexes command before enabling lifecycle/autolink in production; enabling fails closed without required unique indexes. No production migration, feature toggle or backfill was executed.
+
+Verification: full opt-in regression 239 PASS before the additional approval-payload test; final identity/runtime rerun 23 PASS (8 identity and 15 runtime), plus 3 lifecycle unit cases. Default tests 491 backend and 313 frontend PASS. Both production builds PASS; browser verifier PASS across light/dark and 1440/834/390 widths with zero console errors. Final typecheck/lint are recorded below. Providers remain controlled or unavailable; no real outreach or deployment occurred.
+
+Review passes: architecture reuses existing event/audit/job/commercial authority; security preserves scope, fresh approvals and merge suppression; correctness covers cursor pairs, idempotency and monotonic financial evidence; UX adds bounded history and explicit identity review; operational review adds index readiness and durable health/error evidence. Campaigns, delivery, external calendar, follow-ups, assistance and analytics remain implementation work; continuation proceeds after this commit.
+
+Final identity/lifecycle gates: root typecheck PASS; root lint PASS with zero errors (514 backend / 27 frontend warnings). Reviewed git diff and whitespace checks. All implementation files are scoped to this milestone; pre-existing .continue/ remains untouched.

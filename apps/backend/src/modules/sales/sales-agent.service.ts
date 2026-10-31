@@ -352,7 +352,8 @@ export class SalesAgentService {
   static async control(auth: AuthenticatedUser, id: string, raw: unknown) {
     assertSuccessPermission(auth, "sales.agents.execute");
     const input = runControlSchema.parse(raw);
-    const { run } = await this.view(auth, id);
+    const run = auth.isPlatformAdmin ? await SalesAgentRun.findById(id).lean() : (await this.view(auth, id)).run;
+    if (!run) throw new AppError(404, 'AGENT_RUN_NOT_FOUND', 'Execution not accessible');
     const allowed: Array<
       | "QUEUED"
       | "RUNNING"
@@ -408,7 +409,7 @@ export class SalesAgentService {
       const approval = await SalesAgentApproval.findOne({
         _id: id,
         status: "PENDING",
-        expiresAt: { $gt: new Date() },
+        ...(input.decision === "APPROVE" ? { expiresAt: { $gt: new Date() } } : {}),
         payloadHash: input.payloadHash,
       }).session(session);
       if (!approval || payloadHash(approval.payload) !== input.payloadHash)
@@ -427,8 +428,8 @@ export class SalesAgentService {
           "AGENT_STATE_CHANGED",
           "Execution is no longer awaiting this proposal",
         );
-      const actor = await repository.principal(run.requestedBy);
-      await authorizeTask(actor, String(run.leadId), run.agent);
+      const actor = input.decision === 'APPROVE' ? await repository.principal(run.requestedBy) : null;
+      if (actor) await authorizeTask(actor, String(run.leadId), run.agent);
       approval.status = (
         {
           APPROVE: "APPROVED",
@@ -442,15 +443,18 @@ export class SalesAgentService {
       approval.decisionReason = input.reason;
       run.status = input.decision === "APPROVE" ? "COMPLETED" : "CANCELLED";
       if (input.decision === "APPROVE" && approval.tool === "CRM_NOTE") {
+        if (!actor) throw new AppError(403, 'AGENT_ACTOR_REVOKED', 'Approval owner is not authorized');
         assertSuccessPermission(actor, "sales.notes.create");
-        const output = agentOutputSchema.parse(run.output);
+        const approvedAction = agentOutputSchema.shape.action.parse(
+          approval.payload,
+        );
         await SalesActivity.create(
           [
             {
               leadId: run.leadId,
               actorUserId: auth.userId,
               kind: "sales.agent.note",
-              text: output.action.text,
+              text: approvedAction.text,
               resourceId: run._id,
             },
           ],
@@ -816,6 +820,7 @@ export class SalesAgentService {
         "SALES_PERMISSION_REQUIRED",
         "AGENT_ACTOR_REVOKED",
         "CUSTOMER_NOT_FOUND",
+        "CUSTOMER_MERGED",
       ].includes(code);
       const retry = !blocked && run.attempt < 3;
       await salesTransaction(async (session) => {

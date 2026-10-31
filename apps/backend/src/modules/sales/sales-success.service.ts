@@ -1,3 +1,5 @@
+import { SalesCustomerEvidenceRepository } from "./sales-customer-evidence.repository.js";
+import { historyCursor } from './sales-history.service.js';
 import mongoose, { Types, type ClientSession } from "mongoose";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -9,14 +11,6 @@ import { SalesMeeting } from "../../database/models/SalesMeeting.js";
 import { SalesActivity } from "../../database/models/SalesActivity.js";
 import { Organization } from "../../database/models/Organization.js";
 import { User } from "../../database/models/User.js";
-import { Property } from "../../database/models/Property.js";
-import { Building } from "../../database/models/Building.js";
-import { Floor } from "../../database/models/Floor.js";
-import { Unit } from "../../database/models/Unit.js";
-import { DomainEvent } from "../../database/models/DomainEvent.js";
-import { OrganizationSubscription } from "../../database/models/OrganizationSubscription.js";
-import { SubscriptionInvoice } from "../../database/models/SubscriptionInvoice.js";
-import { OrganizationContract } from "../../database/models/OrganizationContract.js";
 import { AuditService } from "../audit/audit.service.js";
 import {
   SuccessRepository as repository,
@@ -64,19 +58,7 @@ function conflict(): never {
     "Record changed; refresh before retrying",
   );
 }
-export function onboardingProgress(
-  expected: number | undefined | null,
-  actual: number,
-) {
-  return {
-    expectedUnits: expected ?? null,
-    registeredUnits: actual,
-    remainingUnits: expected ? Math.max(0, expected - actual) : null,
-    completionPercent: expected
-      ? Math.min(100, Math.floor((actual * 100) / expected))
-      : null,
-  };
-}
+export { onboardingProgress } from "./sales-success.calculations.js";
 export const successAgents = [
   {
     key: "LEAD_RESEARCHER",
@@ -116,6 +98,7 @@ export class SalesSuccessService {
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const filter = {
       ...customerScope(auth),
+      mergedInto: { $exists: false },
       ...(stage ? { leadStatus: stage } : {}),
       ...(search
         ? {
@@ -184,24 +167,25 @@ export class SalesSuccessService {
       );
     const [meetings, timeline] = await Promise.all([
       allowed("sales.meetings.read")
-        ? SalesMeeting.find({ leadId: lead._id })
+        ? SalesMeeting.find({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] } })
             .select(
               allowed("sales.notes.read")
                 ? "-__v"
                 : "-__v -description -outcome",
             )
-            .sort({ startsAt: -1 })
+            .sort({ startsAt: -1, _id: -1 })
             .limit(50)
             .lean()
         : [],
       allowed("sales.notes.read")
-        ? SalesActivity.find({ leadId: lead._id })
+        ? SalesActivity.find({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] }, ...(allowed("sales.onboarding.read") ? {} : { sourceType: { $exists: false } }) })
             .select("-__v")
             .sort({ createdAt: -1, _id: -1 })
             .limit(100)
             .lean()
         : [],
     ]);
+    const lastMeeting = meetings.at(-1), lastActivity = timeline.at(-1);
     // Never serialize legacy Mixed CRM metadata or demo datasets into shared context.
     return {
       customer: {
@@ -223,10 +207,15 @@ export class SalesSuccessService {
         revision: lead.revision ?? 0,
         assignedTo: lead.assignedTo,
         organizationId: lead.organizationId,
+        identityState: lead.organizationId ? "LINKED" : lead.identityState,
       },
       meetings,
       timeline,
       historyLimit: { meetings: 50, activities: 100 },
+      historyCursors: {
+        meetings: meetings.length === 50 && lastMeeting ? historyCursor(lastMeeting.startsAt, lastMeeting._id) : null,
+        activities: timeline.length === 100 && lastActivity ? historyCursor(lastActivity.createdAt, lastActivity._id) : null,
+      },
     };
   }
   static async update(auth: AuthenticatedUser, id: string, raw: unknown) {
@@ -364,7 +353,7 @@ export class SalesSuccessService {
           _id: lead._id,
           revision: input.revision === 0 ? { $in: [0, null] } : input.revision,
         },
-        { $set: { organizationId: org._id }, $inc: { revision: 1 } },
+        { $set: { organizationId: org._id, identityState: "LINKED" }, $inc: { revision: 1 } },
         { session },
       );
       if (!result.modifiedCount) conflict();
@@ -499,140 +488,7 @@ export class SalesSuccessService {
   static async monitor(auth: AuthenticatedUser, id: string) {
     const lead = await repository.load(auth, id, "sales.onboarding.read");
     if (!lead.organizationId) return { linked: false as const };
-    const org = await Organization.findById(lead.organizationId)
-      .select("onboarding portfolioOnboarding createdAt")
-      .lean();
-    if (!org)
-      throw new AppError(
-        404,
-        "ORGANIZATION_NOT_FOUND",
-        "Linked organization unavailable",
-      );
-    const organizationId = org._id;
-    const [
-      properties,
-      buildings,
-      floors,
-      units,
-      subscription,
-      invoice,
-      contract,
-      owner,
-      events,
-      latestUnit,
-      latestProperty,
-    ] = await Promise.all([
-      Property.countDocuments({ organizationId, status: { $ne: "ARCHIVED" } }),
-      Building.countDocuments({ organizationId, status: "ACTIVE" }),
-      Floor.countDocuments({ organizationId, status: "ACTIVE" }),
-      Unit.countDocuments({ organizationId, status: { $ne: "INACTIVE" } }),
-      OrganizationSubscription.findOne({ organizationId })
-        .select("_id status providerCheckoutReference")
-        .lean(),
-      org.onboarding?.invoiceId
-        ? SubscriptionInvoice.findOne({
-            _id: org.onboarding.invoiceId,
-            organizationId,
-          })
-            .select(
-              "_id status provider providerInvoiceId subscriptionId contractId paidAt",
-            )
-            .lean()
-        : null,
-      org.onboarding?.contractId
-        ? OrganizationContract.findOne({
-            _id: org.onboarding.contractId,
-            organizationId,
-          })
-            .select("_id status")
-            .lean()
-        : null,
-      org.onboarding?.ownerUserId
-        ? User.findById(org.onboarding.ownerUserId)
-            .select("emailVerifiedAt lastLoginAt")
-            .lean()
-        : null,
-      DomainEvent.find({ organizationId })
-        .select("eventId name occurredAt")
-        .sort({ occurredAt: -1 })
-        .limit(100)
-        .lean(),
-      Unit.findOne({ organizationId })
-        .select("createdAt")
-        .sort({ createdAt: -1 })
-        .lean(),
-      Property.findOne({ organizationId })
-        .select("createdAt")
-        .sort({ createdAt: -1 })
-        .lean(),
-    ]);
-    const verifiedPayment = !!(
-      org.onboarding?.paymentVerifiedAt &&
-      invoice?.status === "PAID" &&
-      invoice.provider === "PAYSTACK" &&
-      invoice.providerInvoiceId &&
-      contract?.status === "SIGNED" &&
-      String(invoice.contractId) === String(contract._id) &&
-      subscription &&
-      String(invoice.subscriptionId) === String(subscription._id)
-    );
-    const progress = onboardingProgress(org.onboarding?.unitCount, units);
-    const lastActivity = new Date(
-      Math.max(
-        ...[
-          org.createdAt,
-          org.portfolioOnboarding?.draftSavedAt,
-          org.onboarding?.stateChangedAt,
-          latestUnit?.createdAt,
-          latestProperty?.createdAt,
-        ]
-          .filter((v): v is Date => v instanceof Date)
-          .map(Number),
-      ),
-    );
-    const stalled =
-      progress.completionPercent !== 100 &&
-      Date.now() - lastActivity.getTime() > 72 * 3600000;
-    return {
-      linked: true as const,
-      organizationId: String(organizationId),
-      registered: true,
-      emailVerified: !!owner?.emailVerifiedAt,
-      lastLoginAt: owner?.lastLoginAt,
-      selectedPlan: org.onboarding?.selectedPlanKey ?? null,
-      contractStatus: contract?.status ?? "NONE",
-      checkoutStarted: !!subscription?.providerCheckoutReference,
-      verifiedPayment,
-      subscriptionStatus: subscription?.status ?? "NONE",
-      properties,
-      buildings,
-      floors,
-      ...progress,
-      lastActivity,
-      stalled,
-      stallThresholdHours: 72,
-      assistance: stalled
-        ? "Review incomplete onboarding and offer assistance after checking consent."
-        : null,
-      health: {
-        type: "RULE_BASED",
-        factors: [
-          { label: "Email verified", achieved: !!owner?.emailVerifiedAt },
-          { label: "Payment verified", achieved: verifiedPayment },
-          {
-            label: "Subscription active",
-            achieved: subscription?.status === "ACTIVE",
-          },
-          {
-            label: "Expected units configured",
-            achieved: progress.completionPercent === 100,
-          },
-          { label: "Onboarding active", achieved: !stalled },
-        ],
-      },
-      events,
-      eventLimit: 100,
-    };
+    return SalesCustomerEvidenceRepository.monitor(lead.organizationId);
   }
   static async agents(auth: AuthenticatedUser) {
     return (await import('./sales-agent.service.js')).SalesAgentService.catalog(auth);

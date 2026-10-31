@@ -44,6 +44,7 @@ export const SuccessRepository = {
         "CUSTOMER_NOT_FOUND",
         "Customer not found or not assigned to you",
       );
+    if (record.mergedInto) throw new AppError(409, 'CUSTOMER_MERGED', 'Customer was merged; use its authorized canonical profile');
     return record;
   },
 };

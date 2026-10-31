@@ -16,6 +16,7 @@ const schema = new Schema(
     planSelectedAt: Date,
     signupStartedAt: Date,
     organizationId: { type: Schema.Types.ObjectId, ref: "Organization" },
+    salesLeadId: { type: Schema.Types.ObjectId, ref: 'SalesLead' },
     retentionClass: {
       type: String,
       enum: ["ANONYMOUS", "ACCOUNT"],

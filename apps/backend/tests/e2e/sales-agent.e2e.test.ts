@@ -427,5 +427,23 @@ describe.skipIf(!process.env.RUN_E2E)(
         ),
       ).rejects.toMatchObject({ code: "FRESH_AUTH_REQUIRED" });
     });
+  it('executes the exact approved note payload and permits safe rejection after owner revocation', async () => {
+    await configure('CRM_INTELLIGENCE'); setSalesModelTestProvider(provider('CRM_INTELLIGENCE'));
+    const task = await create('CRM_INTELLIGENCE'); await service.execute(task.id);
+    const approval = await SalesAgentApproval.findOne({ runId: task.id });
+    if (!approval) throw new Error('Approval missing');
+    await SalesAgentRun.updateOne({ _id: task.id }, { $set: { 'output.action.text': 'Altered unapproved execution text' } });
+    await service.decide(admin, String(approval._id), { decision: 'APPROVE', payloadHash: approval.payloadHash, reason: 'Reviewed exact original payload' });
+    expect((await SalesActivity.findOne({ resourceId: task.id, kind: 'sales.agent.note' }))?.text).toBe(output('CRM_INTELLIGENCE').action.text);
+    const another = await create('CRM_INTELLIGENCE'); await service.execute(another.id);
+    const pending = await SalesAgentApproval.findOne({ runId: another.id });
+    if (!pending) throw new Error('Approval missing');
+    await User.updateOne({ _id: admin.userId }, { $set: { status: 'DEACTIVATED' } });
+    const reviewer = await User.create({ phone: '+254700005009', email: 'reviewer@example.test', firstName: 'Review', lastName: 'Admin', isPlatformAdmin: true });
+    const reviewAuth = { ...admin, userId: reviewer._id };
+    await expect(service.decide(reviewAuth, String(pending._id), { decision: 'APPROVE', payloadHash: pending.payloadHash, reason: 'Must recheck the revoked owner' })).rejects.toMatchObject({ code: 'AGENT_ACTOR_REVOKED' });
+    await service.decide(reviewAuth, String(pending._id), { decision: 'REJECT', payloadHash: pending.payloadHash, reason: 'Safely reject revoked actor proposal' });
+    expect((await SalesAgentApproval.findById(pending._id))?.status).toBe('REJECTED');
+  });
   },
 );
