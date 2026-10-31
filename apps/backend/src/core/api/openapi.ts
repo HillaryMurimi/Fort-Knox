@@ -3,6 +3,7 @@ import { selfServicePaths } from "../../modules/onboarding/self-service.openapi.
 import { PRODUCT_NAME } from "../../config/brand.js";
 import { salesDemoPaths } from "../../modules/sales/sales-demo.openapi.js";
 import { salesSuccessPaths } from "../../modules/sales/sales-success.openapi.js";
+import { salesAgentPaths } from '../../modules/sales/sales-agent.openapi.js';
 import { platformBusinessPaths } from "../../modules/platform-control/platform-business.openapi.js";
 import { landlordContractPaths } from "../../modules/onboarding/landlord-onboarding.openapi.js";
 import { landlordOperationsPaths } from "../../modules/landlord-operations/landlord-operations.openapi.js";
@@ -180,6 +181,7 @@ export function buildOpenApiDocument() {
       ...otpAuthenticationPaths,
       ...salesDemoPaths,
       ...salesSuccessPaths,
+      ...salesAgentPaths,
       ...platformBusinessPaths,
       ...landlordContractPaths,
       ...landlordOperationsPaths,

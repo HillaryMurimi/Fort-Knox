@@ -1,3 +1,4 @@
+import { salesFeatureCatalog } from '../sales/sales-feature.registry.js';
 export type AreaKey = 'launch' | 'switches' | 'system' | 'onboarding' | 'queues' | 'notifications' | 'security';
 export type MonitorStatus = 'HEALTHY' | 'NEEDS_ACTION' | 'BLOCKED' | 'NOT_CONFIGURED';
 export interface MonitorMetric { key: string; label: string; value: number | string | null; source: string; window: string; }
@@ -8,6 +9,7 @@ export function area(key: AreaKey, title: string, metrics: MonitorMetric[], cond
   return { key, title, metrics, conditions, notes, truncated, sourceAvailable: true, status: conditions.some(item => item.severity === 'CRITICAL') ? 'BLOCKED' : conditions.length ? 'NEEDS_ACTION' : metrics.some(item => item.value === null) ? 'NOT_CONFIGURED' : 'HEALTHY' };
 }
 export const switchCoverage: Record<string, { coverage: 'PARTIAL' | 'NOT_ENFORCED'; boundaries: string; dependencies: string[]; limitation: string }> = {
+  ...Object.fromEntries(salesFeatureCatalog.map(([key, , description]) => [key, { coverage: 'PARTIAL' as const, boundaries: description, dependencies: key.startsWith('SALES_AGENT_') ? ['SALES_AI_RUNTIME'] : [], limitation: 'Manual CRM and audit are preserved. Optional capabilities require their corresponding service guards and configured providers; no live-provider certification is implied.' }])),
   EMAIL_OTP: { coverage: 'PARTIAL', boundaries: 'Account/admin OTP issue, resend, verification and tenant activation', dependencies: ['EMAIL_NOTIFICATIONS'], limitation: 'Receipt verification is point-in-time; existing optional social sign-in still verifies phone.' },
   SMS_OTP: { coverage: 'PARTIAL', boundaries: 'Account/admin OTP issue, resend, verification and tenant activation', dependencies: ['SMS_NOTIFICATIONS'], limitation: 'Requires configured sender, runtime permission and receipt proof; existing sessions are not revoked by delivery switches.' },
   MPESA_PAYMENTS: { coverage: 'PARTIAL', boundaries: 'HTTP payment initiation', dependencies: [], limitation: 'Internal payment entry points are not fully gated; callbacks and reconciliation remain enabled.' },

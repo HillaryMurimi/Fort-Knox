@@ -41,6 +41,7 @@ export const statusGroups = {
     "IN_PROGRESS",
     "PROCESSING",
     "RUNNING",
+    "EXECUTING",
     "SUBMITTING",
     "STARTED",
     "INITIATED",
@@ -64,6 +65,7 @@ export const statusGroups = {
   review: [
     "SUBMITTED",
     "UNDER_REVIEW",
+    "CHANGES_REQUESTED",
     "REVIEW",
     "APPROVAL_REQUIRED",
     "AWAITING_APPROVAL",

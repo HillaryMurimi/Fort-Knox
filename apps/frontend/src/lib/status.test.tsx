@@ -21,6 +21,8 @@ import {
 describe("domain-aware status semantics", () => {
   it.each([
     ["CHANNEL", "auth", "pending"],
+    ["EXECUTING", "sales", "processing"],
+    ["CHANGES_REQUESTED", "sales", "review"],
     ["RESCHEDULED", "sales", "pending"],
     ["NO_SHOW", "sales", "attention"],
     ["NOT_HELD", "sales", "inactive"],

@@ -17,6 +17,11 @@ const booleanValue = (defaultValue: boolean) =>
 
 export const envSchema = z
   .object({
+    SALES_AI_API_KEY: optionalValue(z.string().min(20)),
+    SALES_AI_MODEL: optionalValue(z.string().min(1).max(160)),
+    SALES_AI_INPUT_MICRO_USD_PER_MILLION: z.coerce.number().int().nonnegative().default(0),
+    SALES_AI_OUTPUT_MICRO_USD_PER_MILLION: z.coerce.number().int().nonnegative().default(0),
+    SALES_AI_TIMEOUT_SECONDS: z.coerce.number().int().min(5).max(120).default(45),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -187,6 +192,7 @@ export const envSchema = z
         });
       }
     };
+    paired("SALES_AI_API_KEY", "SALES_AI_MODEL");
     paired("WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_ACCESS_TOKEN");
     paired("NVR_BASE_URL", "NVR_API_KEY");
     paired("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET");

@@ -660,3 +660,8 @@ See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARD
 Additive SalesLead assignment/organization/contacts/consent/revision fields; new SalesMeeting and SalesActivity; hidden User.salesCalendarRevision serializes reservations. Partial unique sales_customer_org_unique requires the extended sales:create-indexes command before production linking.
 
 See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).
+
+
+## Sales continuation - executable runtime (2026-10-31)
+
+The existing sales CRM now integrates durable model tasks, fixed agent tools, current-permission worker checks, versioned human approvals and operational controls. Provider delivery/campaign/lifecycle milestones remain separate work. See [continuation implementation and acceptance log](AI_SALES_CONTINUATION.md) for schema/API/configuration details, security reviews, actual tests and remaining work.

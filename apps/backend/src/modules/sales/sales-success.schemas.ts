@@ -11,6 +11,7 @@ export const salesPermissions = [
   "sales.notes.create",
   "sales.onboarding.read",
   "sales.agents.read",
+  "sales.agents.execute",
 ] as const;
 export const listCustomersSchema = z
   .object({

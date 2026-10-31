@@ -453,3 +453,8 @@ SUPER_ADMIN can search the landlord onboarding directory, create a real organiza
 Added persisted AI Sales & Customer Success workspace for customer records, qualification/consent, append-only notes, internal meeting outcomes and actual onboarding monitoring. Six agent definitions are unavailable; campaigns, outreach, agent runtime and configurable follow-up workflows remain unfinished.
 
 See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).
+
+
+## Sales continuation - executable runtime (2026-10-31)
+
+The existing sales CRM now integrates durable model tasks, fixed agent tools, current-permission worker checks, versioned human approvals and operational controls. Provider delivery/campaign/lifecycle milestones remain separate work. See [continuation implementation and acceptance log](AI_SALES_CONTINUATION.md) for schema/API/configuration details, security reviews, actual tests and remaining work.

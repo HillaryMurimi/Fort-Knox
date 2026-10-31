@@ -634,22 +634,8 @@ export class SalesSuccessService {
       eventLimit: 100,
     };
   }
-  static agents(auth: AuthenticatedUser) {
-    assertSuccessPermission(auth, "sales.agents.read");
-    return {
-      outboundSuspended: true,
-      agents: successAgents.map((a) => ({
-        ...a,
-        status: "NOT_CONFIGURED",
-        instructionVersion: 1,
-        executionEnabled: false,
-      })),
-      integrations: {
-        ai: "NOT_CONFIGURED",
-        calendar: "NOT_CONNECTED",
-        outreach: "DISABLED",
-      },
-    };
+  static async agents(auth: AuthenticatedUser) {
+    return (await import('./sales-agent.service.js')).SalesAgentService.catalog(auth);
   }
   static async context(auth: AuthenticatedUser, id: string, raw: unknown) {
     assertSuccessPermission(auth, "sales.agents.read");

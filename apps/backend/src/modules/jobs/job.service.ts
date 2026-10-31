@@ -131,6 +131,12 @@ export class JobService {
     payload: unknown;
     organizationId?: Types.ObjectId | null;
   }) {
+    if (job.type === 'sales.agent.execute') {
+      const { objectId } = await import('../sales/sales-success.schemas.js');
+      const payload = job.payload as { runId?: unknown };
+      await (await import('../sales/sales-agent.service.js')).SalesAgentService.execute(objectId.parse(payload?.runId));
+      return;
+    }
     if (job.type === "domain-event.onboarding-recovery") {
       const p = job.payload as { eventId?: unknown };
       if (typeof p?.eventId !== "string" || !job.organizationId)

@@ -453,3 +453,8 @@ ordinary notifications retain their existing durable worker boundary. See
 Extended SalesLead with customer identity/assignment; new transactional SalesMeeting and append-only SalesActivity records. Existing roles/audit/events/billing remain authoritative. Agent definitions/context are not executable agents.
 
 See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).
+
+
+## Sales continuation - executable runtime (2026-10-31)
+
+The existing sales CRM now integrates durable model tasks, fixed agent tools, current-permission worker checks, versioned human approvals and operational controls. Provider delivery/campaign/lifecycle milestones remain separate work. See [continuation implementation and acceptance log](AI_SALES_CONTINUATION.md) for schema/API/configuration details, security reviews, actual tests and remaining work.

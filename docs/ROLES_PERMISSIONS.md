@@ -389,3 +389,8 @@ SUPER_ADMIN may request but may not self-approve a support session. The designat
 Sales success defaults to SUPER_ADMIN. Explicit per-user staff roles use existing organization membership with assignedTo record scope. Only fresh dual-channel SUPER_ADMIN may replace/revoke grants; normal organization role/user assignment paths cannot transfer these roles. Notes and meetings have distinct read permissions.
 
 See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).
+
+
+## Sales continuation - executable runtime (2026-10-31)
+
+The existing sales CRM now integrates durable model tasks, fixed agent tools, current-permission worker checks, versioned human approvals and operational controls. Provider delivery/campaign/lifecycle milestones remain separate work. See [continuation implementation and acceptance log](AI_SALES_CONTINUATION.md) for schema/API/configuration details, security reviews, actual tests and remaining work.

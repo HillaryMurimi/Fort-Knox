@@ -7,6 +7,7 @@ import {
   type ReactElement,
 } from "react";
 import Link from "next/link";
+import { SalesAgentControl } from "./sales-agent-control";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Alert, Button } from "@/components/ui";
@@ -74,11 +75,6 @@ export function SalesSuccessWorkspace() {
     queryKey: ["sales-success", accessKey, "monitor", selected],
     queryFn: () => client.monitor(selected),
     enabled: !!selected && can("sales.onboarding.read"),
-  });
-  const agents = useQuery({
-    queryKey: ["sales-success", accessKey, "agents"],
-    queryFn: client.agents,
-    enabled: tab === "AI Agents" && can("sales.agents.read"),
   });
   async function act(work: () => Promise<unknown>, form?: HTMLFormElement) {
     setPending(true);
@@ -631,29 +627,7 @@ export function SalesSuccessWorkspace() {
           </main>
         </div>
       )}
-      {tab === "AI Agents" && (
-        <section className="space-y-5">
-          <Alert>
-            Outbound communications are suspended. AI execution and external
-            calendars are not configured. Manual meetings and customer records
-            remain available.
-          </Alert>
-          {agents.isLoading && <p role="status">Loading agent availability…</p>}
-          {agents.error && <Alert>{agents.error.message}</Alert>}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {agents.data?.agents.map((a) => (
-              <article key={a.key} className={panelClass}>
-                <h2 className="text-lg font-semibold">{a.name}</h2>
-                <p className="text-sm text-muted-foreground">{a.purpose}</p>
-                <p className="text-xs font-semibold">
-                  {a.status.replaceAll("_", " ")} · instructions v
-                  {a.instructionVersion}
-                </p>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
+      {tab === "AI Agents" && <SalesAgentControl leadId={selected || undefined} />}
       {tab === "Permissions" && admin && (
         <section className={panelClass}>
           <h2 className="text-lg font-semibold">
@@ -835,6 +809,7 @@ const delegatedPermissions = [
   "sales.notes.create",
   "sales.onboarding.read",
   "sales.agents.read",
+  "sales.agents.execute",
 ];
 function PermissionForm({
   pending,

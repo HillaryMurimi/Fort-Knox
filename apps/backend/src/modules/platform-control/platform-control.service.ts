@@ -1,4 +1,5 @@
 import mongoose, { Types } from 'mongoose';
+import { salesFeatureCatalog, isPlannedSalesFeature } from '../sales/sales-feature.registry.js';
 import { env } from '../../config/env.js';
 import { validateOtpSwitchChange } from '../auth/otp-policy.js';
 import { AuthorizationService } from '../../core/authorization/authorization.service.js';
@@ -10,6 +11,7 @@ import type { UpdateSwitchInput } from './platform-control.schemas.js';
 import { intelligenceModuleRegistry, isPlannedIntelligenceModule } from './intelligence-module.registry.js';
 
 export const platformSwitchCatalog = [
+  ...salesFeatureCatalog.map(([key, name, description]) => [key, 'FEATURE', name, description] as const),
   ['EMAIL_OTP', 'FEATURE', 'Email OTP', 'Email verification for authentication; enabled for the initial launch.'],
   ['SMS_OTP', 'FEATURE', 'SMS OTP', 'Optional SMS authentication; requires verified delivery before activation.'],
   ['MPESA_PAYMENTS', 'SERVICE', 'M-Pesa payments', 'M-Pesa collection and settlement operations.'],
@@ -43,11 +45,12 @@ export class PlatformControlService {
   static async list() {
     await this.ensureCatalog();
     const switches = await PlatformSwitch.find({}).sort({ kind: 1, name: 1 }).lean();
-    return switches.map(control => ({ ...control, activationBlocked: isPlannedIntelligenceModule(control.key) }));
+    return switches.map(control => ({ ...control, activationBlocked: isPlannedIntelligenceModule(control.key) || isPlannedSalesFeature(control.key) }));
   }
 
   static async update(auth: AuthenticatedUser, key: string, input: UpdateSwitchInput) {
     AuthorizationService.assertPlatformAdmin(auth);
+    if (input.mode === 'ON' && isPlannedSalesFeature(key)) throw new AppError(409, 'SALES_FEATURE_NOT_READY', 'This optional sales capability has not been implemented yet');
     if (input.mode === 'ON' && isPlannedIntelligenceModule(key)) {
       throw new AppError(409, 'INTELLIGENCE_MODULE_NOT_READY', 'This intelligence module has no certified server-side implementation');
     }

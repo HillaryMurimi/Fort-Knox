@@ -4,6 +4,7 @@ import { requireAuth } from '../../middleware/auth.middleware.js';
 import { asyncHandler } from '../../core/http/asyncHandler.js';
 import * as controller from './sales.controller.js';
 import * as success from './sales-success.controller.js';
+import * as agents from './sales-agent.controller.js';
 
 export const salesRouter = Router();
 salesRouter.post('/demo-requests', asyncHandler(controller.requestDemo));
@@ -12,6 +13,13 @@ salesRouter.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next
 salesRouter.get('/success/customers', asyncHandler(success.list));
 salesRouter.post('/success/customers', asyncHandler(success.create));
 salesRouter.get('/success/agents', asyncHandler(success.agents));
+salesRouter.patch('/success/agents/:key', asyncHandler(agents.configure));
+salesRouter.post('/success/agent-runs', asyncHandler(agents.create));
+salesRouter.get('/success/agent-runs', asyncHandler(agents.list));
+salesRouter.get('/success/agent-runs/:runId', asyncHandler(agents.view));
+salesRouter.post('/success/agent-runs/:runId/control', asyncHandler(agents.control));
+salesRouter.get('/success/approvals', asyncHandler(agents.approvals));
+salesRouter.post('/success/approvals/:approvalId/decisions', asyncHandler(agents.decide));
 salesRouter.post('/success/permissions', asyncHandler(success.grant));
 salesRouter.get('/success/customers/:id', asyncHandler(success.view));
 salesRouter.patch('/success/customers/:id', asyncHandler(success.update));
