@@ -68,6 +68,8 @@ The nine intelligence controls are catalogued OFF and activation-blocked with no
 
 Local root typecheck, lint, test, build, static certification, 209 backend E2E tests and dependency-audit outcomes are recorded in [CODEX_EXECUTION_TRACKER.md](CODEX_EXECUTION_TRACKER.md). Sales, SUPER_ADMIN and self-service browser journeys passed; the status system passed 55 tests and 12 visual/status checks. GitHub Quality [run 70](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/41041111542) passed backend and frontend jobs on implementation commit `2492e30`. The Compose file parsed with placeholders; Docker Desktop's Linux engine was unavailable, so Docker image builds and runtime health checks are NOT TESTED. Static `CERTIFIED_STATIC` is route/permission inventory, not a release certificate.
 
+Subsequent synthetic CI verification on commit `03518cd` passed the `coolify-images` job in [Quality run 41361331358](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/41361331358): the repository Coolify API/web images built, and API readiness, web response and worker heartbeat passed against an ephemeral replica set. This does not verify a Coolify server, public TLS, real providers, backup/restore or production data. The historical local Docker limitation above remains accurate.
+
 ## O. Coolify readiness
 
 `docker-compose.coolify.yml` defines private API/worker and public web/API routing, health checks and build-time frontend URLs. Configure separate HTTPS domains, a managed TLS MongoDB replica set, verified email sender, strong distinct JWT secrets and disabled optional rails by default. The API/worker version, indexes, jobs, backups, alerts and real container startup must be verified together in staging. No deployment was performed.
@@ -88,8 +90,8 @@ Local root typecheck, lint, test, build, static certification, 209 backend E2E t
 | P0 | Production secrets, HTTPS, backup/restore, operational monitoring and penetration test not evidenced | Owner/operations: provision and witness acceptance. |
 | P0 | CCTV gateway, privacy and evidence-export operational controls not validated | Owner/security: keep disabled until gateway and independent tests pass. |
 | P1 | Intelligence 5-10 are pure/partial and nine controls remain OFF | Engineering: deliver scoped APIs, provenance, worker/switch gates and UI by dependency order. |
-| P1 | Production-shaped performance and Docker image runtime not measured here | Engineering/operations: staging load tests and image/health verification. |
-| P2 | Existing lint warnings and optional/dev dependency advisories require triage | Engineering: prioritize security-relevant warnings and fixable advisories. |
+| P1 | Production-shaped performance and target Coolify runtime not measured here; synthetic image startup passed CI | Engineering/operations: staging load tests and deployed health verification. |
+| P2 | Frontend ExcelJS import and archive dependency chain has eight moderate runtime advisories; full dev-inclusive audits also report advisories | Engineering: assess replacement or supported upstream fix and constrain import exposure; prioritize security-relevant lint warnings. |
 
 ## R. Readiness decisions
 
@@ -105,10 +107,10 @@ Release-candidate checklist (PASS means the stated local evidence only):
 | Feature governance | BLOCKED | Nine intelligence keys OFF; enforcement incomplete | Platform engineering | Complete backend and worker gates before activation. |
 | Workflow approvals | BLOCKED | Selected synthetic journeys | Operations engineering | Hosted role and audit acceptance across sensitive transitions. |
 | Forecast and digital twin | BLOCKED | Pure scenarios without sourced financial state | Intelligence engineering | Authoritative inputs, snapshots, scope and UI. |
-| Security review and dependencies | BLOCKED | Production package audit clean; no independent penetration test | Security | Review dev advisories and commission penetration test. |
+| Security review and dependencies | BLOCKED | Backend runtime audit 0; frontend runtime audit 8 moderate via ExcelJS; no independent penetration test | Security | Remediate import dependency chain and commission penetration test. |
 | Performance and concurrency | NOT TESTED | No production-shaped benchmark | Engineering | Load, query-plan and queue-lag tests. |
 | Database backups and restore | NOT TESTED | No target cluster touched | Operations | Witness a restore and document RPO/RTO. |
-| Coolify image and health checks | NOT TESTED | Compose syntax passed; Docker engine unavailable | Operations | Build images and verify API/web/worker health on staging. |
+| Coolify image and health checks | PARTIAL | Synthetic image build, API/web health and worker heartbeat passed [CI run 41361331358](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/41361331358) | Operations | Verify on the target Coolify staging server. |
 | Monitoring and incident response | NOT TESTED | Repo hooks exist, no external alert evidence | Operations | Configure alerts, on-call, retention and incident drill. |
 | Owner legal/provider setup | BLOCKED | No live merchant, CCTV or privacy acceptance observed | Owner | Complete Section P with evidence. |
 
@@ -122,7 +124,7 @@ Release-candidate checklist (PASS means the stated local evidence only):
 
 ## S. Recommended next actions
 
-1. Build and verify the Coolify staging images and health checks; triage remaining development-tool advisories.
+1. Deploy the CI-validated images to Coolify staging and witness HTTPS, API/web health and worker heartbeat; remediate the ExcelJS runtime advisory chain and triage remaining development-tool advisories.
 2. Complete the Phase A minor-unit and settlement evidence cutover; stage Paystack SaaS and landlord-owned M-Pesa acceptance separately.
 3. Provision Coolify staging with verified email, TLS MongoDB, backups and alerts; run browser, load, restore and security acceptance.
 4. Complete source-certified financial/occupancy intelligence before enabling landlord brief or digital twin.
