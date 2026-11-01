@@ -212,3 +212,23 @@ The pain-first demo and guided activation release extends existing authorities r
 AI Sales & Customer Success is an explicitly requested later-phase extension: CRM/meeting vertical slice implemented; complete agent department, lifecycle projection, campaigns/attribution and follow-up automation remain outstanding. Do not treat this as full-phase acceptance.
 
 See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).
+
+
+## Sales continuation - executable runtime (2026-10-31)
+
+The existing sales CRM now integrates durable model tasks, fixed agent tools, current-permission worker checks, versioned human approvals and operational controls. Provider delivery/campaign/lifecycle milestones remain separate work. See [continuation implementation and acceptance log](AI_SALES_CONTINUATION.md) for schema/API/configuration details, security reviews, actual tests and remaining work.
+
+
+### Sales identity and lifecycle continuation (2026-10-31)
+
+Exact verified identity review, preserved-history merges, bounded permission-filtered history and durable idempotent commercial/inventory projections are implemented. Lifecycle/autolink default OFF. Authoritative billing and organization scope remain unchanged. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for API/model changes, index prerequisites, verification evidence and remaining milestones.
+
+
+### Governed sales email and consent (2026-11-01)
+
+Sales email now uses channel-specific recorded consent, exact-payload human review, current assigned-customer permissions, existing Notification/Job delivery, bounded quiet-hour/recipient/campaign limits and provider idempotency. Signed callbacks distinguish acceptance, delivery, bounce, complaint and inbound replies; none establishes human reading or account authentication. Public opt-out is an explicit POST and stops sales channels without disabling account/security notifications. Primary-contact corrections require fresh administrator proof and invalidate consent snapshots. New data/indexes, privacy retention, configuration, provider acceptance limits and remaining SMS/WhatsApp/calendar/follow-up work are specified in [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md). New features remain OFF by default. Live transport acceptance remains unverified.
+
+
+### Governed dedicated-sender sales SMS (2026-11-01)
+
+The existing sales outreach/consent/review queue now supports optional Twilio SMS through the existing messaging provider, with a dedicated two-way sender, GSM/Unicode segment ceilings and integer per-segment reservations. Signed form callbacks use the maintained Twilio SDK against the configured public URL; replies/STOP and delivery facts persist through existing WebhookEvent/Job workflows, with no automatic resend after an ambiguous attempt. Operational SMS remains separate. SALES_SMS remains OFF by default. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for contracts, provider-independent verification, dependency audit and external acceptance gates. WhatsApp/calendar/follow-up work continues separately.

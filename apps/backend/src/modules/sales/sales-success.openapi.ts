@@ -1,5 +1,6 @@
 import { z } from "zod";
 import * as s from "./sales-success.schemas.js";
+import { calendarCommandSchema } from './sales-calendar.schemas.js';
 const id = {
   name: "id",
   in: "path",
@@ -14,7 +15,7 @@ const responses = {
   "403": { description: "Permission or fresh administrator proof required" },
   "404": { description: "Record not assigned or missing" },
   "409": { description: "Identity, schedule or revision conflict" },
-  "503": { description: "Required production indexes missing" },
+  "503": { description: "Required production indexes or authorized provider availability missing" },
 };
 const body = (schema: z.ZodType) => ({
   required: true,
@@ -37,6 +38,8 @@ const operation = (
   responses,
 });
 export const salesSuccessPaths = {
+  '/sales/success/customers/{id}/calendar/availability': { get: { ...operation('Query actual authorized representative calendar and local holds; at most seven days; no reservation or invented slots'), parameters: [id, ...['representativeId', 'startsAt', 'endsAt'].map(name => ({ in: 'query', name, required: true, schema: { type: 'string' } }))] } },
+  '/sales/success/customers/{id}/meetings/{meetingId}/calendar': { post: { ...operation('Queue revision-bound reviewed calendar create/reschedule/cancel, or reconcile actual provider facts; mutations require fresh administrator proof', calendarCommandSchema, [id, { ...id, name: 'meetingId' }]), responses: { ...responses, '202': { description: 'Durable calendar command queued; no external confirmation until provider evidence is recorded' } } } },
   "/sales/success/customers": {
     get: {
       ...operation("List assigned customers (20 per page)", undefined, []),

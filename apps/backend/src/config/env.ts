@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { z } from "zod";
+import { salesCalendarConnections } from './sales-calendar.config.js';
 
 const optionalValue = (schema: z.ZodString) =>
   z.preprocess(
@@ -17,6 +18,34 @@ const booleanValue = (defaultValue: boolean) =>
 
 export const envSchema = z
   .object({
+    SALES_AI_API_KEY: optionalValue(z.string().min(20)),
+    SALES_AI_MODEL: optionalValue(z.string().min(1).max(160)),
+    SALES_AI_INPUT_MICRO_USD_PER_MILLION: z.coerce.number().int().nonnegative().default(0),
+    SALES_AI_OUTPUT_MICRO_USD_PER_MILLION: z.coerce.number().int().nonnegative().default(0),
+    SALES_AI_TIMEOUT_SECONDS: z.coerce.number().int().min(5).max(120).default(45),
+    SALES_RESEARCH_API_KEY: optionalValue(z.string().min(20)),
+    SALES_RESEARCH_LICENSE_REVIEWED: booleanValue(false),
+    SALES_RESEARCH_REQUEST_MICRO_USD: z.coerce.number().int().nonnegative().max(100000000).default(0),
+    SALES_RESEARCH_RETENTION_DAYS: z.coerce.number().int().min(1).max(30).default(7),
+    SALES_EMAIL_ESTIMATED_MICRO_USD: z.coerce.number().int().nonnegative().max(100000000).default(0),
+    SALES_RESEND_WEBHOOK_SECRET: optionalValue(z.string().regex(/^whsec_[A-Za-z0-9+/=]+$/).min(24).refine(value => {
+      const encoded = value.slice(6), decoded = Buffer.from(encoded, 'base64');
+      return decoded.length >= 24 && decoded.toString('base64').replace(/=+$/, '') === encoded.replace(/=+$/, '');
+    }, { message: 'Use the provider-generated webhook signing secret' })),
+    SALES_REPLY_DOMAIN: optionalValue(z.string().max(200).regex(/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/)),
+    SALES_OUTREACH_CONTENT_RETENTION_DAYS: z.coerce.number().int().min(7).max(365).default(90),
+    SALES_RECIPIENT_DAILY_LIMIT: z.coerce.number().int().min(1).max(5).default(1),
+    SALES_EMAIL_REQUESTS_PER_MINUTE: z.coerce.number().int().min(1).max(60).default(30),
+    SALES_SMS_FROM: optionalValue(z.string().regex(/^\+[1-9]\d{7,14}$/)),
+    SALES_SMS_COST_PER_SEGMENT_MICRO_USD: z.coerce.number().int().nonnegative().max(100000000).default(0),
+    SALES_SMS_MAX_SEGMENTS: z.coerce.number().int().min(1).max(3).default(2),
+    SALES_SMS_REQUESTS_PER_MINUTE: z.coerce.number().int().min(1).max(60).default(10),
+    SALES_WHATSAPP_BUSINESS_ACCOUNT_ID: optionalValue(z.string().regex(/^\d{5,40}$/)),
+    SALES_WHATSAPP_APP_SECRET: optionalValue(z.string().min(24).max(256)),
+    SALES_WHATSAPP_VERIFY_TOKEN: optionalValue(z.string().min(32).max(256)),
+    SALES_WHATSAPP_ESTIMATED_MICRO_USD: z.coerce.number().int().nonnegative().max(100000000).default(0),
+    SALES_WHATSAPP_REQUESTS_PER_MINUTE: z.coerce.number().int().min(1).max(60).default(10),
+    SALES_CALENDAR_CONNECTIONS_JSON: salesCalendarConnections,
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -187,6 +216,7 @@ export const envSchema = z
         });
       }
     };
+    paired("SALES_AI_API_KEY", "SALES_AI_MODEL");
     paired("WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_ACCESS_TOKEN");
     paired("NVR_BASE_URL", "NVR_API_KEY");
     paired("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET");

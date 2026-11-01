@@ -1,0 +1,20 @@
+# CI-only override. The production Coolify file remains the deployment source.
+services:
+  mongo:
+    image: mongo:7
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+    expose: ["27017"]
+
+  api:
+    image: pcc-api-image-smoke
+
+  worker:
+    image: pcc-api-image-smoke
+
+  web:
+    image: pcc-web-image-smoke

@@ -7,4 +7,5 @@ const schema = new Schema({
   before:{type:Schema.Types.Mixed}, after:{type:Schema.Types.Mixed}, metadata:{type:Map,of:Schema.Types.Mixed,default:()=>({})}, occurredAt:{type:Date,required:true,index:true}
 },{timestamps:true,versionKey:false});
 schema.index({organizationId:1,occurredAt:-1}); schema.index({resourceType:1,resourceId:1,occurredAt:-1});
+schema.index({organizationId:1,action:1,createdAt:1,_id:1},{name:'sales_projection_source_cursor'});
 export type AuditLogDocument=InferSchemaType<typeof schema>; export const AuditLog=model('AuditLog',schema);

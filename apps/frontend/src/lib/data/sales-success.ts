@@ -17,6 +17,7 @@ export interface Customer {
   revision: number;
   assignedTo?: string;
   organizationId?: string;
+  identityState?: string;
 }
 export interface Meeting {
   _id: string;
@@ -27,12 +28,16 @@ export interface Meeting {
   description?: string;
   outcome?: string;
   revision: number;
+  representativeId?: string;
+  timezone?: string;
+  calendar?: { provider: string; status: string; eventId?: string; syncedAt?: string; invitationRequested?: boolean; errorCode?: string; attemptedAt?: string };
 }
 export interface CustomerView {
   customer: Customer;
   meetings: Meeting[];
   timeline: { _id: string; kind: string; text?: string; createdAt: string }[];
   historyLimit: { meetings: number; activities: number };
+  historyCursors?: { meetings: string | null; activities: string | null };
 }
 export interface Monitor {
   linked: boolean;

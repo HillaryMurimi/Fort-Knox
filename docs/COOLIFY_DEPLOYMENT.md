@@ -59,6 +59,15 @@ never be placed in `NEXT_PUBLIC_*` variables or Docker build arguments.
 
 ## Verify and Operate
 
+The GitHub Quality workflow builds the repository's Coolify API and web images
+and starts API, worker and web against an ephemeral MongoDB replica set with
+synthetic credentials. Its `coolify-images` job checks API readiness, the web
+response and a persisted worker heartbeat. The job uses
+`infrastructure/deployment/docker-compose.smoke.yml` only as a CI override;
+the Coolify deployment file is the build source. A passing job confirms image
+build and isolated startup for that commit. It does not verify the target
+Coolify host, TLS, external providers, backups or customer data migration.
+
 1. Deploy the selected commit and inspect all three service logs. The API
    readiness health check must reach `/api/v1/health/ready`; the web check
    must reach `/`. The worker has no public port and must remain running.

@@ -12,15 +12,19 @@ import { SubscriptionPlan } from "../src/database/models/SubscriptionPlan.js";
 import { PlatformBrief } from "../src/database/models/PlatformBrief.js";
 import { Role } from "../src/database/models/Role.js";
 import { SYSTEM_ROLES } from "../src/modules/roles/role.catalog.js";
+import { setSalesDeliveryTestProvider } from '../src/integrations/notifications/sales-delivery.provider.js';
 if (env.NODE_ENV !== "test" || !process.env.PCC_SALES_TEST_PASSWORD)
   throw new Error("This server is strictly for isolated browser tests");
 await mongoose.connect(env.MONGODB_URI, { autoIndex: false });
 if (!mongoose.connection.name.endsWith("-test"))
   throw new Error("Browser fixtures require an isolated -test database");
+// Controlled draft-review adapter only. A browser verification must never dispatch a sales message.
+Object.assign(env, { SALES_SMS_FROM: '+254700009140', SMS_FROM: '+254700009141', TWILIO_ACCOUNT_SID: 'AC' + 'a'.repeat(32), TWILIO_AUTH_TOKEN: 'controlled-browser-sms-signature-token', PUBLIC_API_URL: 'http://127.0.0.1:' + env.PORT, SALES_SMS_COST_PER_SEGMENT_MICRO_USD: 10 });
+setSalesDeliveryTestProvider({ key: 'TWILIO', idempotencyHours: 0, minimumIntervalMs: 0, send: async () => { process.send?.({ type: 'PCC_TEST_SALES_DELIVERY_FORBIDDEN' }); throw new Error('BROWSER_TEST_SALES_SEND_FORBIDDEN'); } }, 'SMS');
 for (const model of Object.values(mongoose.models))
   await model.createCollection();
 await PlatformBrief.createIndexes();
-for (const key of ["EMAIL_OTP", "SMS_OTP", "EMAIL_NOTIFICATIONS", "SMS_NOTIFICATIONS"]) await PlatformSwitch.create({ key, kind: "FEATURE", name: key, description: "Explicit private browser test channel policy", enabled: true, mode: "ON" });
+for (const key of ["EMAIL_OTP", "SMS_OTP", "EMAIL_NOTIFICATIONS", "SMS_NOTIFICATIONS", "SALES_CAMPAIGNS", "SALES_TRACKING"]) await PlatformSwitch.create({ key, kind: "FEATURE", name: key, description: "Explicit private browser test channel policy", enabled: true, mode: "ON" });
 setOtpTestDelivery(async (channel, _destination, code) => { if (!process.send) throw new Error("Private test IPC is required"); process.send({ type: "PCC_TEST_MFA_DELIVERY", channel, code }); });
 await User.create({
   phone: "+254700009130",

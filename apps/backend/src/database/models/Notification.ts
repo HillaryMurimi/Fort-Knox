@@ -1,6 +1,7 @@
 import { Schema, model, type InferSchemaType } from 'mongoose';
 const schema = new Schema({
-  organizationId:{type:Schema.Types.ObjectId,ref:'Organization',index:true}, recipientUserId:{type:Schema.Types.ObjectId,ref:'User',required:true,index:true},
+  organizationId:{type:Schema.Types.ObjectId,ref:'Organization',index:true}, recipientUserId:{type:Schema.Types.ObjectId,ref:'User',required:function(this:{type?:string}){return this.type!=='SALES_OUTREACH';},index:true},
+  salesMessageId:{type:Schema.Types.ObjectId,ref:'SalesMessage',required:function(this:{type?:string}){return this.type==='SALES_OUTREACH';}},
   channel:{type:String,enum:['IN_APP','EMAIL','SMS','PUSH','WHATSAPP'],required:true,index:true}, type:{type:String,required:true,index:true}, title:{type:String,required:true,trim:true,maxlength:240},
   body:{type:String,required:true,trim:true,maxlength:10000}, data:{type:Map,of:Schema.Types.Mixed,default:()=>({})},
   status:{type:String,enum:['QUEUED','SENT','DELIVERED','READ','FAILED','CANCELLED'],required:true,default:'QUEUED',index:true}, priority:{type:String,enum:['LOW','NORMAL','HIGH','URGENT'],default:'NORMAL'},

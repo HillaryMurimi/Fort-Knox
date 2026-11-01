@@ -104,6 +104,14 @@ export function journeyToken() {
     return undefined;
   }
 }
+export function referralDestination(token: string) {
+  return publicRequest<{ destination: string; expiresAt: string }>("/acquisition/referrals/resolve", { token });
+}
+export async function acceptReferral(token: string) {
+  const result = await publicRequest<{ destination: string; journeyToken: string }>("/acquisition/referrals/visits", { token, consent: true, ...(journeyToken() ? { journeyToken: journeyToken() } : {}) });
+  try { sessionStorage.setItem(tokenKey, result.journeyToken); localStorage.removeItem(pauseKey); } catch { /* Optional browser storage never blocks navigation. */ }
+  return result;
+}
 export function pauseJourneyAnalytics() {
   try {
     localStorage.setItem(pauseKey, "true");

@@ -389,3 +389,23 @@ SUPER_ADMIN may request but may not self-approve a support session. The designat
 Sales success defaults to SUPER_ADMIN. Explicit per-user staff roles use existing organization membership with assignedTo record scope. Only fresh dual-channel SUPER_ADMIN may replace/revoke grants; normal organization role/user assignment paths cannot transfer these roles. Notes and meetings have distinct read permissions.
 
 See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).
+
+
+## Sales continuation - executable runtime (2026-10-31)
+
+The existing sales CRM now integrates durable model tasks, fixed agent tools, current-permission worker checks, versioned human approvals and operational controls. Provider delivery/campaign/lifecycle milestones remain separate work. See [continuation implementation and acceptance log](AI_SALES_CONTINUATION.md) for schema/API/configuration details, security reviews, actual tests and remaining work.
+
+
+### Permitted sales research
+
+sales.research.execute is a separately delegated sales permission. It permits optional connected research only together with existing agent execution, current assigned-customer scope and constituent notes/meetings access. It never grants fresh administrator review, campaign governance, source import, organization linking, financial mutation or outbound delivery. Only a fresh dual-channel SUPER_ADMIN can promote an approved exact-source proposal using manually reviewed customer fields; consent remains UNKNOWN. Existing generic role mutation routes cannot add reserved sales permissions. Research evidence reads preserve the same customer scope and constituent read permissions as agent output.
+
+
+### Governed sales email and consent (2026-11-01)
+
+Sales email now uses channel-specific recorded consent, exact-payload human review, current assigned-customer permissions, existing Notification/Job delivery, bounded quiet-hour/recipient/campaign limits and provider idempotency. Signed callbacks distinguish acceptance, delivery, bounce, complaint and inbound replies; none establishes human reading or account authentication. Public opt-out is an explicit POST and stops sales channels without disabling account/security notifications. Primary-contact corrections require fresh administrator proof and invalidate consent snapshots. New data/indexes, privacy retention, configuration, provider acceptance limits and remaining SMS/WhatsApp/calendar/follow-up work are specified in [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md). New features remain OFF by default. Live transport acceptance remains unverified.
+
+
+### Governed dedicated-sender sales SMS (2026-11-01)
+
+The existing sales outreach/consent/review queue now supports optional Twilio SMS through the existing messaging provider, with a dedicated two-way sender, GSM/Unicode segment ceilings and integer per-segment reservations. Signed form callbacks use the maintained Twilio SDK against the configured public URL; replies/STOP and delivery facts persist through existing WebhookEvent/Job workflows, with no automatic resend after an ambiguous attempt. Operational SMS remains separate. SALES_SMS remains OFF by default. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for contracts, provider-independent verification, dependency audit and external acceptance gates. WhatsApp/calendar/follow-up work continues separately.

@@ -453,3 +453,41 @@ SUPER_ADMIN can search the landlord onboarding directory, create a real organiza
 Added persisted AI Sales & Customer Success workspace for customer records, qualification/consent, append-only notes, internal meeting outcomes and actual onboarding monitoring. Six agent definitions are unavailable; campaigns, outreach, agent runtime and configurable follow-up workflows remain unfinished.
 
 See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).
+
+
+## Sales continuation - executable runtime (2026-10-31)
+
+The existing sales CRM now integrates durable model tasks, fixed agent tools, current-permission worker checks, versioned human approvals and operational controls. Provider delivery/campaign/lifecycle milestones remain separate work. See [continuation implementation and acceptance log](AI_SALES_CONTINUATION.md) for schema/API/configuration details, security reviews, actual tests and remaining work.
+
+
+### Sales identity and lifecycle continuation (2026-10-31)
+
+Exact verified identity review, preserved-history merges, bounded permission-filtered history and durable idempotent commercial/inventory projections are implemented. Lifecycle/autolink default OFF. Authoritative billing and organization scope remain unchanged. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for API/model changes, index prerequisites, verification evidence and remaining milestones.
+
+
+### Governed sales campaigns and attribution (2026-11-01)
+
+Campaign states and exact-payload approval, consented opaque invitations, existing acquisition-journey touches and verified deduplicated conversion projection are implemented. Campaign governance requires SUPER_ADMIN; all new features default OFF. Billing remains read-only. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for the API/models, consent rules, index prerequisites, evidence and remaining delivery/analytics work.
+
+
+### Connected sales research (2026-11-01)
+
+The existing lead-researcher runtime supports an optional permitted-source connector, exact citations, fresh reviewed CRM import with unknown consent, and durable source-content retention. sales.research.execute is separately delegated; research defaults OFF and requires reviewed source-use rights and cost configuration. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for contracts, tests, configuration and remaining delivery/booking work.
+
+
+### Governed sales email and consent (2026-11-01)
+
+Sales email now uses channel-specific recorded consent, exact-payload human review, current assigned-customer permissions, existing Notification/Job delivery, bounded quiet-hour/recipient/campaign limits and provider idempotency. Signed callbacks distinguish acceptance, delivery, bounce, complaint and inbound replies; none establishes human reading or account authentication. Public opt-out is an explicit POST and stops sales channels without disabling account/security notifications. Primary-contact corrections require fresh administrator proof and invalidate consent snapshots. New data/indexes, privacy retention, configuration, provider acceptance limits and remaining SMS/WhatsApp/calendar/follow-up work are specified in [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md). New features remain OFF by default. Live transport acceptance remains unverified.
+
+
+### Governed dedicated-sender sales SMS (2026-11-01)
+
+The existing sales outreach/consent/review queue now supports optional Twilio SMS through the existing messaging provider, with a dedicated two-way sender, GSM/Unicode segment ceilings and integer per-segment reservations. Signed form callbacks use the maintained Twilio SDK against the configured public URL; replies/STOP and delivery facts persist through existing WebhookEvent/Job workflows, with no automatic resend after an ambiguous attempt. Operational SMS remains separate. SALES_SMS remains OFF by default. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for contracts, provider-independent verification, dependency audit and external acceptance gates. WhatsApp/calendar/follow-up work continues separately.
+
+### Governed WhatsApp Business templates
+
+The existing outreach queue also supports optional authorized Meta WhatsApp Business marketing templates. Business/sender ownership metadata and current approved template content are checked at preparation, approval and dispatch. Controlled parameters, explicit channel consent, human approval, quiet windows, campaign/recipient limits and a single-attempt uncertainty boundary apply. Signed callbacks atomically record delivery and protected replies, honor explicit STOP and fetch no media. Template variables expire with message content. Customer 360 exposes bounded template lookup and exact rendered review. SALES_WHATSAPP remains OFF by default; live account/template/callback acceptance is unverified. Configuration, API/privacy contracts and evidence are recorded in [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md). Calendars, durable follow-ups, assistance and final analytics remain in progress.
+
+### Authorized sales calendar booking
+
+Optional Google/Microsoft adapters now extend existing meetings with actual availability, shared local holds, fresh reviewed invitation commands, provider IDs, rescheduling, cancellation and read-only reconciliation. Uncertain mutation outcomes never automatically create another invitation. Bounded durable polling detects external changes; provider/local conflicts remain explicit. The Meeting Coordinator can ground proposals in actual busy intervals; approved exact time pairs can feed human-reviewed booking. Customer 360 distinguishes manual scheduling, provider confirmation, invitation submission and attendance. Calendar recipient/review snapshots expire while minimal hashes and provider evidence remain. SALES_CALENDAR remains OFF by default and live provider acceptance is unverified. Secret-managed configuration, new API/index/retention contracts and controlled verification are detailed in [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md). Follow-ups, assistance, analytics and final hardening continue.

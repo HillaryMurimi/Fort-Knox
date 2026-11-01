@@ -62,7 +62,7 @@ export async function monitor(req: Request, res: Response) {
   res.json(apiResponse(await service.monitor(principal(req), id(req))));
 }
 export async function agents(req: Request, res: Response) {
-  res.json(apiResponse(service.agents(principal(req))));
+  res.json(apiResponse(await service.agents(principal(req))));
 }
 export async function context(req: Request, res: Response) {
   res.json(

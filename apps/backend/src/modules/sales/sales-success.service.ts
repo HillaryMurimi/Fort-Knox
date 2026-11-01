@@ -1,3 +1,5 @@
+import { SalesCustomerEvidenceRepository } from "./sales-customer-evidence.repository.js";
+import { historyCursor } from './sales-history.service.js';
 import mongoose, { Types, type ClientSession } from "mongoose";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -9,22 +11,17 @@ import { SalesMeeting } from "../../database/models/SalesMeeting.js";
 import { SalesActivity } from "../../database/models/SalesActivity.js";
 import { Organization } from "../../database/models/Organization.js";
 import { User } from "../../database/models/User.js";
-import { Property } from "../../database/models/Property.js";
-import { Building } from "../../database/models/Building.js";
-import { Floor } from "../../database/models/Floor.js";
-import { Unit } from "../../database/models/Unit.js";
-import { DomainEvent } from "../../database/models/DomainEvent.js";
-import { OrganizationSubscription } from "../../database/models/OrganizationSubscription.js";
-import { SubscriptionInvoice } from "../../database/models/SubscriptionInvoice.js";
-import { OrganizationContract } from "../../database/models/OrganizationContract.js";
 import { AuditService } from "../audit/audit.service.js";
 import {
   SuccessRepository as repository,
   assertSuccessPermission,
   customerScope,
+  lockSalesRepresentative, salesMeetingConflict,
 } from "./sales-success.repository.js";
 import * as schemas from "./sales-success.schemas.js";
 import { assertCustomerIdentityIndex } from "./sales-success-indexes.js";
+import { assertFreshAdmin } from '../auth/admin-security.js';
+import { redactSalesMeeting } from './sales-calendar.policy.js';
 
 async function transaction<T>(work: (session: ClientSession) => Promise<T>) {
   const session = await mongoose.startSession();
@@ -64,19 +61,7 @@ function conflict(): never {
     "Record changed; refresh before retrying",
   );
 }
-export function onboardingProgress(
-  expected: number | undefined | null,
-  actual: number,
-) {
-  return {
-    expectedUnits: expected ?? null,
-    registeredUnits: actual,
-    remainingUnits: expected ? Math.max(0, expected - actual) : null,
-    completionPercent: expected
-      ? Math.min(100, Math.floor((actual * 100) / expected))
-      : null,
-  };
-}
+export { onboardingProgress } from "./sales-success.calculations.js";
 export const successAgents = [
   {
     key: "LEAD_RESEARCHER",
@@ -116,6 +101,7 @@ export class SalesSuccessService {
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const filter = {
       ...customerScope(auth),
+      mergedInto: { $exists: false },
       ...(stage ? { leadStatus: stage } : {}),
       ...(search
         ? {
@@ -139,7 +125,7 @@ export class SalesSuccessService {
     ]);
     return { items, total, page, pageSize: 20 };
   }
-  static async create(auth: AuthenticatedUser, raw: unknown) {
+  static async create(auth: AuthenticatedUser, raw: unknown, onCreated?: (leadId: Types.ObjectId, session: ClientSession) => Promise<void>) {
     assertSuccessPermission(auth, "sales.leads.create");
     const input = schemas.customerSchema.parse(raw);
     // Names are not identities; possible duplicates require a human decision.
@@ -172,6 +158,7 @@ export class SalesSuccessService {
           "Unable to create customer",
         );
       await activity(auth, lead._id, "sales.lead.created", session);
+        if (onCreated) await onCreated(lead._id, session);
       return { id: String(lead._id) };
     });
   }
@@ -184,24 +171,25 @@ export class SalesSuccessService {
       );
     const [meetings, timeline] = await Promise.all([
       allowed("sales.meetings.read")
-        ? SalesMeeting.find({ leadId: lead._id })
+        ? SalesMeeting.find({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] } })
             .select(
               allowed("sales.notes.read")
                 ? "-__v"
-                : "-__v -description -outcome",
+                : "-__v -description -outcome -calendar.evidence",
             )
-            .sort({ startsAt: -1 })
+            .sort({ startsAt: -1, _id: -1 })
             .limit(50)
             .lean()
         : [],
       allowed("sales.notes.read")
-        ? SalesActivity.find({ leadId: lead._id })
+        ? SalesActivity.find({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] }, ...(allowed("sales.onboarding.read") ? {} : { sourceType: { $exists: false } }) })
             .select("-__v")
             .sort({ createdAt: -1, _id: -1 })
             .limit(100)
             .lean()
         : [],
     ]);
+    const lastMeeting = meetings.at(-1), lastActivity = timeline.at(-1);
     // Never serialize legacy Mixed CRM metadata or demo datasets into shared context.
     return {
       customer: {
@@ -223,14 +211,20 @@ export class SalesSuccessService {
         revision: lead.revision ?? 0,
         assignedTo: lead.assignedTo,
         organizationId: lead.organizationId,
+        identityState: lead.organizationId ? "LINKED" : lead.identityState,
       },
-      meetings,
+      meetings: meetings.map(meeting => redactSalesMeeting(meeting)),
       timeline,
       historyLimit: { meetings: 50, activities: 100 },
+      historyCursors: {
+        meetings: meetings.length === 50 && lastMeeting ? historyCursor(lastMeeting.startsAt, lastMeeting._id) : null,
+        activities: timeline.length === 100 && lastActivity ? historyCursor(lastActivity.createdAt, lastActivity._id) : null,
+      },
     };
   }
   static async update(auth: AuthenticatedUser, id: string, raw: unknown) {
     const input = schemas.updateCustomerSchema.parse(raw);
+    if (input.email !== undefined || input.phone !== undefined) assertFreshAdmin(auth);
     return transaction(async (session) => {
       const lead = await repository.load(
         auth,
@@ -238,7 +232,14 @@ export class SalesSuccessService {
         "sales.leads.update",
         session,
       );
-      const { revision, nextActionDate, ...changes } = input;
+      const { revision, nextActionDate, email, phone, contactChangeReason, ...changes } = input;
+      const contactChanged = (email !== undefined && email !== (lead.email ?? null)) || (phone !== undefined && phone !== (lead.phone ?? null));
+      if (contactChanged) {
+        const alternatives = [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])];
+        if (alternatives.length && await SalesLead.exists({ _id: { $nin: [lead._id, ...lead.mergedLeadIds] }, $or: alternatives }).session(session))
+          throw new AppError(409, 'POSSIBLE_DUPLICATE', 'A matching contact exists; review the canonical customer identity first');
+      }
+      const unset = { ...(email === null ? { email: 1 } : {}), ...(phone === null ? { phone: 1 } : {}) };
       const result = await SalesLead.updateOne(
         {
           _id: lead._id,
@@ -248,6 +249,8 @@ export class SalesSuccessService {
         {
           $set: {
             ...changes,
+            ...(typeof email === 'string' ? { email } : {}), ...(typeof phone === 'string' ? { phone } : {}),
+            ...(contactChanged ? { consent: changes.consent === 'OPTED_OUT' || lead.consent === 'OPTED_OUT' || lead.optedOutAt ? 'OPTED_OUT' : 'UNKNOWN' } : {}),
             ...(nextActionDate
               ? { nextActionDate: new Date(nextActionDate) }
               : {}),
@@ -255,11 +258,13 @@ export class SalesSuccessService {
               ? { optedOutAt: new Date() }
               : {}),
           },
-          $inc: { revision: 1 },
+          ...(Object.keys(unset).length ? { $unset: unset } : {}),
+          $inc: { revision: 1, ...(contactChanged || changes.consent === 'OPTED_OUT' ? { consentRevision: 1 } : {}) },
         },
         { session, runValidators: true },
       );
       if (!result.modifiedCount) conflict();
+      if (contactChanged) await AuditService.record({ actorUserId: auth.userId, action: 'sales.lead.contact.corrected', resourceType: 'SalesLead', resourceId: lead._id, metadata: { emailChanged: email !== undefined, phoneChanged: phone !== undefined, consentInvalidated: true, reason: contactChangeReason, organizationBindingChanged: false } }, session);
       await activity(
         auth,
         lead._id,
@@ -364,7 +369,7 @@ export class SalesSuccessService {
           _id: lead._id,
           revision: input.revision === 0 ? { $in: [0, null] } : input.revision,
         },
-        { $set: { organizationId: org._id }, $inc: { revision: 1 } },
+        { $set: { organizationId: org._id, identityState: "LINKED" }, $inc: { revision: 1 } },
         { session },
       );
       if (!result.modifiedCount) conflict();
@@ -397,31 +402,8 @@ export class SalesSuccessService {
           "FORBIDDEN",
           "Delegates may schedule only their own meetings",
         );
-      // Serialize reservations per representative to prevent concurrent overlap write skew.
-      const representative = await User.findOneAndUpdate(
-        { _id: input.representativeId, status: "ACTIVE" },
-        { $inc: { salesCalendarRevision: 1 } },
-        { session },
-      );
-      if (!representative)
-        throw new AppError(
-          404,
-          "USER_NOT_FOUND",
-          "Active representative not found",
-        );
-      if (
-        await SalesMeeting.exists({
-          representativeId: input.representativeId,
-          status: "SCHEDULED",
-          startsAt: { $lt: new Date(input.endsAt) },
-          endsAt: { $gt: new Date(input.startsAt) },
-        }).session(session)
-      )
-        throw new AppError(
-          409,
-          "MEETING_CONFLICT",
-          "Representative already has a meeting during this period",
-        );
+      await lockSalesRepresentative(input.representativeId, session);
+      if (await salesMeetingConflict(input.representativeId, new Date(input.startsAt), new Date(input.endsAt), session)) throw new AppError(409, 'MEETING_CONFLICT', 'Representative already has a meeting or calendar hold during this period');
       const [meeting] = await SalesMeeting.create(
         [{ ...input, leadId: lead._id, createdBy: auth.userId }],
         { session },
@@ -462,11 +444,13 @@ export class SalesSuccessService {
         session,
       );
       if (input.notes) assertSuccessPermission(auth, "sales.notes.create");
+      const calendarMeeting = await SalesMeeting.findOne({ _id: meetingId, leadId: lead._id }).select('calendar.status').session(session);
+      if (calendarMeeting?.calendar?.status === 'PENDING' || (calendarMeeting?.calendar && calendarMeeting.calendar.status !== 'CANCELLED' && ['CANCELLED', 'RESCHEDULED'].includes(input.status))) throw new AppError(409, 'CALENDAR_RECONCILIATION_REQUIRED', 'Resolve the pending calendar command or cancel/reschedule the connected event through its reviewed calendar workflow first');
       const meeting = await SalesMeeting.findOneAndUpdate(
         {
           _id: meetingId,
           leadId: lead._id,
-          status: "SCHEDULED",
+          $or: [{ status: 'SCHEDULED' }, { status: input.status, outcome: { $exists: false }, 'calendar.status': 'CANCELLED' }],
           revision: input.revision === 0 ? { $in: [0, null] } : input.revision,
         },
         {
@@ -499,157 +483,10 @@ export class SalesSuccessService {
   static async monitor(auth: AuthenticatedUser, id: string) {
     const lead = await repository.load(auth, id, "sales.onboarding.read");
     if (!lead.organizationId) return { linked: false as const };
-    const org = await Organization.findById(lead.organizationId)
-      .select("onboarding portfolioOnboarding createdAt")
-      .lean();
-    if (!org)
-      throw new AppError(
-        404,
-        "ORGANIZATION_NOT_FOUND",
-        "Linked organization unavailable",
-      );
-    const organizationId = org._id;
-    const [
-      properties,
-      buildings,
-      floors,
-      units,
-      subscription,
-      invoice,
-      contract,
-      owner,
-      events,
-      latestUnit,
-      latestProperty,
-    ] = await Promise.all([
-      Property.countDocuments({ organizationId, status: { $ne: "ARCHIVED" } }),
-      Building.countDocuments({ organizationId, status: "ACTIVE" }),
-      Floor.countDocuments({ organizationId, status: "ACTIVE" }),
-      Unit.countDocuments({ organizationId, status: { $ne: "INACTIVE" } }),
-      OrganizationSubscription.findOne({ organizationId })
-        .select("_id status providerCheckoutReference")
-        .lean(),
-      org.onboarding?.invoiceId
-        ? SubscriptionInvoice.findOne({
-            _id: org.onboarding.invoiceId,
-            organizationId,
-          })
-            .select(
-              "_id status provider providerInvoiceId subscriptionId contractId paidAt",
-            )
-            .lean()
-        : null,
-      org.onboarding?.contractId
-        ? OrganizationContract.findOne({
-            _id: org.onboarding.contractId,
-            organizationId,
-          })
-            .select("_id status")
-            .lean()
-        : null,
-      org.onboarding?.ownerUserId
-        ? User.findById(org.onboarding.ownerUserId)
-            .select("emailVerifiedAt lastLoginAt")
-            .lean()
-        : null,
-      DomainEvent.find({ organizationId })
-        .select("eventId name occurredAt")
-        .sort({ occurredAt: -1 })
-        .limit(100)
-        .lean(),
-      Unit.findOne({ organizationId })
-        .select("createdAt")
-        .sort({ createdAt: -1 })
-        .lean(),
-      Property.findOne({ organizationId })
-        .select("createdAt")
-        .sort({ createdAt: -1 })
-        .lean(),
-    ]);
-    const verifiedPayment = !!(
-      org.onboarding?.paymentVerifiedAt &&
-      invoice?.status === "PAID" &&
-      invoice.provider === "PAYSTACK" &&
-      invoice.providerInvoiceId &&
-      contract?.status === "SIGNED" &&
-      String(invoice.contractId) === String(contract._id) &&
-      subscription &&
-      String(invoice.subscriptionId) === String(subscription._id)
-    );
-    const progress = onboardingProgress(org.onboarding?.unitCount, units);
-    const lastActivity = new Date(
-      Math.max(
-        ...[
-          org.createdAt,
-          org.portfolioOnboarding?.draftSavedAt,
-          org.onboarding?.stateChangedAt,
-          latestUnit?.createdAt,
-          latestProperty?.createdAt,
-        ]
-          .filter((v): v is Date => v instanceof Date)
-          .map(Number),
-      ),
-    );
-    const stalled =
-      progress.completionPercent !== 100 &&
-      Date.now() - lastActivity.getTime() > 72 * 3600000;
-    return {
-      linked: true as const,
-      organizationId: String(organizationId),
-      registered: true,
-      emailVerified: !!owner?.emailVerifiedAt,
-      lastLoginAt: owner?.lastLoginAt,
-      selectedPlan: org.onboarding?.selectedPlanKey ?? null,
-      contractStatus: contract?.status ?? "NONE",
-      checkoutStarted: !!subscription?.providerCheckoutReference,
-      verifiedPayment,
-      subscriptionStatus: subscription?.status ?? "NONE",
-      properties,
-      buildings,
-      floors,
-      ...progress,
-      lastActivity,
-      stalled,
-      stallThresholdHours: 72,
-      assistance: stalled
-        ? "Review incomplete onboarding and offer assistance after checking consent."
-        : null,
-      health: {
-        type: "RULE_BASED",
-        factors: [
-          { label: "Email verified", achieved: !!owner?.emailVerifiedAt },
-          { label: "Payment verified", achieved: verifiedPayment },
-          {
-            label: "Subscription active",
-            achieved: subscription?.status === "ACTIVE",
-          },
-          {
-            label: "Expected units configured",
-            achieved: progress.completionPercent === 100,
-          },
-          { label: "Onboarding active", achieved: !stalled },
-        ],
-      },
-      events,
-      eventLimit: 100,
-    };
+    return SalesCustomerEvidenceRepository.monitor(lead.organizationId);
   }
-  static agents(auth: AuthenticatedUser) {
-    assertSuccessPermission(auth, "sales.agents.read");
-    return {
-      outboundSuspended: true,
-      agents: successAgents.map((a) => ({
-        ...a,
-        status: "NOT_CONFIGURED",
-        instructionVersion: 1,
-        executionEnabled: false,
-      })),
-      integrations: {
-        ai: "NOT_CONFIGURED",
-        calendar: "NOT_CONNECTED",
-        outreach: "DISABLED",
-      },
-    };
+  static async agents(auth: AuthenticatedUser) {
+    return (await import('./sales-agent.service.js')).SalesAgentService.catalog(auth);
   }
   static async context(auth: AuthenticatedUser, id: string, raw: unknown) {
     assertSuccessPermission(auth, "sales.agents.read");

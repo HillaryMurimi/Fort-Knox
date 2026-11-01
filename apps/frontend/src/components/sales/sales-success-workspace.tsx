@@ -7,6 +7,12 @@ import {
   type ReactElement,
 } from "react";
 import Link from "next/link";
+import { SalesAgentControl } from "./sales-agent-control";
+import { SalesCampaigns } from './sales-campaigns';
+import { SalesCustomerIdentity } from "./sales-customer-identity";
+import { SalesCustomerHistory } from "./sales-customer-history";
+import { SalesCustomerOutreach } from './sales-customer-outreach';
+import { SalesMeetingCalendar } from './sales-meeting-calendar';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Alert, Button } from "@/components/ui";
@@ -75,11 +81,6 @@ export function SalesSuccessWorkspace() {
     queryFn: () => client.monitor(selected),
     enabled: !!selected && can("sales.onboarding.read"),
   });
-  const agents = useQuery({
-    queryKey: ["sales-success", accessKey, "agents"],
-    queryFn: client.agents,
-    enabled: tab === "AI Agents" && can("sales.agents.read"),
-  });
   async function act(work: () => Promise<unknown>, form?: HTMLFormElement) {
     setPending(true);
     setFeedback("");
@@ -127,7 +128,7 @@ export function SalesSuccessWorkspace() {
         </Link>
       </header>
       <nav aria-label="Sales workspace" className="flex flex-wrap gap-2">
-        {["Customers", "AI Agents", ...(admin ? ["Permissions"] : [])].map(
+        {["Customers", "AI Agents", ...(admin ? ["Campaigns", "Permissions"] : [])].map(
           (t) => (
             <Button
               key={t}
@@ -140,6 +141,7 @@ export function SalesSuccessWorkspace() {
           ),
         )}
       </nav>
+      {tab === 'Campaigns' && <SalesCampaigns />}
       {feedback && (
         <div role="status">
           <Alert>{feedback}</Alert>
@@ -461,6 +463,12 @@ export function SalesSuccessWorkspace() {
                     </details>
                   )}
                 </section>
+                <SalesCustomerOutreach key={data.customer.id} customer={data.customer}/>
+                <SalesCustomerIdentity
+                  id={data.customer.id}
+                  revision={data.customer.revision}
+                  organizationId={data.customer.organizationId}
+                />
                 {can("sales.onboarding.read") && (
                   <section className={panelClass}>
                     <h2 className="text-lg font-semibold">
@@ -552,16 +560,20 @@ export function SalesSuccessWorkspace() {
                       </p>
                     )}
                     {data.meetings.map((m) => (
-                      <MeetingCard
-                        key={m._id}
+                      <div key={m._id} className="min-w-0 space-y-3"><MeetingCard
                         meeting={m}
                         editable={can("sales.meetings.update")}
                         pending={pending}
                         save={(body) =>
                           act(() => client.outcome(selected, m._id, body))
                         }
-                      />
+                      />{can('sales.meetings.update') && <SalesMeetingCalendar key={m._id + ':' + m.revision} customerId={data.customer.id} meeting={m} admin={admin} pending={pending} act={act}/>}</div>
                     ))}
+                    <SalesCustomerHistory
+                      id={data.customer.id}
+                      kind="MEETINGS"
+                      initialCursor={data.historyCursors?.meetings}
+                    />
                     {can("sales.meetings.create") && (
                       <MeetingForm
                         pending={pending}
@@ -597,6 +609,11 @@ export function SalesSuccessWorkspace() {
                         </li>
                       ))}
                     </ol>
+                    <SalesCustomerHistory
+                      id={data.customer.id}
+                      kind="ACTIVITIES"
+                      initialCursor={data.historyCursors?.activities}
+                    />
                   </section>
                 )}
                 {can("sales.notes.create") && (
@@ -632,27 +649,7 @@ export function SalesSuccessWorkspace() {
         </div>
       )}
       {tab === "AI Agents" && (
-        <section className="space-y-5">
-          <Alert>
-            Outbound communications are suspended. AI execution and external
-            calendars are not configured. Manual meetings and customer records
-            remain available.
-          </Alert>
-          {agents.isLoading && <p role="status">Loading agent availability…</p>}
-          {agents.error && <Alert>{agents.error.message}</Alert>}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {agents.data?.agents.map((a) => (
-              <article key={a.key} className={panelClass}>
-                <h2 className="text-lg font-semibold">{a.name}</h2>
-                <p className="text-sm text-muted-foreground">{a.purpose}</p>
-                <p className="text-xs font-semibold">
-                  {a.status.replaceAll("_", " ")} · instructions v
-                  {a.instructionVersion}
-                </p>
-              </article>
-            ))}
-          </div>
-        </section>
+        <SalesAgentControl leadId={selected || undefined} />
       )}
       {tab === "Permissions" && admin && (
         <section className={panelClass}>
@@ -780,7 +777,7 @@ function MeetingCard({
         </p>
       )}
       {m.outcome && <p className="whitespace-pre-wrap text-sm">{m.outcome}</p>}
-      {editable && m.status === "SCHEDULED" && (
+      {editable && (m.status === 'SCHEDULED' || (m.calendar?.status === 'CANCELLED' && !m.outcome)) && (
         <form
           className="space-y-3"
           onSubmit={(e) => {
@@ -795,13 +792,13 @@ function MeetingCard({
         >
           <Field label="Meeting status">
             <select name="status" className={inputClass}>
-              {[
+              {(m.status !== 'SCHEDULED' ? [m.status] : [
                 "COMPLETED",
                 "CANCELLED",
                 "RESCHEDULED",
                 "NO_SHOW",
                 "NOT_HELD",
-              ].map((s) => (
+              ]).map((s) => (
                 <option key={s}>{s}</option>
               ))}
             </select>
@@ -835,6 +832,10 @@ const delegatedPermissions = [
   "sales.notes.create",
   "sales.onboarding.read",
   "sales.agents.read",
+  "sales.agents.execute",
+  "sales.research.execute",
+  "sales.outreach.read",
+  "sales.outreach.prepare",
 ];
 function PermissionForm({
   pending,

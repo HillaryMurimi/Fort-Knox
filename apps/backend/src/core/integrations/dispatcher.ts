@@ -15,7 +15,12 @@ export class IntegrationDispatcher {
     return getPaymentProvider(key);
   }
   static async sendNotification(n: HydratedDocument<NotificationDocument>) {
+    if (n.type === 'SALES_OUTREACH') {
+      await (await import('../../modules/sales/sales-outreach.service.js')).SalesOutreachService.deliverNotification(n._id);
+      return;
+    }
     try {
+      if (!n.recipientUserId) throw new Error('NOTIFICATION_RECIPIENT_NOT_FOUND');
       if (n.type === "ONBOARDING_RECOVERY") {
         const allowed =
           n.channel === "EMAIL" &&
