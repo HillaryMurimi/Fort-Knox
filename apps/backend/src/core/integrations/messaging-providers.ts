@@ -2,7 +2,8 @@ import { PRODUCT_NAME } from '../../config/brand.js';
 import { env } from '../../config/env.js';
 import { assertSwitchEnabled } from '../../modules/platform-control/platform-control.guard.js';
 import { integrationConfig } from './config.js';
-import { requestJson } from './http.js';
+import { readBoundedJson } from './http.js';
+import { z } from 'zod';
 import type { EmailProvider, SmsProvider, WhatsAppProvider, MessageInput, MessageResult, ProviderKey } from './provider.types.js';
 
 const timeout = () => AbortSignal.timeout(10_000);
@@ -64,10 +65,15 @@ export class WhatsAppCloudProvider implements WhatsAppProvider {
     await assertSwitchEnabled('WHATSAPP_NOTIFICATIONS');
     const config = integrationConfig.whatsapp;
     if (!config.phoneNumberId || !config.accessToken) throw new Error('WHATSAPP_NOT_CONFIGURED');
-    const response = await requestJson<{ messages?: Array<{ id: string }> }>('https://graph.facebook.com/v20.0/' + config.phoneNumberId + '/messages', {
-      method: 'POST', headers: { authorization: 'Bearer ' + config.accessToken },
-      body: JSON.stringify({ messaging_product: 'whatsapp', to: input.to, type: 'text', text: { body: input.body } }) });
-    return { provider: this.key, providerMessageId: response.messages?.[0]?.id ?? '', status: 'SENT' };
+    const template = input.whatsappTemplate;
+    const response = await fetch('https://graph.facebook.com/' + env.FACEBOOK_GRAPH_VERSION + '/' + config.phoneNumberId + '/messages', {
+      method: 'POST', signal: timeout(), redirect: 'error', headers: { authorization: 'Bearer ' + config.accessToken, 'content-type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: input.to.replace(/^\+/, ''), ...(template ? { type: 'template', template: { name: template.name, language: { code: template.language }, ...(template.values.length ? { components: [{ type: 'body', parameters: template.values.map(text => ({ type: 'text', text })) }] } : {}) }, ...(input.salesMessageId ? { biz_opaque_callback_data: input.salesMessageId } : {}) } : { type: 'text', text: { body: input.body } }) }) });
+    if (!response.ok) throw new Error('WHATSAPP_' + response.status);
+    const result = z.object({ messages: z.array(z.object({ id: z.string().min(1).max(512) })).min(1).max(10) }).parse(await readBoundedJson(response));
+    const id = result.messages[0]?.id;
+    if (!id) throw new Error('WHATSAPP_RESPONSE_INVALID');
+    return { provider: this.key, providerMessageId: id, status: 'SENT' };
   }
 }
 export function getEmailProvider() { return env.EMAIL_PROVIDER === 'RESEND' ? new ResendProvider() : new SendGridProvider(); }

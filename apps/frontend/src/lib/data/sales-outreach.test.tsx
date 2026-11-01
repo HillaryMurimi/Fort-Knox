@@ -5,13 +5,13 @@ import { SalesUnsubscribe } from '@/components/sales/sales-unsubscribe';
 import type { Customer } from './sales-success';
 const state = vi.hoisted(() => ({ admin: true, permissions: [] as string[] }));
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ isDevMode: false, user: { _id: 'reviewer' }, roles: state.admin ? ['SUPER_ADMIN'] : [], memberships: [{ permissions: state.permissions }] }) }));
-vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }), useQuery: ({ queryKey }: { queryKey: string[] }) => ({ data: { items: queryKey.includes('consents') ? [{ _id: 'consent', channel: 'EMAIL', decision: 'OPT_IN', evidence: '<script>untrusted evidence</script>', createdAt: '2026-11-01T00:00:00Z' }] : [] }, isLoading: false, error: null }) }));
+vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }), useQuery: ({ queryKey }: { queryKey: string[] }) => ({ data: queryKey.includes('whatsapp-templates') ? { sender: { name: 'Controlled Dapinni sender', phone: '+254700002001' }, items: [], truncated: false } : { items: queryKey.includes('consents') ? [{ _id: 'consent', channel: 'EMAIL', decision: 'OPT_IN', evidence: '<script>untrusted evidence</script>', createdAt: '2026-11-01T00:00:00Z' }] : [] }, isLoading: false, error: null }) }));
 const customer: Customer = { id: 'customer', name: 'Owner', reference: 'OWN', email: 'owner@example.test', properties: 1, units: '40', challenge: 'Migration assistance', source: 'Manual', stage: 'NEW', leadStatus: 'New', consent: 'UNKNOWN', revision: 3 };
 describe('customer outreach review', () => {
   it('shows consent evidence safely and explains approval and delivery limits', () => {
     state.admin = true; const html = renderToStaticMarkup(<SalesCustomerOutreach customer={customer}/>);
     expect(html).toContain('&lt;script&gt;untrusted evidence&lt;/script&gt;'); expect(html).not.toContain('<script>');
-    expect(html).toContain('fresh administrator review'); expect(html).toContain('Delivery does not confirm'); expect(html).toContain('Record consent evidence'); expect(html).toContain('Correct primary contact');
+    expect(html).toContain('fresh administrator review'); expect(html).toContain('Delivery does not confirm'); expect(html).toContain('Record consent evidence'); expect(html).toContain('Correct primary contact'); expect(html).toContain('Prepare approved WhatsApp template'); expect(html).toContain('No supported approved marketing templates');
   });
   it('hides administrative mutation forms from read-only delegates', () => {
     state.admin = false; state.permissions = ['sales.outreach.read', 'sales.notes.read'];

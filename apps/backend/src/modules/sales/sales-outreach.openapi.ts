@@ -6,6 +6,11 @@ function op(summary: string, schema?: z.ZodType, params: string[] = [], publicRo
 }
 export const salesOutreachPaths = {
   '/sales/success/outreach/capabilities': { get: op('Administrator transport configuration and persisted last acceptance; configured does not prove authentication') },
+  '/sales/success/outreach/whatsapp/templates': { get: op('Bounded authorized business sender and supported approved marketing templates; optional exact name query') },
+  '/sales/outreach/webhooks/whatsapp': {
+    get: { ...op('Verify configured WhatsApp subscription token and return numeric challenge; no preference or dispatch effects', undefined, [], true), parameters: ['hub.mode', 'hub.verify_token', 'hub.challenge'].map(name => ({ in: 'query', name, required: true, schema: { type: 'string' } })) },
+    post: { ...op('Verify raw X-Hub-Signature-256 HMAC, bind business/sender/recipient/attempt and atomically deduplicate database effects; no automatic reply or media retrieval', undefined, [], true), parameters: [{ in: 'header', name: 'X-Hub-Signature-256', required: true, schema: { type: 'string' } }], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: true } } } } },
+  },
   '/sales/success/customers/{id}/consents': { get: op('Scoped latest 20 consent evidence entries including merged history', undefined, ['id']), post: op('Fresh administrator records explicit channel consent or global sales opt-out', consentEvidenceSchema, ['id']) },
   '/sales/success/customers/{id}/messages': { get: op('Scoped messages, bounded page query (1..10000), 20 per page, no content or contact in list', undefined, ['id']), post: op('Prepare immutable email or bounded SMS draft against approved campaign and current channel consent; email requires subject, SMS ignores subject and includes branded STOP instructions', outreachDraftSchema, ['id']) },
   '/sales/success/customers/{id}/messages/{messageId}': { get: op('Scoped exact message preview and campaign ceilings; expired content is redacted', undefined, ['id', 'messageId']) },

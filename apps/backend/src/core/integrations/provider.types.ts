@@ -9,7 +9,7 @@ export type RefundStatus = 'PENDING' | 'PROCESSING' | 'NEEDS_ATTENTION' | 'FAILE
 export interface RefundResult { providerRefundId: number; transactionId?: number; amountMinorUnits: number; currency: string; status: RefundStatus; }
 export interface RefundProvider { createRefund(transactionReference: string, reason: string): Promise<RefundResult>; getRefund(providerRefundId: number): Promise<RefundResult>; }
 
-export interface MessageInput { to:string; subject?:string; body:string; html?:string; from?:string; metadata?:Record<string,unknown>; idempotencyKey?:string; replyTo?:string; salesMessageId?:string; listUnsubscribeUrl?:string; statusCallback?:string; validityPeriodSeconds?:number; }
+export interface MessageInput { to:string; subject?:string; body:string; html?:string; from?:string; metadata?:Record<string,unknown>; idempotencyKey?:string; replyTo?:string; salesMessageId?:string; listUnsubscribeUrl?:string; statusCallback?:string; validityPeriodSeconds?:number; whatsappTemplate?:{name:string;language:string;values:string[]}; }
 export interface MessageResult { provider:string; providerMessageId:string; status:'QUEUED'|'SENT'|'DELIVERED'|'FAILED'; raw?:unknown; }
 export interface EmailProvider { readonly key:ProviderKey; send(input:MessageInput):Promise<MessageResult>; }
 export interface SmsProvider { readonly key:ProviderKey; send(input:MessageInput):Promise<MessageResult>; }

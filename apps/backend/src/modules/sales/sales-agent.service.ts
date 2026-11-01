@@ -128,7 +128,7 @@ export class SalesAgentService {
           ? "CONFIGURED_UNVERIFIED"
           : "NOT_CONFIGURED",
         calendar: "NOT_CONNECTED",
-        outreach: salesDeliveryProvider('EMAIL') || salesDeliveryProvider('SMS') ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED',
+        outreach: salesDeliveryProvider('EMAIL') || salesDeliveryProvider('SMS') || salesDeliveryProvider('WHATSAPP') ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED',
         research: salesResearchProvider() ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED',
       },
       agents: successAgents.map((definition) => {

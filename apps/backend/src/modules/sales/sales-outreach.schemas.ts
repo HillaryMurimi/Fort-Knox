@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { objectId } from './sales-success.schemas.js';
+import { waTemplateInput } from '../../integrations/notifications/sales-whatsapp.provider.js';
 export const salesChannelSchema = z.enum(['EMAIL', 'SMS', 'WHATSAPP']);
 export const salesTimezoneSchema = z.string().min(3).max(80).refine(v => { try { new Intl.DateTimeFormat('en', { timeZone: v }).format(); return true; } catch { return false; } }, { message: 'Use a valid IANA timezone' });
 export const consentEvidenceSchema = z.object({
@@ -11,7 +12,8 @@ export const outreachDraftSchema = z.object({
   campaignId: objectId, commandId: z.uuid(), originApprovalId: objectId.optional(),
   subject: z.string().trim().min(3).max(200).refine(v => !/[\r\n]/.test(v)).optional(),
   body: z.string().trim().min(10).max(8000).optional(),
-}).strict().refine(v => v.originApprovalId || v.body, { message: 'Provide an approved agent draft or a message body for review' });
+  whatsappTemplate: waTemplateInput.optional(),
+}).strict().refine(v => v.originApprovalId || v.body || v.whatsappTemplate, { message: 'Provide an approved agent draft, message body or approved WhatsApp template selection for review' });
 export const outreachDecisionSchema = z.object({
   action: z.enum(['SUBMIT', 'APPROVE', 'REJECT', 'CANCEL', 'RESUME']), revision: z.number().int().nonnegative(),
   payloadHash: z.string().regex(/^[a-f0-9]{64}$/), reason: z.string().trim().min(10).max(2000),

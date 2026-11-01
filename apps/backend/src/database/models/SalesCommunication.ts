@@ -53,6 +53,11 @@ const message = new Schema({
   leaseOwner: String, leaseUntil: Date, nextAttemptAt: Date, errorCode: String,
   estimatedCostMicroUsd: { type: Number, required: true, min: 0 },
   smsSegments: { type: Number, min: 1, max: 3 }, smsEncoding: { type: String, enum: ['GSM7', 'UCS2'] },
+  whatsappTemplate: { type: new Schema({
+    id: { type: String, required: true }, name: { type: String, required: true }, language: { type: String, required: true }, hash: { type: String, required: true },
+    bindings: [{ type: String, enum: ['CUSTOMER_NAME', 'PLANS_URL', 'DEMO_URL'] }], values: { type: [String], default: undefined },
+    businessAccountId: { type: String, required: true }, phoneNumberId: { type: String, required: true }, senderName: { type: String, required: true }, checkedAt: { type: Date, required: true },
+  }, { _id: false }), default: undefined },
   unsubscribeHash: { type: String, required: true, select: false }, replyHash: { type: String, select: false }, replyTo: String,
   unsubscribeUrl: { type: String, required: true },
   contentExpiresAt: Date, redactedAt: Date,

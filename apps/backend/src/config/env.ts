@@ -39,6 +39,11 @@ export const envSchema = z
     SALES_SMS_COST_PER_SEGMENT_MICRO_USD: z.coerce.number().int().nonnegative().max(100000000).default(0),
     SALES_SMS_MAX_SEGMENTS: z.coerce.number().int().min(1).max(3).default(2),
     SALES_SMS_REQUESTS_PER_MINUTE: z.coerce.number().int().min(1).max(60).default(10),
+    SALES_WHATSAPP_BUSINESS_ACCOUNT_ID: optionalValue(z.string().regex(/^\d{5,40}$/)),
+    SALES_WHATSAPP_APP_SECRET: optionalValue(z.string().min(24).max(256)),
+    SALES_WHATSAPP_VERIFY_TOKEN: optionalValue(z.string().min(32).max(256)),
+    SALES_WHATSAPP_ESTIMATED_MICRO_USD: z.coerce.number().int().nonnegative().max(100000000).default(0),
+    SALES_WHATSAPP_REQUESTS_PER_MINUTE: z.coerce.number().int().min(1).max(60).default(10),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),

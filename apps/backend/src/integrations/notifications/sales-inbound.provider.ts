@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { AppError } from '../../core/errors/AppError.js';
+import { readBoundedJson } from '../../core/integrations/http.js';
 export interface ReceivedSalesEmail {
   id: string; to: string[]; from: string; subject: string; text: string; occurredAt: Date;
   domainAuthenticated: boolean; truncated: boolean;
@@ -17,18 +18,11 @@ export function normalizedMailbox(value: string) {
   return z.email().max(320).safeParse(address).success ? address : null;
 }
 export async function boundedMailJson(response: Response): Promise<unknown> {
-  const reader = response.body?.getReader();
-  if (!reader) throw new AppError(503, 'SALES_INBOUND_UNAVAILABLE', 'Incoming email content is unavailable');
-  const chunks: Uint8Array[] = []; let bytes = 0;
-  try {
-    for (;;) {
-      const next = await reader.read(); if (next.done) break;
-      bytes += next.value.byteLength;
-      if (bytes > 1048576) { await reader.cancel(); throw new AppError(413, 'SALES_INBOUND_TOO_LARGE', 'Incoming content exceeded the safe retrieval limit'); }
-      chunks.push(next.value);
-    }
-    return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
-  } finally { reader.releaseLock(); }
+  try { return await readBoundedJson(response); }
+  catch (error) {
+    if (error instanceof Error && error.message === 'HTTP_RESPONSE_TOO_LARGE') throw new AppError(413, 'SALES_INBOUND_TOO_LARGE', 'Incoming content exceeded the safe retrieval limit');
+    throw new AppError(503, 'SALES_INBOUND_UNAVAILABLE', 'Incoming email content is unavailable');
+  }
 }
 export class ResendSalesInbound implements SalesInboundProvider {
   async retrieve(raw: string): Promise<ReceivedSalesEmail> {

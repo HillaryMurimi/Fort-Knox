@@ -7,6 +7,11 @@ import { SalesConsentService } from './sales-consent.service.js';
 import { SalesOutreachWebhookService } from './sales-outreach-webhook.service.js';
 import { SalesSmsWebhookService } from './sales-sms-webhook.service.js';
 import { z } from 'zod';
+import { SalesWhatsAppWebhookService } from './sales-whatsapp-webhook.service.js';
+import { verifySalesWhatsAppChallenge } from '../../integrations/notifications/sales-whatsapp-webhook.js';
+export async function whatsappTemplates(req: Request, res: Response) { res.json(apiResponse(await service.whatsappTemplates(auth(req), req.query))); }
+export async function whatsappChallenge(req: Request, res: Response) { res.setHeader('Cache-Control', 'no-store'); res.type('text/plain').send(verifySalesWhatsAppChallenge(req.query)); }
+export async function whatsappWebhook(req: Request, res: Response) { res.setHeader('Cache-Control', 'no-store'); res.json(apiResponse(await SalesWhatsAppWebhookService.receive((req as Request & { rawBody?: Buffer }).rawBody, req.get('x-hub-signature-256')))); }
 const auth = (req: Request) => { if (!req.auth) throw new AppError(401, 'AUTH_REQUIRED', 'Authentication required'); return req.auth; };
 export async function capabilities(req: Request, res: Response) { res.json(apiResponse(await service.capabilities(auth(req)))); }
 export async function list(req: Request, res: Response) { res.json(apiResponse(await service.list(auth(req), objectId.parse(req.params.id), req.query))); }

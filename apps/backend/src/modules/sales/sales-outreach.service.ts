@@ -13,6 +13,9 @@ import { Job } from '../../database/models/Job.js';
 import { PlatformSwitch } from '../../database/models/PlatformSwitch.js';
 import { salesDeliveryProvider } from '../../integrations/notifications/sales-delivery.provider.js';
 import { salesSmsBody, salesSmsConfigured, salesTwilioCallbackUrl } from '../../integrations/notifications/sales-sms.policy.js';
+import { salesWhatsAppProvider, salesWhatsAppConfigured, renderSalesTemplate, waBindingKinds } from '../../integrations/notifications/sales-whatsapp.provider.js';
+import { z } from 'zod';
+import { SalesLead } from '../../database/models/SalesLead.js';
 import { assertFreshAdmin } from '../auth/admin-security.js';
 import { assertSwitchEnabled } from '../platform-control/platform-control.guard.js';
 import { AuditService } from '../audit/audit.service.js';
@@ -30,10 +33,11 @@ type Message = HydratedDocument<SalesMessageRecord>;
 const terminal = ['SENT', 'FAILED', 'UNCERTAIN', 'CANCELLED', 'SUPPRESSED', 'EXPIRED', 'REJECTED'];
 export const salesSenderConfigHash = (provider: string) => provider === 'TWILIO'
   ? payloadHash({ provider, sender: env.SALES_SMS_FROM, account: env.TWILIO_ACCOUNT_SID, credentialFingerprint: opaqueHash(env.TWILIO_AUTH_TOKEN ?? ''), callback: salesTwilioCallbackUrl(), cost: env.SALES_SMS_COST_PER_SEGMENT_MICRO_USD, segments: env.SALES_SMS_MAX_SEGMENTS, recipientDailyLimit: env.SALES_RECIPIENT_DAILY_LIMIT })
+  : provider === 'WHATSAPP_CLOUD' ? payloadHash({ provider, phoneId: env.WHATSAPP_PHONE_NUMBER_ID, businessId: env.SALES_WHATSAPP_BUSINESS_ACCOUNT_ID, credentialFingerprint: opaqueHash(env.WHATSAPP_ACCESS_TOKEN ?? ''), appFingerprint: opaqueHash(env.SALES_WHATSAPP_APP_SECRET ?? ''), version: env.FACEBOOK_GRAPH_VERSION, origin: env.WEB_ORIGIN, cost: env.SALES_WHATSAPP_ESTIMATED_MICRO_USD, recipientDailyLimit: env.SALES_RECIPIENT_DAILY_LIMIT })
   : payloadHash({ provider, sender: env.EMAIL_FROM, name: env.EMAIL_FROM_NAME, replyDomain: env.SALES_REPLY_DOMAIN, origin: env.WEB_ORIGIN, credentialFingerprint: opaqueHash(env.RESEND_API_KEY ?? ''), cost: env.SALES_EMAIL_ESTIMATED_MICRO_USD, recipientDailyLimit: env.SALES_RECIPIENT_DAILY_LIMIT });
-const transportSwitch = (channel: string) => channel === 'SMS' ? 'SMS_NOTIFICATIONS' : 'EMAIL_NOTIFICATIONS';
+const transportSwitch = (channel: string) => channel === 'WHATSAPP' ? 'WHATSAPP_NOTIFICATIONS' : channel === 'SMS' ? 'SMS_NOTIFICATIONS' : 'EMAIL_NOTIFICATIONS';
 const senderFor = (channel: string) => channel === 'SMS' ? env.SALES_SMS_FROM : env.EMAIL_FROM;
-const transportReady = (channel: string) => channel === 'SMS' ? salesSmsConfigured() : !!(env.EMAIL_FROM && env.SALES_REPLY_DOMAIN && env.SALES_RESEND_WEBHOOK_SECRET);
+const transportReady = (channel: string) => channel === 'WHATSAPP' ? salesWhatsAppConfigured() : channel === 'SMS' ? salesSmsConfigured() : !!(env.EMAIL_FROM && env.SALES_REPLY_DOMAIN && env.SALES_RESEND_WEBHOOK_SECRET);
 // The recipient is deliberately selected only for scoped preview, decision and delivery paths.
 export function outreachPayload(m: SalesMessageRecord) {
   return { leadId: String(m.leadId), campaignId: String(m.campaignId), campaignHash: m.campaignHash, channel: m.channel, provider: m.provider,
@@ -43,6 +47,7 @@ export function outreachPayload(m: SalesMessageRecord) {
     unsubscribeUrl: m.unsubscribeUrl, originApprovalId: m.originApprovalId ? String(m.originApprovalId) : null,
     followUpId: m.followUpId ? String(m.followUpId) : null, contentExpiresAt: m.contentExpiresAt?.toISOString(),
     ...(m.channel === 'SMS' ? { smsSegments: m.smsSegments, smsEncoding: m.smsEncoding } : {}),
+    ...(m.channel === 'WHATSAPP' ? { whatsappTemplate: m.whatsappTemplate ? { id: m.whatsappTemplate.id, name: m.whatsappTemplate.name, language: m.whatsappTemplate.language, hash: m.whatsappTemplate.hash, bindings: [...m.whatsappTemplate.bindings], values: [...(m.whatsappTemplate.values ?? [])], businessAccountId: m.whatsappTemplate.businessAccountId, phoneNumberId: m.whatsappTemplate.phoneNumberId, senderName: m.whatsappTemplate.senderName, checkedAt: m.whatsappTemplate.checkedAt.toISOString() } : null } : {}),
   };
 }
 async function campaignFor(m: { campaignId: Types.ObjectId; campaignHash?: string }, session?: ClientSession, active = false) {
@@ -76,20 +81,36 @@ async function consentMatches(m: SalesMessageRecord, session?: ClientSession) {
   if ((consent.control.lastResponseAt && consent.control.lastResponseAt >= m.createdAt) || (consent.control.lastReplyAt && consent.control.lastReplyAt >= m.createdAt) || (m.lastReplyAt && m.lastReplyAt >= m.createdAt)) throw new AppError(409, 'OUTREACH_REPLY_RECEIVED', 'A response arrived at or after this draft; review the conversation before preparing another message');
   return consent;
 }
+async function assertWhatsAppSnapshot(m: SalesMessageRecord) {
+  const provider = salesWhatsAppProvider(), snapshot = m.whatsappTemplate;
+  if (!provider || !snapshot) throw new AppError(503, 'WHATSAPP_NOT_CONFIGURED', 'An authorized WhatsApp template provider is required');
+  const [sender, template, lead] = await Promise.all([provider.sender(), provider.template(snapshot), SalesLead.findOne({ _id: m.leadId, mergedInto: { $exists: false } }).select('name').lean()]);
+  if (!lead || sender.phone !== m.sender || sender.name !== snapshot.senderName || sender.phoneNumberId !== snapshot.phoneNumberId || sender.businessAccountId !== snapshot.businessAccountId || template.hash !== snapshot.hash) throw new AppError(409, 'WHATSAPP_TEMPLATE_CHANGED', 'Sender or approved template changed after the reviewed snapshot');
+  const rendered = renderSalesTemplate(template, z.array(z.enum(waBindingKinds)).parse(snapshot.bindings), lead.name);
+  if (rendered.text !== m.body || JSON.stringify(rendered.values) !== JSON.stringify(snapshot.values)) throw new AppError(409, 'WHATSAPP_TEMPLATE_CHANGED', 'Current template values no longer match the reviewed message');
+}
 
 export class SalesOutreachService {
+  static async whatsappTemplates(auth: AuthenticatedUser, raw: unknown) {
+    assertSuccessPermission(auth, 'sales.outreach.prepare');
+    const { name } = z.object({ name: z.string().regex(/^[a-z0-9_]{1,512}$/).optional() }).strict().parse(raw);
+    const provider = salesWhatsAppProvider(); if (!provider) throw new AppError(503, 'WHATSAPP_NOT_CONFIGURED', 'Configure the authorized WhatsApp business sender and template access');
+    const [sender, templates] = await Promise.all([provider.sender(), provider.templates(name)]);
+    assertSuccessPermission(await SalesAgentRepository.principal(auth.userId), 'sales.outreach.prepare');
+    return { sender, ...templates, limit: 50, policy: 'APPROVED_MARKETING_TEXT_WITH_CONTROLLED_BODY_BINDINGS' };
+  }
   static async capabilities(auth: AuthenticatedUser) {
     AuthorizationService.assertPlatformAdmin(auth);
     const provider = salesDeliveryProvider('EMAIL'), last = await SalesMessage.findOne({ channel: 'EMAIL', provider: provider?.key ?? env.EMAIL_PROVIDER, senderConfigHash: salesSenderConfigHash(provider?.key ?? env.EMAIL_PROVIDER), providerAcceptedAt: { $type: 'date' } }).select('providerAcceptedAt provider').sort({ providerAcceptedAt: -1 }).lean();
-    const switches = await PlatformSwitch.find({ key: { $in: ['SALES_OUTBOUND', 'SALES_EMAIL', 'EMAIL_NOTIFICATIONS', 'SALES_SMS', 'SMS_NOTIFICATIONS'] } }).select('key enabled mode').lean();
+    const switches = await PlatformSwitch.find({ key: { $in: ['SALES_OUTBOUND', 'SALES_EMAIL', 'EMAIL_NOTIFICATIONS', 'SALES_SMS', 'SMS_NOTIFICATIONS', 'SALES_WHATSAPP', 'WHATSAPP_NOTIFICATIONS'] } }).select('key enabled mode').lean();
     const on = (key: string) => switches.some(s => s.key === key && s.enabled && s.mode === 'ON');
     const costPolicyConfigured = env.NODE_ENV === 'test' || env.SALES_EMAIL_ESTIMATED_MICRO_USD > 0;
     const sms = salesDeliveryProvider('SMS'), smsCostPolicy = env.NODE_ENV === 'test' || env.SALES_SMS_COST_PER_SEGMENT_MICRO_USD > 0;
-    return { email: { provider: provider?.key ?? env.EMAIL_PROVIDER, configured: !!provider, authentication: 'UNVERIFIED', sendingAvailable: !!provider && !!env.EMAIL_FROM && costPolicyConfigured && !!env.SALES_RESEND_WEBHOOK_SECRET && !!env.SALES_REPLY_DOMAIN && ['SALES_OUTBOUND', 'SALES_EMAIL', 'EMAIL_NOTIFICATIONS'].every(on), costPolicyConfigured, webhook: env.SALES_RESEND_WEBHOOK_SECRET ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED', inbound: env.SALES_REPLY_DOMAIN ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED', lastSuccessfulOperation: last?.providerAcceptedAt ?? null, applicationRequestsPerMinute: env.SALES_EMAIL_REQUESTS_PER_MINUTE, providerRateLimit: 'UNVERIFIED' }, sms: { configured: !!sms && salesSmsConfigured(), salesAdapterAvailable: true, sendingAvailable: !!sms && salesSmsConfigured() && smsCostPolicy && ['SALES_OUTBOUND', 'SALES_SMS', 'SMS_NOTIFICATIONS'].every(on), authentication: 'UNVERIFIED', dedicatedSenderRequired: true, costPolicyConfigured: smsCostPolicy, maximumSegments: env.SALES_SMS_MAX_SEGMENTS, applicationRequestsPerMinute: env.SALES_SMS_REQUESTS_PER_MINUTE, webhook: salesSmsConfigured() ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED', providerRateLimit: 'UNVERIFIED', automaticResend: false }, whatsapp: { configured: !!(env.WHATSAPP_PHONE_NUMBER_ID && env.WHATSAPP_ACCESS_TOKEN), salesAdapterAvailable: false, sendingAvailable: false } };
+    return { email: { provider: provider?.key ?? env.EMAIL_PROVIDER, configured: !!provider, authentication: 'UNVERIFIED', sendingAvailable: !!provider && !!env.EMAIL_FROM && costPolicyConfigured && !!env.SALES_RESEND_WEBHOOK_SECRET && !!env.SALES_REPLY_DOMAIN && ['SALES_OUTBOUND', 'SALES_EMAIL', 'EMAIL_NOTIFICATIONS'].every(on), costPolicyConfigured, webhook: env.SALES_RESEND_WEBHOOK_SECRET ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED', inbound: env.SALES_REPLY_DOMAIN ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED', lastSuccessfulOperation: last?.providerAcceptedAt ?? null, applicationRequestsPerMinute: env.SALES_EMAIL_REQUESTS_PER_MINUTE, providerRateLimit: 'UNVERIFIED' }, sms: { configured: !!sms && salesSmsConfigured(), salesAdapterAvailable: true, sendingAvailable: !!sms && salesSmsConfigured() && smsCostPolicy && ['SALES_OUTBOUND', 'SALES_SMS', 'SMS_NOTIFICATIONS'].every(on), authentication: 'UNVERIFIED', dedicatedSenderRequired: true, costPolicyConfigured: smsCostPolicy, maximumSegments: env.SALES_SMS_MAX_SEGMENTS, applicationRequestsPerMinute: env.SALES_SMS_REQUESTS_PER_MINUTE, webhook: salesSmsConfigured() ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED', providerRateLimit: 'UNVERIFIED', automaticResend: false }, whatsapp: { configured: salesWhatsAppConfigured(), salesAdapterAvailable: true, sendingAvailable: salesWhatsAppConfigured() && (env.NODE_ENV === 'test' || env.SALES_WHATSAPP_ESTIMATED_MICRO_USD > 0) && ['SALES_OUTBOUND', 'SALES_WHATSAPP', 'WHATSAPP_NOTIFICATIONS'].every(on), authentication: 'UNVERIFIED', templatePolicy: 'APPROVED_MARKETING_ONLY', automaticResend: false, applicationRequestsPerMinute: env.SALES_WHATSAPP_REQUESTS_PER_MINUTE } };
   }
   static async list(auth: AuthenticatedUser, id: string, raw: unknown) {
     const lead = await SuccessRepository.load(auth, id, 'sales.leads.read'); assertSuccessPermission(auth, 'sales.outreach.read'); const { page } = outreachPageSchema.parse(raw);
-    const items = await SalesMessage.find({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] } }).select('-body -replyTo -unsubscribeUrl -commandHash').sort({ createdAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).lean();
+    const items = await SalesMessage.find({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] } }).select('-body -replyTo -unsubscribeUrl -commandHash -whatsappTemplate.values').sort({ createdAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).lean();
     return { items: items.map(m => m.contentExpiresAt && m.contentExpiresAt <= new Date() ? { ...m, subject: undefined, redactedAt: m.redactedAt ?? m.contentExpiresAt } : m), page, limit: 20 };
   }
   static async view(auth: AuthenticatedUser, id: string, messageId: string) {
@@ -98,7 +119,7 @@ export class SalesOutreachService {
     if (!message) throw new AppError(404, 'OUTREACH_MESSAGE_NOT_FOUND', 'Message is unavailable for this customer');
     const campaign = await SalesCampaign.findById(message.campaignId).select('name status startsAt endsAt dailySendLimit perContactLimit budgetMicroUsd').lean();
     const expired = message.contentExpiresAt && message.contentExpiresAt <= new Date();
-    return { message: expired ? { ...message, subject: undefined, recipient: undefined, body: 'Message content expired under retention.', redactedAt: message.redactedAt ?? message.contentExpiresAt } : message, campaign };
+    return { message: expired ? { ...message, subject: undefined, recipient: undefined, whatsappTemplate: message.whatsappTemplate ? { ...message.whatsappTemplate, values: undefined } : undefined, body: 'Message content expired under retention.', redactedAt: message.redactedAt ?? message.contentExpiresAt } : message, campaign };
   }
   static async conversations(auth: AuthenticatedUser, id: string, raw: unknown) {
     const lead = await SuccessRepository.load(auth, id, 'sales.leads.read'); assertSuccessPermission(auth, 'sales.outreach.read'); assertSuccessPermission(auth, 'sales.notes.read'); const { page } = outreachPageSchema.parse(raw);
@@ -115,23 +136,33 @@ export class SalesOutreachService {
       return { id: String(existing._id), status: existing.status };
     }
     const campaign = await campaignFor({ campaignId: new Types.ObjectId(input.campaignId) });
-    if (!['EMAIL', 'SMS'].includes(campaign.channel)) throw new AppError(503, 'OUTREACH_CHANNEL_NOT_READY', 'This channel does not yet have an enabled sales delivery adapter');
     const provider = salesDeliveryProvider(campaign.channel);
-    const sender = senderFor(campaign.channel);
-    if (!provider || !sender) throw new AppError(503, 'OUTREACH_PROVIDER_NOT_CONFIGURED', 'Configure the approved dedicated business sender before preparing deliverable messages');
+    let sender = senderFor(campaign.channel);
+    if (!provider || (!sender && campaign.channel !== 'WHATSAPP')) throw new AppError(503, 'OUTREACH_PROVIDER_NOT_CONFIGURED', 'Configure the approved dedicated business sender before preparing deliverable messages');
     const consent = await SalesConsentService.eligible(lead._id, campaign.channel);
     let subject = input.subject, body = input.body;
+    if (input.whatsappTemplate && campaign.channel !== 'WHATSAPP') throw new AppError(400, 'WHATSAPP_TEMPLATE_CHANNEL_REQUIRED', 'Template selection is valid only for WhatsApp campaigns');
     if (input.originApprovalId) {
       assertSuccessPermission(auth, 'sales.agents.read'); assertSuccessPermission(auth, 'sales.meetings.read');
       const proposal = await SalesAgentApproval.findOne({ _id: input.originApprovalId, leadId: lead._id, tool: 'OUTREACH_DRAFT', status: { $in: ['APPROVED', 'COMPLETED'] }, decisionAt: { $gte: new Date(Date.now() - 7 * 86400000) } });
       if (!proposal || payloadHash(proposal.payload) !== proposal.payloadHash) throw new AppError(409, 'APPROVAL_CHANGED', 'Select a recently approved outreach proposal for this customer');
       const action = agentOutputSchema.shape.action.parse(proposal.payload); subject = action.subject ?? 'Dapinni product briefing'; body = action.text;
     }
-    if (!body || body.length > 8000 || (campaign.channel === 'EMAIL' && (!subject || subject.length > 200 || /[\r\n]/.test(subject)))) throw new AppError(400, 'OUTREACH_CONTENT_INVALID', 'A reviewed message body and an email subject where applicable are required');
+    let whatsappTemplate: SalesMessageRecord['whatsappTemplate'];
+    if (campaign.channel === 'WHATSAPP') {
+      if (!input.whatsappTemplate || input.body || input.subject) throw new AppError(400, 'WHATSAPP_TEMPLATE_REQUIRED', 'Select an approved WhatsApp template instead of supplying arbitrary message text');
+      const source = salesWhatsAppProvider(); if (!source) throw new AppError(503, 'WHATSAPP_NOT_CONFIGURED', 'Configure authorized WhatsApp template access');
+      const [identity, template] = await Promise.all([source.sender(), source.template(input.whatsappTemplate)]);
+      const rendered = renderSalesTemplate(template, input.whatsappTemplate.bindings, lead.name);
+      sender = identity.phone; body = rendered.text; subject = undefined;
+      whatsappTemplate = { id: template.id, name: template.name, language: template.language, hash: template.hash, bindings: input.whatsappTemplate.bindings, values: rendered.values, businessAccountId: identity.businessAccountId, phoneNumberId: identity.phoneNumberId, senderName: identity.name, checkedAt: new Date() };
+      const current = await SalesAgentRepository.principal(auth.userId); await SuccessRepository.load(current, id, 'sales.outreach.prepare'); assertSuccessPermission(current, 'sales.notes.read');
+    }
+    if (!sender || !body || body.length > 8000 || (campaign.channel === 'EMAIL' && (!subject || subject.length > 200 || /[\r\n]/.test(subject)))) throw new AppError(400, 'OUTREACH_CONTENT_INVALID', 'A reviewed message body and an email subject where applicable are required');
     const unsubscribe = randomBytes(32).toString('base64url'), reply = randomBytes(32).toString('base64url').toLowerCase();
     const unsubscribeUrl = env.WEB_ORIGIN.replace(/\/$/, '') + '/sales/unsubscribe/' + unsubscribe;
     const sms = campaign.channel === 'SMS' ? salesSmsBody(body) : undefined;
-    const renderedBody = sms?.text ?? body + '\n\nDapinni Real Estate Solutions\nTo stop sales updates: ' + unsubscribeUrl;
+    const renderedBody = whatsappTemplate ? body : sms?.text ?? body + '\n\nDapinni Real Estate Solutions\nTo stop sales updates: ' + unsubscribeUrl;
     if (campaign.channel === 'SMS') subject = undefined;
     const contentFingerprint = payloadHash({ subject, body: sms?.text ?? body, channel: campaign.channel });
     const contentExpiresAt = new Date(Date.now() + env.SALES_OUTREACH_CONTENT_RETENTION_DAYS * 86400000);
@@ -141,7 +172,8 @@ export class SalesOutreachService {
           channel: campaign.channel, provider: provider.key, recipient: consent.contact, recipientHash: consent.hash, consentEventId: consent.event._id, consentEpoch: consent.lead.consentRevision ?? 0,
           sender, senderConfigHash: salesSenderConfigHash(provider.key), subject, body: renderedBody,
           timezone: consent.event.timezone, recipientDailyLimit: env.SALES_RECIPIENT_DAILY_LIMIT, commandId: input.commandId, commandHash: digest, contentFingerprint,
-          estimatedCostMicroUsd: sms ? sms.segments * env.SALES_SMS_COST_PER_SEGMENT_MICRO_USD : env.SALES_EMAIL_ESTIMATED_MICRO_USD, unsubscribeHash: opaqueHash(unsubscribe), unsubscribeUrl,
+          estimatedCostMicroUsd: whatsappTemplate ? env.SALES_WHATSAPP_ESTIMATED_MICRO_USD : sms ? sms.segments * env.SALES_SMS_COST_PER_SEGMENT_MICRO_USD : env.SALES_EMAIL_ESTIMATED_MICRO_USD, unsubscribeHash: opaqueHash(unsubscribe), unsubscribeUrl,
+          ...(whatsappTemplate ? { whatsappTemplate } : {}),
           ...(sms ? { smsSegments: sms.segments, smsEncoding: sms.encoding } : {}),
           ...(campaign.channel === 'EMAIL' && env.SALES_REPLY_DOMAIN ? { replyTo: 'sales-' + reply + '@' + env.SALES_REPLY_DOMAIN.toLowerCase(), replyHash: opaqueHash(reply) } : {}),
           contentExpiresAt,
@@ -165,6 +197,14 @@ export class SalesOutreachService {
     const lead = await SuccessRepository.load(auth, id, 'sales.outreach.prepare');
     if (['APPROVE', 'RESUME', 'REJECT'].includes(input.action)) assertFreshAdmin(auth);
     if (['APPROVE', 'RESUME'].includes(input.action)) await assertOutreachIndexes();
+    // Provider reads must finish outside the transaction; the transaction fences the exact reviewed snapshot.
+    if (['APPROVE', 'RESUME'].includes(input.action)) {
+      const candidate = await SalesMessage.findOne({ _id: messageId, leadId: lead._id, revision: input.revision, payloadHash: input.payloadHash }).select('+recipient');
+      if (!candidate) throw new AppError(409, 'OUTREACH_MESSAGE_CHANGED', 'Reload the exact message before reviewing it');
+      if (candidate.channel === 'WHATSAPP') await assertWhatsAppSnapshot(candidate);
+      AuthorizationService.assertPlatformAdmin(await SalesAgentRepository.principal(auth.userId));
+      assertFreshAdmin(auth);
+    }
     return salesTransaction(async session => {
       const message = await SalesMessage.findOne({ _id: messageId, leadId: { $in: [lead._id, ...lead.mergedLeadIds] }, revision: input.revision, payloadHash: input.payloadHash }).select('+recipient').session(session);
       if (!message || message.redactedAt || message.payloadHash !== payloadHash(outreachPayload(message))) throw new AppError(409, 'OUTREACH_MESSAGE_CHANGED', 'Reload the exact message before reviewing it');
@@ -211,7 +251,7 @@ export class SalesOutreachService {
     return salesTransaction(async session => {
       const message = await SalesMessage.findOne({ _id: messageId, contentExpiresAt: { $lte: new Date() }, redactedAt: { $exists: false } }).session(session);
       if (message) {
-        await SalesMessage.updateOne({ _id: message._id }, { $set: { body: 'Message content expired under retention.', redactedAt: new Date(), ...(['DRAFT', 'PENDING_APPROVAL', 'QUEUED', 'PAUSED'].includes(message.status) ? { status: message.firstAttemptAt ? 'UNCERTAIN' : 'EXPIRED', ...(!message.firstAttemptAt ? { dedupeActive: false } : {}) } : {}) }, $unset: { recipient: 1, subject: 1 } }, { session });
+        await SalesMessage.updateOne({ _id: message._id }, { $set: { body: 'Message content expired under retention.', redactedAt: new Date(), ...(['DRAFT', 'PENDING_APPROVAL', 'QUEUED', 'PAUSED'].includes(message.status) ? { status: message.firstAttemptAt ? 'UNCERTAIN' : 'EXPIRED', ...(!message.firstAttemptAt ? { dedupeActive: false } : {}) } : {}) }, $unset: { recipient: 1, subject: 1, 'whatsappTemplate.values': 1 } }, { session });
         await Notification.updateOne({ _id: message.notificationId, type: 'SALES_OUTREACH' }, { $set: { body: 'Message content expired under retention.', title: 'Dapinni sales message', ...(['DRAFT', 'PENDING_APPROVAL', 'QUEUED', 'PAUSED'].includes(message.status) ? { status: 'CANCELLED' } : {}) } }, { session });
       }
       const entries = await SalesConversationEntry.updateMany({ messageId: new Types.ObjectId(messageId), contentExpiresAt: { $lte: new Date() }, redactedAt: { $exists: false } }, { $set: { text: 'Conversation content expired under retention.', redactedAt: new Date() }, $unset: { subject: 1 } }, { session });
@@ -237,6 +277,7 @@ export class SalesOutreachService {
     try {
       await enabled(initial.channel); await assertSwitchEnabled(transportSwitch(initial.channel));
       if (!provider || provider.key !== initial.provider || !transportReady(initial.channel) || initial.senderConfigHash !== salesSenderConfigHash(provider.key)) throw new AppError(409, 'OUTREACH_CONFIG_CHANGED', 'Reviewed delivery configuration changed');
+      if (initial.channel === 'WHATSAPP') await assertWhatsAppSnapshot(initial);
       await responsible(initial);
       if (!initial.reviewedBy) throw new AppError(409, 'OUTREACH_APPROVAL_REQUIRED', 'Human review is required');
       AuthorizationService.assertPlatformAdmin(await SalesAgentRepository.principal(initial.reviewedBy));
@@ -278,7 +319,7 @@ export class SalesOutreachService {
       if (!claimed) return { deferred: true };
       // Final policy checks occur immediately before transport; in-flight provider requests cannot be recalled.
       await enabled(claimed.channel); await consentMatches(claimed);
-      const result = await provider.send({ to: claimed.recipient, from: claimed.sender, subject: claimed.subject ?? 'Dapinni sales update', body: claimed.body, idempotencyKey: 'sales-message/' + claimed._id, salesMessageId: String(claimed._id), ...(claimed.replyTo ? { replyTo: claimed.replyTo } : {}), listUnsubscribeUrl: claimed.unsubscribeUrl });
+      const result = await provider.send({ to: claimed.recipient, from: claimed.sender, subject: claimed.subject ?? 'Dapinni sales update', body: claimed.body, idempotencyKey: 'sales-message/' + claimed._id, salesMessageId: String(claimed._id), ...(claimed.whatsappTemplate ? { whatsappTemplate: { name: claimed.whatsappTemplate.name, language: claimed.whatsappTemplate.language, values: [...(claimed.whatsappTemplate.values ?? [])] } } : {}), ...(claimed.replyTo ? { replyTo: claimed.replyTo } : {}), listUnsubscribeUrl: claimed.unsubscribeUrl });
       if (!result.providerMessageId) throw new AppError(503, 'OUTREACH_PROVIDER_EVIDENCE_MISSING', 'Provider acceptance identifier is missing');
       await salesTransaction(async session => {
         const message = await SalesMessage.findOne({ _id: claimed?._id, leaseOwner: owner }).session(session);
@@ -297,7 +338,7 @@ export class SalesOutreachService {
       });
       return { accepted: true };
     } catch (error) {
-      const code = error instanceof AppError ? error.code : error instanceof Error && /^(RESEND|SENDGRID|TWILIO)_\d{3}$/.test(error.message) ? error.message : 'OUTREACH_PROVIDER_UNCONFIRMED';
+      const code = error instanceof AppError ? error.code : error instanceof Error && /^(RESEND|SENDGRID|TWILIO|WHATSAPP)_\d{3}$/.test(error.message) ? error.message : 'OUTREACH_PROVIDER_UNCONFIRMED';
       let confirmedElsewhere = false;
       await salesTransaction(async session => {
         const message = await SalesMessage.findOne({ _id: initial._id, ...(claimed ? { leaseOwner: owner } : { status: { $in: ['QUEUED', 'DISPATCHING'] } }) }).session(session);
@@ -310,13 +351,13 @@ export class SalesOutreachService {
           return;
         }
         const limited = ['OUTREACH_PROVIDER_RATE_LIMITED', 'OUTREACH_RECIPIENT_BUSY', 'OUTREACH_RECIPIENT_DAY_LIMIT', 'OUTREACH_DAY_LIMIT'].includes(code);
-        const definitive = !!claimed && claimed.attempt === 1 && /^(RESEND|TWILIO)_4\d\d$/.test(code) && !/_(408|409|429)$/.test(code);
+        const definitive = !!claimed && claimed.attempt === 1 && /^(RESEND|TWILIO|WHATSAPP)_4\d\d$/.test(code) && !/_(408|409|429)$/.test(code);
         const providerFailure = claimed && !definitive && !['SERVICE_DISABLED', 'CONTACT_SUPPRESSED', 'OUTREACH_CONSENT_CHANGED', 'OUTREACH_REPLY_RECEIVED', 'OUTREACH_PROVIDER_CONFLICT'].includes(code);
         let retryAt: Date | undefined;
         if (limited) retryAt = ['OUTREACH_RECIPIENT_DAY_LIMIT', 'OUTREACH_DAY_LIMIT'].includes(code) ? new Date((Math.floor(Date.now() / 86400000) + 1) * 86400000) : new Date(Date.now() + 5000);
         else if (providerFailure && provider?.idempotencyHours && message.attempt < 3 && message.firstAttemptAt && Date.now() - message.firstAttemptAt.getTime() < provider.idempotencyHours * 3600000) retryAt = new Date(Date.now() + 60000 * message.attempt);
         if (retryAt && message.approvalExpiresAt && retryAt < message.approvalExpiresAt) { message.status = 'QUEUED'; await this.enqueue(message, retryAt, session); }
-        else if (['SERVICE_DISABLED', 'AGENT_PAUSED', 'CAMPAIGN_NOT_ACTIVE', 'OUTREACH_CONFIG_CHANGED', 'OUTREACH_CAMPAIGN_LIMIT', 'SALES_SMS_NOT_CONFIGURED', 'SALES_SMS_CALLBACK_NOT_CONFIGURED'].includes(code) || (!claimed && code === 'OUTREACH_PROVIDER_UNCONFIRMED')) message.status = message.firstAttemptAt ? 'UNCERTAIN' : 'PAUSED';
+        else if ((!claimed && code.startsWith('WHATSAPP_')) || ['SERVICE_DISABLED', 'AGENT_PAUSED', 'CAMPAIGN_NOT_ACTIVE', 'OUTREACH_CONFIG_CHANGED', 'OUTREACH_CAMPAIGN_LIMIT', 'SALES_SMS_NOT_CONFIGURED', 'SALES_SMS_CALLBACK_NOT_CONFIGURED'].includes(code) || (!claimed && code === 'OUTREACH_PROVIDER_UNCONFIRMED')) message.status = message.firstAttemptAt ? 'UNCERTAIN' : 'PAUSED';
         else if (definitive) { message.status = 'FAILED'; message.dedupeActive = false; }
         else if (message.firstAttemptAt || claimed || code === 'OUTREACH_OUTCOME_UNKNOWN') message.status = 'UNCERTAIN';
         else message.status = code === 'OUTREACH_APPROVAL_EXPIRED' ? 'EXPIRED' : 'SUPPRESSED';
