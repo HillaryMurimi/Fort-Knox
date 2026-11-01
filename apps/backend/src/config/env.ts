@@ -35,6 +35,10 @@ export const envSchema = z
     SALES_OUTREACH_CONTENT_RETENTION_DAYS: z.coerce.number().int().min(7).max(365).default(90),
     SALES_RECIPIENT_DAILY_LIMIT: z.coerce.number().int().min(1).max(5).default(1),
     SALES_EMAIL_REQUESTS_PER_MINUTE: z.coerce.number().int().min(1).max(60).default(30),
+    SALES_SMS_FROM: optionalValue(z.string().regex(/^\+[1-9]\d{7,14}$/)),
+    SALES_SMS_COST_PER_SEGMENT_MICRO_USD: z.coerce.number().int().nonnegative().max(100000000).default(0),
+    SALES_SMS_MAX_SEGMENTS: z.coerce.number().int().min(1).max(3).default(2),
+    SALES_SMS_REQUESTS_PER_MINUTE: z.coerce.number().int().min(1).max(60).default(10),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),

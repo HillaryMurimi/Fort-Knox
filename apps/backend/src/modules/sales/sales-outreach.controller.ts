@@ -5,6 +5,8 @@ import { objectId } from './sales-success.schemas.js';
 import { SalesOutreachService as service } from './sales-outreach.service.js';
 import { SalesConsentService } from './sales-consent.service.js';
 import { SalesOutreachWebhookService } from './sales-outreach-webhook.service.js';
+import { SalesSmsWebhookService } from './sales-sms-webhook.service.js';
+import { z } from 'zod';
 const auth = (req: Request) => { if (!req.auth) throw new AppError(401, 'AUTH_REQUIRED', 'Authentication required'); return req.auth; };
 export async function capabilities(req: Request, res: Response) { res.json(apiResponse(await service.capabilities(auth(req)))); }
 export async function list(req: Request, res: Response) { res.json(apiResponse(await service.list(auth(req), objectId.parse(req.params.id), req.query))); }
@@ -19,4 +21,10 @@ export async function webhook(req: Request, res: Response) {
   const body = (req as Request & { rawBody?: Buffer }).rawBody;
   const headers = { id: req.get('svix-id'), timestamp: req.get('svix-timestamp'), signature: req.get('svix-signature') };
   res.setHeader('Cache-Control', 'no-store'); res.status(202).json(apiResponse(await SalesOutreachWebhookService.receive(body, headers)));
+}
+export async function smsWebhook(req: Request, res: Response) {
+  if (!req.is('application/x-www-form-urlencoded')) throw new AppError(415, 'SMS_CALLBACK_FORM_REQUIRED', 'SMS callbacks require a signed form body');
+  const query = z.object({ messageId: objectId.optional() }).strict().parse(req.query);
+  await SalesSmsWebhookService.receive(req.body, req.get('x-twilio-signature'), query.messageId);
+  res.setHeader('Cache-Control', 'no-store'); res.type('application/xml').status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response/>');
 }

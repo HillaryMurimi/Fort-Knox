@@ -16,7 +16,7 @@ describe('customer outreach review', () => {
   it('hides administrative mutation forms from read-only delegates', () => {
     state.admin = false; state.permissions = ['sales.outreach.read', 'sales.notes.read'];
     const html = renderToStaticMarkup(<SalesCustomerOutreach customer={customer}/>);
-    expect(html).toContain('Recorded conversation'); expect(html).not.toContain('Record consent evidence'); expect(html).not.toContain('Prepare email for review'); expect(html).not.toContain('Correct primary contact');
+    expect(html).toContain('Recorded conversation'); expect(html).not.toContain('Record consent evidence'); expect(html).not.toContain('Prepare outreach for review'); expect(html).not.toContain('Correct primary contact');
   });
   it('withholds the entire panel when no outreach permission exists', () => {
     state.admin = false; state.permissions = [];

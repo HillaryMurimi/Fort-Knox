@@ -12,6 +12,7 @@ import { Notification } from '../../database/models/Notification.js';
 import { Job } from '../../database/models/Job.js';
 import { PlatformSwitch } from '../../database/models/PlatformSwitch.js';
 import { salesDeliveryProvider } from '../../integrations/notifications/sales-delivery.provider.js';
+import { salesSmsBody, salesSmsConfigured, salesTwilioCallbackUrl } from '../../integrations/notifications/sales-sms.policy.js';
 import { assertFreshAdmin } from '../auth/admin-security.js';
 import { assertSwitchEnabled } from '../platform-control/platform-control.guard.js';
 import { AuditService } from '../audit/audit.service.js';
@@ -27,7 +28,12 @@ import { nextOutreachWindow, opaqueHash, recipientHash } from './sales-outreach.
 
 type Message = HydratedDocument<SalesMessageRecord>;
 const terminal = ['SENT', 'FAILED', 'UNCERTAIN', 'CANCELLED', 'SUPPRESSED', 'EXPIRED', 'REJECTED'];
-export const salesSenderConfigHash = (provider: string) => payloadHash({ provider, sender: env.EMAIL_FROM, name: env.EMAIL_FROM_NAME, replyDomain: env.SALES_REPLY_DOMAIN, origin: env.WEB_ORIGIN, credentialFingerprint: opaqueHash(env.RESEND_API_KEY ?? ''), cost: env.SALES_EMAIL_ESTIMATED_MICRO_USD, recipientDailyLimit: env.SALES_RECIPIENT_DAILY_LIMIT });
+export const salesSenderConfigHash = (provider: string) => provider === 'TWILIO'
+  ? payloadHash({ provider, sender: env.SALES_SMS_FROM, account: env.TWILIO_ACCOUNT_SID, credentialFingerprint: opaqueHash(env.TWILIO_AUTH_TOKEN ?? ''), callback: salesTwilioCallbackUrl(), cost: env.SALES_SMS_COST_PER_SEGMENT_MICRO_USD, segments: env.SALES_SMS_MAX_SEGMENTS, recipientDailyLimit: env.SALES_RECIPIENT_DAILY_LIMIT })
+  : payloadHash({ provider, sender: env.EMAIL_FROM, name: env.EMAIL_FROM_NAME, replyDomain: env.SALES_REPLY_DOMAIN, origin: env.WEB_ORIGIN, credentialFingerprint: opaqueHash(env.RESEND_API_KEY ?? ''), cost: env.SALES_EMAIL_ESTIMATED_MICRO_USD, recipientDailyLimit: env.SALES_RECIPIENT_DAILY_LIMIT });
+const transportSwitch = (channel: string) => channel === 'SMS' ? 'SMS_NOTIFICATIONS' : 'EMAIL_NOTIFICATIONS';
+const senderFor = (channel: string) => channel === 'SMS' ? env.SALES_SMS_FROM : env.EMAIL_FROM;
+const transportReady = (channel: string) => channel === 'SMS' ? salesSmsConfigured() : !!(env.EMAIL_FROM && env.SALES_REPLY_DOMAIN && env.SALES_RESEND_WEBHOOK_SECRET);
 // The recipient is deliberately selected only for scoped preview, decision and delivery paths.
 export function outreachPayload(m: SalesMessageRecord) {
   return { leadId: String(m.leadId), campaignId: String(m.campaignId), campaignHash: m.campaignHash, channel: m.channel, provider: m.provider,
@@ -36,6 +42,7 @@ export function outreachPayload(m: SalesMessageRecord) {
     recipientDailyLimit: m.recipientDailyLimit, estimatedCostMicroUsd: m.estimatedCostMicroUsd, replyTo: m.replyTo ?? null,
     unsubscribeUrl: m.unsubscribeUrl, originApprovalId: m.originApprovalId ? String(m.originApprovalId) : null,
     followUpId: m.followUpId ? String(m.followUpId) : null, contentExpiresAt: m.contentExpiresAt?.toISOString(),
+    ...(m.channel === 'SMS' ? { smsSegments: m.smsSegments, smsEncoding: m.smsEncoding } : {}),
   };
 }
 async function campaignFor(m: { campaignId: Types.ObjectId; campaignHash?: string }, session?: ClientSession, active = false) {
@@ -73,10 +80,12 @@ async function consentMatches(m: SalesMessageRecord, session?: ClientSession) {
 export class SalesOutreachService {
   static async capabilities(auth: AuthenticatedUser) {
     AuthorizationService.assertPlatformAdmin(auth);
-    const provider = salesDeliveryProvider('EMAIL'), last = await SalesMessage.findOne({ providerAcceptedAt: { $type: 'date' } }).select('providerAcceptedAt provider').sort({ providerAcceptedAt: -1 }).lean();
-    const switches = await PlatformSwitch.find({ key: { $in: ['SALES_OUTBOUND', 'SALES_EMAIL', 'EMAIL_NOTIFICATIONS'] } }).select('key enabled mode').lean();
+    const provider = salesDeliveryProvider('EMAIL'), last = await SalesMessage.findOne({ channel: 'EMAIL', provider: provider?.key ?? env.EMAIL_PROVIDER, senderConfigHash: salesSenderConfigHash(provider?.key ?? env.EMAIL_PROVIDER), providerAcceptedAt: { $type: 'date' } }).select('providerAcceptedAt provider').sort({ providerAcceptedAt: -1 }).lean();
+    const switches = await PlatformSwitch.find({ key: { $in: ['SALES_OUTBOUND', 'SALES_EMAIL', 'EMAIL_NOTIFICATIONS', 'SALES_SMS', 'SMS_NOTIFICATIONS'] } }).select('key enabled mode').lean();
+    const on = (key: string) => switches.some(s => s.key === key && s.enabled && s.mode === 'ON');
     const costPolicyConfigured = env.NODE_ENV === 'test' || env.SALES_EMAIL_ESTIMATED_MICRO_USD > 0;
-    return { email: { provider: provider?.key ?? env.EMAIL_PROVIDER, configured: !!provider, authentication: 'UNVERIFIED', sendingAvailable: !!provider && !!env.EMAIL_FROM && costPolicyConfigured && !!env.SALES_RESEND_WEBHOOK_SECRET && !!env.SALES_REPLY_DOMAIN && switches.length === 3 && switches.every(s => s.enabled && s.mode === 'ON'), costPolicyConfigured, webhook: env.SALES_RESEND_WEBHOOK_SECRET ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED', inbound: env.SALES_REPLY_DOMAIN ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED', lastSuccessfulOperation: last?.providerAcceptedAt ?? null, applicationRequestsPerMinute: env.SALES_EMAIL_REQUESTS_PER_MINUTE, providerRateLimit: 'UNVERIFIED' }, sms: { configured: !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.SMS_FROM), salesAdapterAvailable: false, sendingAvailable: false }, whatsapp: { configured: !!(env.WHATSAPP_PHONE_NUMBER_ID && env.WHATSAPP_ACCESS_TOKEN), salesAdapterAvailable: false, sendingAvailable: false } };
+    const sms = salesDeliveryProvider('SMS'), smsCostPolicy = env.NODE_ENV === 'test' || env.SALES_SMS_COST_PER_SEGMENT_MICRO_USD > 0;
+    return { email: { provider: provider?.key ?? env.EMAIL_PROVIDER, configured: !!provider, authentication: 'UNVERIFIED', sendingAvailable: !!provider && !!env.EMAIL_FROM && costPolicyConfigured && !!env.SALES_RESEND_WEBHOOK_SECRET && !!env.SALES_REPLY_DOMAIN && ['SALES_OUTBOUND', 'SALES_EMAIL', 'EMAIL_NOTIFICATIONS'].every(on), costPolicyConfigured, webhook: env.SALES_RESEND_WEBHOOK_SECRET ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED', inbound: env.SALES_REPLY_DOMAIN ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED', lastSuccessfulOperation: last?.providerAcceptedAt ?? null, applicationRequestsPerMinute: env.SALES_EMAIL_REQUESTS_PER_MINUTE, providerRateLimit: 'UNVERIFIED' }, sms: { configured: !!sms && salesSmsConfigured(), salesAdapterAvailable: true, sendingAvailable: !!sms && salesSmsConfigured() && smsCostPolicy && ['SALES_OUTBOUND', 'SALES_SMS', 'SMS_NOTIFICATIONS'].every(on), authentication: 'UNVERIFIED', dedicatedSenderRequired: true, costPolicyConfigured: smsCostPolicy, maximumSegments: env.SALES_SMS_MAX_SEGMENTS, applicationRequestsPerMinute: env.SALES_SMS_REQUESTS_PER_MINUTE, webhook: salesSmsConfigured() ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED', providerRateLimit: 'UNVERIFIED', automaticResend: false }, whatsapp: { configured: !!(env.WHATSAPP_PHONE_NUMBER_ID && env.WHATSAPP_ACCESS_TOKEN), salesAdapterAvailable: false, sendingAvailable: false } };
   }
   static async list(auth: AuthenticatedUser, id: string, raw: unknown) {
     const lead = await SuccessRepository.load(auth, id, 'sales.leads.read'); assertSuccessPermission(auth, 'sales.outreach.read'); const { page } = outreachPageSchema.parse(raw);
@@ -106,9 +115,10 @@ export class SalesOutreachService {
       return { id: String(existing._id), status: existing.status };
     }
     const campaign = await campaignFor({ campaignId: new Types.ObjectId(input.campaignId) });
-    if (campaign.channel !== 'EMAIL') throw new AppError(503, 'OUTREACH_CHANNEL_NOT_READY', 'This channel does not yet have an enabled sales delivery adapter');
+    if (!['EMAIL', 'SMS'].includes(campaign.channel)) throw new AppError(503, 'OUTREACH_CHANNEL_NOT_READY', 'This channel does not yet have an enabled sales delivery adapter');
     const provider = salesDeliveryProvider(campaign.channel);
-    if (!provider || !env.EMAIL_FROM) throw new AppError(503, 'OUTREACH_PROVIDER_NOT_CONFIGURED', 'Configure the approved business email sender before preparing deliverable messages');
+    const sender = senderFor(campaign.channel);
+    if (!provider || !sender) throw new AppError(503, 'OUTREACH_PROVIDER_NOT_CONFIGURED', 'Configure the approved dedicated business sender before preparing deliverable messages');
     const consent = await SalesConsentService.eligible(lead._id, campaign.channel);
     let subject = input.subject, body = input.body;
     if (input.originApprovalId) {
@@ -117,19 +127,23 @@ export class SalesOutreachService {
       if (!proposal || payloadHash(proposal.payload) !== proposal.payloadHash) throw new AppError(409, 'APPROVAL_CHANGED', 'Select a recently approved outreach proposal for this customer');
       const action = agentOutputSchema.shape.action.parse(proposal.payload); subject = action.subject ?? 'Dapinni product briefing'; body = action.text;
     }
-    if (!subject || !body || subject.length > 200 || body.length > 8000 || /[\r\n]/.test(subject)) throw new AppError(400, 'OUTREACH_CONTENT_INVALID', 'A reviewed subject up to 200 characters and body up to 8000 characters are required');
+    if (!body || body.length > 8000 || (campaign.channel === 'EMAIL' && (!subject || subject.length > 200 || /[\r\n]/.test(subject)))) throw new AppError(400, 'OUTREACH_CONTENT_INVALID', 'A reviewed message body and an email subject where applicable are required');
     const unsubscribe = randomBytes(32).toString('base64url'), reply = randomBytes(32).toString('base64url').toLowerCase();
     const unsubscribeUrl = env.WEB_ORIGIN.replace(/\/$/, '') + '/sales/unsubscribe/' + unsubscribe;
-    const contentFingerprint = payloadHash({ subject, body, channel: campaign.channel });
+    const sms = campaign.channel === 'SMS' ? salesSmsBody(body) : undefined;
+    const renderedBody = sms?.text ?? body + '\n\nDapinni Real Estate Solutions\nTo stop sales updates: ' + unsubscribeUrl;
+    if (campaign.channel === 'SMS') subject = undefined;
+    const contentFingerprint = payloadHash({ subject, body: sms?.text ?? body, channel: campaign.channel });
     const contentExpiresAt = new Date(Date.now() + env.SALES_OUTREACH_CONTENT_RETENTION_DAYS * 86400000);
     try {
       return await salesTransaction(async session => {
         const message = new SalesMessage({ leadId: lead._id, campaignId: campaign._id, campaignHash: campaign.approvedHash, requestedBy: auth.userId, originApprovalId: input.originApprovalId,
           channel: campaign.channel, provider: provider.key, recipient: consent.contact, recipientHash: consent.hash, consentEventId: consent.event._id, consentEpoch: consent.lead.consentRevision ?? 0,
-          sender: env.EMAIL_FROM, senderConfigHash: salesSenderConfigHash(provider.key), subject, body: body + '\n\nDapinni Real Estate Solutions\nTo stop sales updates: ' + unsubscribeUrl,
+          sender, senderConfigHash: salesSenderConfigHash(provider.key), subject, body: renderedBody,
           timezone: consent.event.timezone, recipientDailyLimit: env.SALES_RECIPIENT_DAILY_LIMIT, commandId: input.commandId, commandHash: digest, contentFingerprint,
-          estimatedCostMicroUsd: env.SALES_EMAIL_ESTIMATED_MICRO_USD, unsubscribeHash: opaqueHash(unsubscribe), unsubscribeUrl,
-          ...(env.SALES_REPLY_DOMAIN ? { replyTo: 'sales-' + reply + '@' + env.SALES_REPLY_DOMAIN.toLowerCase(), replyHash: opaqueHash(reply) } : {}),
+          estimatedCostMicroUsd: sms ? sms.segments * env.SALES_SMS_COST_PER_SEGMENT_MICRO_USD : env.SALES_EMAIL_ESTIMATED_MICRO_USD, unsubscribeHash: opaqueHash(unsubscribe), unsubscribeUrl,
+          ...(sms ? { smsSegments: sms.segments, smsEncoding: sms.encoding } : {}),
+          ...(campaign.channel === 'EMAIL' && env.SALES_REPLY_DOMAIN ? { replyTo: 'sales-' + reply + '@' + env.SALES_REPLY_DOMAIN.toLowerCase(), replyHash: opaqueHash(reply) } : {}),
           contentExpiresAt,
         });
         message.payloadHash = payloadHash(outreachPayload(message)); await message.save({ session });
@@ -150,7 +164,7 @@ export class SalesOutreachService {
     const input = outreachDecisionSchema.parse(raw);
     const lead = await SuccessRepository.load(auth, id, 'sales.outreach.prepare');
     if (['APPROVE', 'RESUME', 'REJECT'].includes(input.action)) assertFreshAdmin(auth);
-    if (['APPROVE', 'RESUME'].includes(input.action)) { await enabled('EMAIL'); await assertSwitchEnabled('EMAIL_NOTIFICATIONS'); await assertOutreachIndexes(); }
+    if (['APPROVE', 'RESUME'].includes(input.action)) await assertOutreachIndexes();
     return salesTransaction(async session => {
       const message = await SalesMessage.findOne({ _id: messageId, leadId: { $in: [lead._id, ...lead.mergedLeadIds] }, revision: input.revision, payloadHash: input.payloadHash }).select('+recipient').session(session);
       if (!message || message.redactedAt || message.payloadHash !== payloadHash(outreachPayload(message))) throw new AppError(409, 'OUTREACH_MESSAGE_CHANGED', 'Reload the exact message before reviewing it');
@@ -159,9 +173,10 @@ export class SalesOutreachService {
       if (['SUBMIT', 'APPROVE', 'RESUME'].includes(input.action) && String(message.leadId) !== String(lead._id)) throw new AppError(409, 'CUSTOMER_MERGED', 'Prepare new outreach from the current canonical customer profile');
       if (input.action === 'SUBMIT') message.status = 'PENDING_APPROVAL';
       else if (['APPROVE', 'RESUME'].includes(input.action)) {
+        await enabled(message.channel); await assertSwitchEnabled(transportSwitch(message.channel));
         await responsible(message); const campaign = await campaignFor(message, session, true); await consentMatches(message, session);
         const provider = salesDeliveryProvider(message.channel);
-        if (!provider || provider.key !== message.provider || message.senderConfigHash !== salesSenderConfigHash(provider.key) || !env.SALES_REPLY_DOMAIN || !env.SALES_RESEND_WEBHOOK_SECRET) throw new AppError(503, 'OUTREACH_PROVIDER_NOT_CONFIGURED', 'Sender, reply route, webhook verification or reviewed transport configuration is unavailable');
+        if (!provider || provider.key !== message.provider || message.senderConfigHash !== salesSenderConfigHash(provider.key) || !transportReady(message.channel)) throw new AppError(503, 'OUTREACH_PROVIDER_NOT_CONFIGURED', 'Sender, reply route, webhook verification or reviewed transport configuration is unavailable');
         if (env.NODE_ENV !== 'test' && !message.estimatedCostMicroUsd) throw new AppError(409, 'OUTREACH_COST_POLICY_REQUIRED', 'Configure a reviewed per-message cost ceiling before delivery');
         const at = nextOutreachWindow(new Date(Math.max(Date.now(), campaign.startsAt.getTime())), message.timezone);
         const expires = new Date(Math.min(Date.now() + 7 * 86400000, campaign.endsAt.getTime(), message.contentExpiresAt?.getTime() ?? Infinity));
@@ -220,8 +235,8 @@ export class SalesOutreachService {
     const owner = randomUUID();
     let claimed: Message | null = null;
     try {
-      await enabled(initial.channel); await assertSwitchEnabled('EMAIL_NOTIFICATIONS');
-      if (!provider || provider.key !== initial.provider || initial.senderConfigHash !== salesSenderConfigHash(provider.key)) throw new AppError(409, 'OUTREACH_CONFIG_CHANGED', 'Reviewed delivery configuration changed');
+      await enabled(initial.channel); await assertSwitchEnabled(transportSwitch(initial.channel));
+      if (!provider || provider.key !== initial.provider || !transportReady(initial.channel) || initial.senderConfigHash !== salesSenderConfigHash(provider.key)) throw new AppError(409, 'OUTREACH_CONFIG_CHANGED', 'Reviewed delivery configuration changed');
       await responsible(initial);
       if (!initial.reviewedBy) throw new AppError(409, 'OUTREACH_APPROVAL_REQUIRED', 'Human review is required');
       AuthorizationService.assertPlatformAdmin(await SalesAgentRepository.principal(initial.reviewedBy));
@@ -271,8 +286,10 @@ export class SalesOutreachService {
         if (message.providerMessageId && message.providerMessageId !== result.providerMessageId) throw new AppError(409, 'OUTREACH_PROVIDER_CONFLICT', 'Provider evidence conflicts with the recorded message');
         message.status = 'SENT'; message.providerMessageId = result.providerMessageId; message.providerAcceptedAt ??= new Date();
         if (message.deliveryStatus === 'UNKNOWN') message.deliveryStatus = result.status === 'DELIVERED' ? 'DELIVERED' : 'ACCEPTED';
-        message.leaseOwner = undefined; message.leaseUntil = undefined; message.errorCode = undefined; await message.save({ session });
-        await Notification.updateOne({ _id: notificationId }, { $set: { status: message.deliveryStatus === 'DELIVERED' ? 'DELIVERED' : 'SENT', sentAt: message.providerAcceptedAt }, $unset: { failureReason: 1 } }, { session });
+        message.leaseOwner = undefined; message.leaseUntil = undefined;
+        if (!['FAILED', 'BOUNCED'].includes(message.deliveryStatus)) message.errorCode = undefined;
+        await message.save({ session });
+        await Notification.updateOne({ _id: notificationId }, { $set: { status: message.deliveryStatus === 'DELIVERED' ? 'DELIVERED' : ['FAILED', 'BOUNCED'].includes(message.deliveryStatus) ? 'FAILED' : 'SENT', sentAt: message.providerAcceptedAt }, ...(!['FAILED', 'BOUNCED'].includes(message.deliveryStatus) ? { $unset: { failureReason: 1 } } : {}) }, { session });
         await SalesRecipientControl.updateOne({ channel: message.channel, recipientHash: message.recipientHash, leaseOwner: String(message._id) }, { $unset: { leaseOwner: 1, leaseUntil: 1 } }, { session });
         await SalesConversationEntry.updateOne({ sourceKey: `outbound:${message._id}` }, { $setOnInsert: { leadId: message.leadId, messageId: message._id, direction: 'OUTBOUND', provider: message.provider, subject: message.subject, text: message.body, occurredAt: message.providerAcceptedAt, contentExpiresAt: message.contentExpiresAt } }, { session, upsert: true });
         await SalesActivity.updateOne({ leadId: message.leadId, sourceKey: `outreach-accepted:${message._id}` }, { $setOnInsert: { actorKind: 'SYSTEM', kind: 'sales.outreach.accepted', text: 'Approved sales outreach accepted by the provider; delivery and reading are not confirmed.', resourceId: message._id, sourceOccurredAt: message.providerAcceptedAt } }, { session, upsert: true });
@@ -280,7 +297,7 @@ export class SalesOutreachService {
       });
       return { accepted: true };
     } catch (error) {
-      const code = error instanceof AppError ? error.code : error instanceof Error && /^(RESEND|SENDGRID)_\d{3}$/.test(error.message) ? error.message : 'OUTREACH_PROVIDER_UNCONFIRMED';
+      const code = error instanceof AppError ? error.code : error instanceof Error && /^(RESEND|SENDGRID|TWILIO)_\d{3}$/.test(error.message) ? error.message : 'OUTREACH_PROVIDER_UNCONFIRMED';
       let confirmedElsewhere = false;
       await salesTransaction(async session => {
         const message = await SalesMessage.findOne({ _id: initial._id, ...(claimed ? { leaseOwner: owner } : { status: { $in: ['QUEUED', 'DISPATCHING'] } }) }).session(session);
@@ -288,18 +305,18 @@ export class SalesOutreachService {
         if (message.providerAcceptedAt || message.deliveryStatus === 'DELIVERED' || message.deliveryStatus === 'BOUNCED') {
           confirmedElsewhere = true;
           await SalesMessage.updateOne({ _id: message._id }, { $set: { status: 'SENT' }, $unset: { leaseOwner: 1, leaseUntil: 1 } }, { session });
-          await Notification.updateOne({ _id: notificationId }, { $set: { status: message.deliveryStatus === 'DELIVERED' ? 'DELIVERED' : 'SENT', sentAt: message.providerAcceptedAt ?? new Date() } }, { session });
+          await Notification.updateOne({ _id: notificationId }, { $set: { status: message.deliveryStatus === 'DELIVERED' ? 'DELIVERED' : ['FAILED', 'BOUNCED'].includes(message.deliveryStatus) ? 'FAILED' : 'SENT', sentAt: message.providerAcceptedAt ?? new Date() } }, { session });
           await SalesRecipientControl.updateOne({ channel: message.channel, recipientHash: message.recipientHash, leaseOwner: String(message._id) }, { $unset: { leaseOwner: 1, leaseUntil: 1 } }, { session });
           return;
         }
         const limited = ['OUTREACH_PROVIDER_RATE_LIMITED', 'OUTREACH_RECIPIENT_BUSY', 'OUTREACH_RECIPIENT_DAY_LIMIT', 'OUTREACH_DAY_LIMIT'].includes(code);
-        const definitive = !!claimed && claimed.attempt === 1 && /^RESEND_4\d\d$/.test(code) && !['RESEND_408', 'RESEND_409', 'RESEND_429'].includes(code);
+        const definitive = !!claimed && claimed.attempt === 1 && /^(RESEND|TWILIO)_4\d\d$/.test(code) && !/_(408|409|429)$/.test(code);
         const providerFailure = claimed && !definitive && !['SERVICE_DISABLED', 'CONTACT_SUPPRESSED', 'OUTREACH_CONSENT_CHANGED', 'OUTREACH_REPLY_RECEIVED', 'OUTREACH_PROVIDER_CONFLICT'].includes(code);
         let retryAt: Date | undefined;
         if (limited) retryAt = ['OUTREACH_RECIPIENT_DAY_LIMIT', 'OUTREACH_DAY_LIMIT'].includes(code) ? new Date((Math.floor(Date.now() / 86400000) + 1) * 86400000) : new Date(Date.now() + 5000);
         else if (providerFailure && provider?.idempotencyHours && message.attempt < 3 && message.firstAttemptAt && Date.now() - message.firstAttemptAt.getTime() < provider.idempotencyHours * 3600000) retryAt = new Date(Date.now() + 60000 * message.attempt);
         if (retryAt && message.approvalExpiresAt && retryAt < message.approvalExpiresAt) { message.status = 'QUEUED'; await this.enqueue(message, retryAt, session); }
-        else if (['SERVICE_DISABLED', 'AGENT_PAUSED', 'CAMPAIGN_NOT_ACTIVE', 'OUTREACH_CONFIG_CHANGED', 'OUTREACH_CAMPAIGN_LIMIT'].includes(code) || (!claimed && code === 'OUTREACH_PROVIDER_UNCONFIRMED')) message.status = message.firstAttemptAt ? 'UNCERTAIN' : 'PAUSED';
+        else if (['SERVICE_DISABLED', 'AGENT_PAUSED', 'CAMPAIGN_NOT_ACTIVE', 'OUTREACH_CONFIG_CHANGED', 'OUTREACH_CAMPAIGN_LIMIT', 'SALES_SMS_NOT_CONFIGURED', 'SALES_SMS_CALLBACK_NOT_CONFIGURED'].includes(code) || (!claimed && code === 'OUTREACH_PROVIDER_UNCONFIRMED')) message.status = message.firstAttemptAt ? 'UNCERTAIN' : 'PAUSED';
         else if (definitive) { message.status = 'FAILED'; message.dedupeActive = false; }
         else if (message.firstAttemptAt || claimed || code === 'OUTREACH_OUTCOME_UNKNOWN') message.status = 'UNCERTAIN';
         else message.status = code === 'OUTREACH_APPROVAL_EXPIRED' ? 'EXPIRED' : 'SUPPRESSED';

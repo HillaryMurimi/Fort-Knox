@@ -1,5 +1,6 @@
 import { env } from '../../config/env.js';
-import { ResendProvider } from '../../core/integrations/messaging-providers.js';
+import { ResendProvider, TwilioSmsProvider } from '../../core/integrations/messaging-providers.js';
+import { salesSmsConfigured, salesTwilioCallbackUrl } from './sales-sms.policy.js';
 import type { MessageInput, MessageResult } from '../../core/integrations/provider.types.js';
 import { assertSwitchEnabled } from '../../modules/platform-control/platform-control.guard.js';
 import { AppError } from '../../core/errors/AppError.js';
@@ -18,13 +19,23 @@ class ResendSalesDelivery implements SalesDeliveryProvider {
     return new ResendProvider().send(input);
   }
 }
-let testProvider: SalesDeliveryProvider | undefined;
-export function setSalesDeliveryTestProvider(provider?: SalesDeliveryProvider) {
+export class TwilioSalesDelivery implements SalesDeliveryProvider {
+  readonly key = 'TWILIO'; readonly idempotencyHours = 0;
+  get minimumIntervalMs() { return Math.ceil(60000 / env.SALES_SMS_REQUESTS_PER_MINUTE); }
+  async send(input: MessageInput) {
+    await assertSwitchEnabled('SALES_OUTBOUND'); await assertSwitchEnabled('SALES_SMS');
+    if (!salesSmsConfigured() || !input.salesMessageId || input.from !== env.SALES_SMS_FROM) throw new AppError(503, 'SALES_SMS_NOT_CONFIGURED', 'Sales SMS requires a dedicated reviewed two-way sender and signed callback route');
+    return new TwilioSmsProvider().send({ ...input, statusCallback: salesTwilioCallbackUrl(input.salesMessageId), validityPeriodSeconds: 300 });
+  }
+}
+const testProviders = new Map<string, SalesDeliveryProvider>();
+export function setSalesDeliveryTestProvider(provider?: SalesDeliveryProvider, channel = 'EMAIL') {
   if (env.NODE_ENV !== 'test') throw new Error('TEST_PROVIDER_FORBIDDEN');
-  testProvider = provider;
+  if (provider) testProviders.set(channel, provider); else testProviders.delete(channel);
 }
 export function salesDeliveryProvider(channel: string): SalesDeliveryProvider | undefined {
-  if (env.NODE_ENV === 'test') return testProvider;
+  if (env.NODE_ENV === 'test') return testProviders.get(channel);
   if (channel === 'EMAIL' && env.EMAIL_ENABLED && env.EMAIL_PROVIDER === 'RESEND' && env.RESEND_API_KEY && env.EMAIL_FROM) return new ResendSalesDelivery();
+  if (channel === 'SMS' && env.SMS_ENABLED && salesSmsConfigured()) return new TwilioSalesDelivery();
   return undefined;
 }

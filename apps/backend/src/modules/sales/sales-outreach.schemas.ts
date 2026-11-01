@@ -11,7 +11,7 @@ export const outreachDraftSchema = z.object({
   campaignId: objectId, commandId: z.uuid(), originApprovalId: objectId.optional(),
   subject: z.string().trim().min(3).max(200).refine(v => !/[\r\n]/.test(v)).optional(),
   body: z.string().trim().min(10).max(8000).optional(),
-}).strict().refine(v => v.originApprovalId || (v.subject && v.body), { message: 'Provide an approved agent draft or a subject and body for review' });
+}).strict().refine(v => v.originApprovalId || v.body, { message: 'Provide an approved agent draft or a message body for review' });
 export const outreachDecisionSchema = z.object({
   action: z.enum(['SUBMIT', 'APPROVE', 'REJECT', 'CANCEL', 'RESUME']), revision: z.number().int().nonnegative(),
   payloadHash: z.string().regex(/^[a-f0-9]{64}$/), reason: z.string().trim().min(10).max(2000),

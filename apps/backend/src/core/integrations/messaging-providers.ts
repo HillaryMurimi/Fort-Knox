@@ -45,12 +45,13 @@ export class TwilioSmsProvider implements SmsProvider {
   async send(input: MessageInput): Promise<MessageResult> { await assertSwitchEnabled('SMS_NOTIFICATIONS'); return this.sendProbe(input); }
   async sendProbe(input: MessageInput): Promise<MessageResult> {
     const config = integrationConfig.twilio;
+    const sender = input.from ?? integrationConfig.sms.from;
     // An explicit readiness test can run before enabling SMS authentication.
-    if (!config.accountSid || !config.authToken || !integrationConfig.sms.from) throw new Error('TWILIO_NOT_CONFIGURED');
+    if (!config.accountSid || !config.authToken || !sender) throw new Error('TWILIO_NOT_CONFIGURED');
     const auth = Buffer.from(config.accountSid + ':' + config.authToken).toString('base64');
     const response = await fetch('https://api.twilio.com/2010-04-01/Accounts/' + config.accountSid + '/Messages.json', {
-      method: 'POST', signal: timeout(), headers: { authorization: 'Basic ' + auth, 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ To: input.to, From: input.from ?? integrationConfig.sms.from, Body: input.body }) });
+      method: 'POST', signal: timeout(), redirect: 'error', headers: { authorization: 'Basic ' + auth, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ To: input.to, From: sender, Body: input.body, ...(input.statusCallback ? { StatusCallback: input.statusCallback } : {}), ...(input.validityPeriodSeconds ? { ValidityPeriod: String(input.validityPeriodSeconds) } : {}) }) });
     if (!response.ok) throw new Error('TWILIO_' + response.status);
     const result = await response.json() as { sid?: string };
     if (!result.sid) throw new Error('TWILIO_RESPONSE_INVALID');

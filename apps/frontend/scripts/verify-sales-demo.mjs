@@ -33,7 +33,7 @@ async function deliveredCode(channel) {
   }
   throw new Error("Test delivery did not reach the private harness");
 }
-let mongo, browser, page, webState;
+let mongo, browser, page, webState, forbiddenSalesSends = 0;
 const runtimeErrors = [];
 const apiPort = Number(process.env.PCC_SALES_TEST_API_PORT ?? 9016),
   webPort = Number(process.env.PCC_SALES_TEST_WEB_PORT ?? 3016),
@@ -52,6 +52,7 @@ function start(cwd, args, env) {
   });
   children.push(child);
   child.on("message", (message) => {
+    if (message?.type === 'PCC_TEST_SALES_DELIVERY_FORBIDDEN') forbiddenSalesSends += 1;
     if (message?.type === "PCC_TEST_MFA_DELIVERY")
       deliveredCodes.set(message.channel, message.code);
   });
@@ -185,6 +186,7 @@ try {
   await page.getByText("Create lead", { exact: true }).click();
   await page.getByLabel("Customer / company", { exact: true }).fill("Customer Success Browser");
   await page.getByLabel("Email", { exact: true }).fill("success-browser@example.test");
+  await page.getByLabel('Phone (international format)', { exact: true }).fill('+254700009142');
   await page.getByLabel("Estimated units", { exact: true }).fill("120");
   await page.getByLabel("Customer needs", { exact: true }).fill("Needs tenant migration assistance across three properties.");
   await page.getByRole("button", { name: "Create customer", exact: true }).click();
@@ -330,6 +332,61 @@ try {
     const imported = await importedResponse; assert.equal(imported.status(), 201, await imported.text());
     const importedCustomer = await fixtureDb.collection('salesleads').findOne({ name: 'Research Browser Prospect' });
     assert.equal(importedCustomer.consent, 'UNKNOWN'); assert.equal(importedCustomer.sourceUrl, sourceUrl);
+    await page.getByRole('button', { name: 'Campaigns', exact: true }).click();
+    await page.getByLabel('Campaign name', { exact: true }).fill('Browser SMS review campaign');
+    await page.getByLabel('Description', { exact: true }).fill('Controlled SMS draft review; no provider delivery is permitted.');
+    await page.getByLabel('Target audience', { exact: true }).fill('Owners who explicitly requested an SMS briefing');
+    await page.getByLabel('Market', { exact: true }).fill('Kenya');
+    await page.getByLabel('Channel', { exact: true }).selectOption('SMS');
+    await page.getByLabel('Start (your local time)', { exact: true }).fill(localDate(Date.now() - 60000));
+    await page.getByLabel('End (your local time)', { exact: true }).fill(localDate(Date.now() + 86400000));
+    await page.getByLabel('Message for review', { exact: true }).fill('Your requested product briefing is ready.');
+    await page.getByLabel('Lead selection criteria', { exact: true }).fill('Explicitly reviewed SMS requests only');
+    await page.getByLabel('Budget (micro USD)', { exact: true }).fill('10000');
+    await page.getByRole('button', { name: 'Save draft campaign', exact: true }).click();
+    const smsCard = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Browser SMS review campaign', exact: true }) });
+    for (const [action, state] of [['SUBMIT', 'PENDING APPROVAL'], ['APPROVE', 'APPROVED']]) {
+      await smsCard.getByLabel('Campaign action', { exact: true }).selectOption(action);
+      await smsCard.getByLabel('Review reason', { exact: true }).fill('Reviewed controlled SMS content and conservative limits.');
+      await smsCard.getByRole('button', { name: 'Apply reviewed action', exact: true }).click();
+      await smsCard.getByText(state, { exact: true }).waitFor();
+    }
+    const smsCampaign = await fixtureDb.collection('salescampaigns').findOne({ name: 'Browser SMS review campaign' }); assert.ok(smsCampaign);
+    await page.getByRole('button', { name: 'Customers', exact: true }).click();
+    await page.getByRole('heading', { name: 'Customer Success Browser', exact: true }).waitFor();
+    const smsPanel = page.getByRole('region', { name: 'Customer outreach', exact: true });
+    await smsPanel.getByText('Record explicit consent or opt-out', { exact: true }).click();
+    await smsPanel.getByLabel('Channel', { exact: true }).selectOption('SMS');
+    await smsPanel.getByLabel('Evidence of request', { exact: true }).fill('Controlled browser owner explicitly requested an SMS product briefing.');
+    const consentResponse = page.waitForResponse(r => r.url().endsWith('/consents') && r.request().method() === 'POST');
+    await smsPanel.getByRole('button', { name: 'Record consent evidence', exact: true }).click();
+    const recordedConsent = await consentResponse; assert.equal(recordedConsent.status(), 201, await recordedConsent.text());
+    await smsPanel.getByText('Prepare outreach for review', { exact: true }).click();
+    await smsPanel.getByLabel('Approved campaign ID', { exact: true }).fill(String(smsCampaign._id));
+    assert.equal(await smsPanel.getByLabel('Subject (email only)', { exact: true }).inputValue(), '');
+    await smsPanel.getByLabel('Message', { exact: true }).fill('Your requested product briefing is ready.');
+    const draftResponse = page.waitForResponse(r => r.url().endsWith('/messages') && r.request().method() === 'POST');
+    await smsPanel.getByRole('button', { name: 'Prepare draft', exact: true }).click();
+    const draftResult = await draftResponse; assert.equal(draftResult.status(), 201, await draftResult.text());
+    await smsPanel.getByRole('button', { name: 'Review message', exact: true }).click();
+    const smsPreview = smsPanel.getByRole('article', { name: 'Exact message review', exact: true });
+    await smsPreview.getByText(/SMS encoding: GSM7; segments: 1/).waitFor();
+    assert.ok((await smsPreview.locator('pre').textContent()).includes('Reply STOP to opt out.'));
+    await smsPreview.getByLabel('Decision', { exact: true }).selectOption('SUBMIT');
+    await smsPreview.getByLabel('Review reason', { exact: true }).fill('Submit the exact controlled SMS draft for separate human approval.');
+    const submittedResponse = page.waitForResponse(r => r.url().endsWith('/decisions') && r.request().method() === 'POST');
+    await smsPreview.getByRole('button', { name: 'Save message decision', exact: true }).click();
+    assert.equal((await submittedResponse).status(), 200);
+    const smsMessage = await fixtureDb.collection('salesmessages').findOne({ leadId: customer._id, channel: 'SMS' });
+    assert.equal(smsMessage.status, 'PENDING_APPROVAL'); assert.equal(smsMessage.providerMessageId, undefined);
+    assert.equal(await fixtureDb.collection('notifications').countDocuments({ type: 'SALES_OUTREACH' }), 0);
+    for (const width of [390, 834]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.waitForTimeout(350);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'SMS review fits ' + width);
+      await page.screenshot({ path: temporaryRoot + `/pcc-sms-review-${width}.png`, fullPage: true });
+    }
   } finally { await fixtureDb.close(); }
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(origin + "/sales-demo");
@@ -712,6 +769,7 @@ try {
     .waitFor();
   await ownerContext.close();
   assert.equal(errors.length, 0, errors.join("\n"));
+  assert.equal(forbiddenSalesSends, 0, 'Controlled browser drafts must never invoke a sales delivery adapter');
   console.log(
     JSON.stringify({
       status: "PASSED",
@@ -720,7 +778,7 @@ try {
         "Fort Knox security and evidence",
         "guided pilot validation, import and owner activation milestone",
         "existing commercial activation handoff without paid-access bypass",
-        "sales conversion intelligence", "customer creation, qualification, notes and meeting outcomes", "campaign approval and consented first-party invitations", "controlled sourced-prospect review and CRM import", "unavailable email readiness and explicit public opt-out confirmation",
+        "sales conversion intelligence", "customer creation, qualification, notes and meeting outcomes", "campaign approval and consented first-party invitations", "controlled sourced-prospect review and CRM import", "unavailable email readiness and explicit public opt-out confirmation", "controlled SMS consent and exact draft review without dispatch",
       ],
       viewports: sizes,
       themes: ["light", "dark"],

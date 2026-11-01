@@ -36,7 +36,7 @@ export function SalesCampaigns() {
         <label className="block text-sm">Description<textarea className={field} name="description" defaultValue={editing?.description ?? ''} required minLength={10} maxLength={4000} /></label>
         <label className="block text-sm">Target audience<textarea className={field} name="audience" defaultValue={editing?.audience ?? ''} required minLength={10} maxLength={2000} /></label>
         <label className="block text-sm">Market<input className={field} name="market" defaultValue={editing?.market ?? ''} required minLength={2} maxLength={120} /></label>
-        <label className="block text-sm">Channel<select className={field} name="channel" defaultValue={editing?.channel ?? 'EMAIL'}><option>EMAIL</option><option>SMS</option><option>WHATSAPP</option></select></label>
+        <label className="block text-sm">Channel<select aria-label="Channel" className={field} name="channel" defaultValue={editing?.channel ?? 'EMAIL'}><option>EMAIL</option><option>SMS</option><option>WHATSAPP</option></select></label>
         <label className="block text-sm">Start (your local time)<input className={field} type="datetime-local" name="startsAt" defaultValue={localTime(editing?.startsAt)} required /></label>
         <label className="block text-sm">End (your local time)<input className={field} type="datetime-local" name="endsAt" defaultValue={localTime(editing?.endsAt)} required /></label>
         <label className="block text-sm">Message for review<textarea className={field} name="messaging" defaultValue={editing?.messaging ?? ''} required minLength={10} maxLength={12000} /></label>

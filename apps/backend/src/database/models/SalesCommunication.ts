@@ -52,6 +52,7 @@ const message = new Schema({
   reservationHeld: { type: Boolean, default: false }, reservationDay: String,
   leaseOwner: String, leaseUntil: Date, nextAttemptAt: Date, errorCode: String,
   estimatedCostMicroUsd: { type: Number, required: true, min: 0 },
+  smsSegments: { type: Number, min: 1, max: 3 }, smsEncoding: { type: String, enum: ['GSM7', 'UCS2'] },
   unsubscribeHash: { type: String, required: true, select: false }, replyHash: { type: String, select: false }, replyTo: String,
   unsubscribeUrl: { type: String, required: true },
   contentExpiresAt: Date, redactedAt: Date,

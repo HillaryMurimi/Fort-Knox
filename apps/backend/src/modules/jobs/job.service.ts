@@ -155,6 +155,12 @@ export class JobService {
       await (await import('../sales/sales-outreach-webhook.service.js')).SalesOutreachWebhookService.consume(input.webhookId);
       return;
     }
+    if (job.type === 'sales.sms.webhook') {
+      const { z } = await import('zod');
+      const input = z.object({ webhookId: z.string().regex(/^[a-f\d]{24}$/i) }).strict().parse(job.payload);
+      await (await import('../sales/sales-sms-webhook.service.js')).SalesSmsWebhookService.consume(input.webhookId);
+      return;
+    }
     if (job.type === 'sales.outreach.expire') {
       const { z } = await import('zod');
       const input = z.object({ messageId: z.string().regex(/^[a-f\d]{24}$/i) }).strict().parse(job.payload);

@@ -13,6 +13,7 @@ import rateLimit from 'express-rate-limit';
 export const salesRouter = Router();
 salesRouter.post('/demo-requests', asyncHandler(controller.requestDemo));
 salesRouter.post('/outreach/webhooks/resend', rateLimit({ windowMs: 60000, limit: 1000, standardHeaders: 'draft-8', legacyHeaders: false }), asyncHandler(outreach.webhook));
+salesRouter.post('/outreach/webhooks/twilio', rateLimit({ windowMs: 60000, limit: 1000, standardHeaders: 'draft-8', legacyHeaders: false }), asyncHandler(outreach.smsWebhook));
 salesRouter.post('/outreach/unsubscribe', rateLimit({ windowMs: 60000, limit: 20, standardHeaders: 'draft-8', legacyHeaders: false }), asyncHandler(outreach.unsubscribe));
 salesRouter.use(requireAuth);
 salesRouter.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});

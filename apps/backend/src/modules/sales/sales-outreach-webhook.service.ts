@@ -27,6 +27,7 @@ export class SalesOutreachWebhookService {
   static async receive(body: Buffer | undefined, headers: ResendSignatureHeaders) {
     if (!body) throw new AppError(401, 'WEBHOOK_SIGNATURE_INVALID', 'Raw signed webhook content is required');
     const eventId = verifySalesResendWebhook(body, headers, env.SALES_RESEND_WEBHOOK_SECRET), digest = hashPayload(body);
+    const observedAt = new Date();
     let parsed: z.infer<typeof envelope>;
     try { parsed = envelope.parse(JSON.parse(body.toString('utf8'))); } catch { throw new AppError(400, 'WEBHOOK_PAYLOAD_INVALID', 'Webhook payload is invalid'); }
     await assertOutreachIndexes();
@@ -52,7 +53,7 @@ export class SalesOutreachWebhookService {
           }
           if (message) payload = normalizedEvent.parse({ type: parsed.type, emailId: data.email_id, messageId: String(message._id), occurredAt: parsed.created_at, verified: true });
         }
-        const [event] = await WebhookEvent.create([{ provider: 'RESEND_SALES', eventId, payloadHash: digest, payload: payload ?? { type: 'IGNORED_EVENT', verified: true }, status: payload ? 'RECEIVED' : 'IGNORED', ...(payload ? { externalReference: payload.emailId } : { processedAt: new Date() }) }], { session });
+        const [event] = await WebhookEvent.create([{ provider: 'RESEND_SALES', eventId, payloadHash: digest, payload: payload ?? { type: 'IGNORED_EVENT', verified: true }, receivedAt: observedAt, status: payload ? 'RECEIVED' : 'IGNORED', ...(payload ? { externalReference: payload.emailId } : { processedAt: observedAt }) }], { session });
         if (!event) throw new AppError(500, 'WEBHOOK_WRITE_FAILED', 'Could not persist verified webhook');
         if (payload) {
           // A response is a stop condition before body retrieval. It is not evidence that the prospect read the pitch.
@@ -115,8 +116,11 @@ export class SalesOutreachWebhookService {
             }
             if (status === 'FAILED' && !message.deliveredAt && !message.firstAttemptAt) message.dedupeActive = false;
           }
+          if (message.deliveryStatus === 'BOUNCED') message.errorCode = 'RESEND_BOUNCED';
+          else if (message.deliveryStatus === 'FAILED') message.errorCode = 'RESEND_FAILED';
+          else if (['ACCEPTED', 'DELIVERED'].includes(message.deliveryStatus)) message.errorCode = undefined;
           await message.save({ session });
-          await Notification.updateOne({ _id: message.notificationId, salesMessageId: message._id }, { $set: { status: message.deliveryStatus === 'DELIVERED' ? 'DELIVERED' : 'SENT', sentAt: message.providerAcceptedAt } }, { session });
+          await Notification.updateOne({ _id: message.notificationId, salesMessageId: message._id }, { $set: { status: message.deliveryStatus === 'DELIVERED' ? 'DELIVERED' : ['FAILED', 'BOUNCED'].includes(message.deliveryStatus) ? 'FAILED' : 'SENT', sentAt: message.providerAcceptedAt, ...(message.errorCode ? { failureReason: message.errorCode } : {}) }, ...(!message.errorCode ? { $unset: { failureReason: 1 } } : {}) }, { session });
           await SalesConversationEntry.updateOne({ sourceKey: `outbound:${message._id}` }, { $setOnInsert: { leadId: message.leadId, messageId: message._id, direction: 'OUTBOUND', provider: message.provider, subject: message.subject, text: message.body, occurredAt: message.providerAcceptedAt, contentExpiresAt: message.contentExpiresAt, ...(message.redactedAt ? { redactedAt: message.redactedAt } : {}) } }, { session, upsert: true });
           await SalesActivity.updateOne({ leadId: message.leadId, sourceKey: `outreach-provider:${event.eventId}` }, { $setOnInsert: { actorKind: 'SYSTEM', kind: 'sales.outreach.' + payload.type.slice(6), text: 'Verified provider event: ' + payload.type + '. No human-reading claim is implied.', resourceId: message._id, sourceOccurredAt: occurredAt } }, { session, upsert: true });
           if (payload.type === 'email.bounced') await SalesRecipientControl.updateOne({ channel: message.channel, recipientHash: message.recipientHash }, { $inc: { epoch: 1 }, $set: { suppressedAt: new Date(), suppressionReason: 'BOUNCE' } }, { session, upsert: true });

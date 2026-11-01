@@ -156,6 +156,8 @@ describe.skipIf(!process.env.RUN_E2E)('Approved consent-bound sales email delive
     const signed = await callback((await SalesMessage.findById(m._id))!, 'email.bounced'); await webhooks.receive(signed.body, signed.headers);
     await webhooks.consume(String((await WebhookEvent.findOne())!._id));
     expect((await SalesRecipientControl.findOne({ channel: 'EMAIL' }))?.suppressionReason).toBe('BOUNCE');
+    expect((await Notification.findById(m.notificationId))?.status).toBe('FAILED');
+    expect((await SalesMessage.findById(m._id))?.errorCode).toBe('RESEND_BOUNCED');
     expect((await SalesLead.findById(leadId))?.consent).toBe('OPTED_IN');
     await expect(consent.eligible(leadId, 'EMAIL')).rejects.toMatchObject({ code: 'OUTREACH_CONSENT_REQUIRED' });
   });
