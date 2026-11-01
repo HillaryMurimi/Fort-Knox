@@ -50,6 +50,7 @@ export class PlatformControlService {
 
   static async update(auth: AuthenticatedUser, key: string, input: UpdateSwitchInput) {
     AuthorizationService.assertPlatformAdmin(auth);
+    if (input.mode === 'ON' && key === 'SALES_CALENDAR') await (await import('../sales/sales-calendar.service.js')).SalesCalendarService.readiness();
     if (input.mode === 'ON' && ['SALES_LIFECYCLE', 'SALES_AUTOLINK'].includes(key)) await (await import('../sales/sales-success-indexes.js')).assertLifecycleIndexes();
     if (input.mode === 'ON' && ['SALES_CAMPAIGNS', 'SALES_TRACKING', 'SALES_ATTRIBUTION'].includes(key)) await (await import('../sales/sales-success-indexes.js')).assertCampaignIndexes();
     if (input.mode === 'ON' && isPlannedSalesFeature(key)) throw new AppError(409, 'SALES_FEATURE_NOT_READY', 'This optional sales capability has not been implemented yet');
@@ -72,6 +73,7 @@ export class PlatformControlService {
         existing.modifiedAt = new Date();
         await existing.save({ session });
         if (key === 'SALES_LIFECYCLE' && input.mode === 'ON') await (await import('../sales/sales-lifecycle.service.js')).SalesLifecycleService.startMonitor(session, auth.userId);
+        if (key === 'SALES_CALENDAR' && input.mode === 'ON') await (await import('../sales/sales-calendar.service.js')).SalesCalendarService.startMonitor(session, auth.userId);
         await AuditService.record({
           actorUserId: new Types.ObjectId(auth.userId),
           actorRole: 'SUPER_ADMIN',

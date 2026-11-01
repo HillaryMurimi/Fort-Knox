@@ -122,6 +122,7 @@ export function SalesAgentControl({ leadId }: { leadId?: string | undefined }) {
                           leadId: String(d.get("leadId")),
                           objective: String(d.get("objective")),
                           ...(String(d.get('researchQuery') ?? '').trim() ? { researchQuery: String(d.get('researchQuery')).trim() } : {}),
+                          ...(String(d.get('calendarStartsAt') ?? '').trim() ? { calendarWindow: { representativeId: String(d.get('calendarRepresentativeId')), startsAt: String(d.get('calendarStartsAt')), endsAt: String(d.get('calendarEndsAt')) } } : {}),
                           commandId: crypto.randomUUID(),
                         });
                         setSelected(run.id);
@@ -153,6 +154,7 @@ export function SalesAgentControl({ leadId }: { leadId?: string | undefined }) {
                       <input name="researchQuery" className={field} minLength={3} maxLength={300} placeholder="Rental property management companies in Kenya" />
                       <span className="mt-1 block text-xs text-muted-foreground">Uses the configured licensed connector. Do not include private contact details. Source excerpts are unverified evidence for review.</span>
                     </label>}
+                    {a.key === 'MEETING_COORDINATOR' && can('sales.meetings.create') && <fieldset className="min-w-0 space-y-2 rounded-lg border p-3"><legend className="text-sm">Optional actual calendar window</legend><label className="block text-sm">Representative ID<input name="calendarRepresentativeId" defaultValue={String(auth.user?._id ?? '')} pattern="[a-fA-F0-9]{24}" className={field}/></label><label className="block text-sm">Window starts (ISO time with offset)<input name="calendarStartsAt" className={field}/></label><label className="block text-sm">Window ends (ISO time with offset)<input name="calendarEndsAt" className={field}/></label><p className="text-xs">At most seven days. The coordinator checks the configured calendar and local holds; proposed slots still require human review and a fresh conflict check before booking.</p></fieldset>}
                     <Button
                       type="submit"
                       disabled={busy || !a.executionEnabled}

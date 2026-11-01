@@ -34,6 +34,7 @@ const run = new Schema(
     serviceIdentity: { type: String, required: true },
     objective: { type: String, required: true, maxlength: 2000 },
     researchQuery: { type: String, maxlength: 300 },
+    calendarWindow: { type: new Schema({ representativeId: { type: String, required: true }, startsAt: { type: String, required: true }, endsAt: { type: String, required: true } }, { _id: false }), default: undefined },
     researchSources: Schema.Types.Mixed,
     researchHash: String,
     researchExpiresAt: Date,

@@ -8,6 +8,7 @@ import * as agents from './sales-agent.controller.js';
 import * as identity from './sales-identity.controller.js';
 import * as campaigns from './sales-campaign.controller.js';
 import * as outreach from './sales-outreach.controller.js';
+import * as calendar from './sales-calendar.controller.js';
 import rateLimit from 'express-rate-limit';
 
 export const salesRouter = Router();
@@ -22,6 +23,8 @@ salesRouter.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next
 salesRouter.get('/success/customers', asyncHandler(success.list));
 salesRouter.get('/success/outreach/capabilities', asyncHandler(outreach.capabilities));
 salesRouter.get('/success/outreach/whatsapp/templates', asyncHandler(outreach.whatsappTemplates));
+salesRouter.get('/success/customers/:id/calendar/availability', asyncHandler(calendar.availability));
+salesRouter.post('/success/customers/:id/meetings/:meetingId/calendar', asyncHandler(calendar.command));
 salesRouter.get('/success/customers/:id/consents', asyncHandler(outreach.consents));
 salesRouter.post('/success/customers/:id/consents', asyncHandler(outreach.consent));
 salesRouter.get('/success/customers/:id/messages', asyncHandler(outreach.list));

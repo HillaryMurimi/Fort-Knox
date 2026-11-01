@@ -28,6 +28,9 @@ export interface Meeting {
   description?: string;
   outcome?: string;
   revision: number;
+  representativeId?: string;
+  timezone?: string;
+  calendar?: { provider: string; status: string; eventId?: string; syncedAt?: string; invitationRequested?: boolean; errorCode?: string; attemptedAt?: string };
 }
 export interface CustomerView {
   customer: Customer;

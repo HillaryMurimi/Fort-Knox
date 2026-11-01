@@ -155,6 +155,23 @@ export class JobService {
       await (await import('../sales/sales-outreach-webhook.service.js')).SalesOutreachWebhookService.consume(input.webhookId);
       return;
     }
+    if (job.type === 'sales.calendar.execute') {
+      const { z } = await import('zod');
+      const input = z.object({ meetingId: z.string().regex(/^[a-f\d]{24}$/i), commandId: z.uuid() }).strict().parse(job.payload);
+      await (await import('../sales/sales-calendar.service.js')).SalesCalendarService.execute(input.meetingId, input.commandId);
+      return;
+    }
+    if (job.type === 'sales.calendar.scan') { await (await import('../sales/sales-calendar.service.js')).SalesCalendarService.scan(job.payload); return; }
+    if (job.type === 'sales.calendar.reconcile') {
+      const { z } = await import('zod');
+      const input = z.object({ meetingId: z.string().regex(/^[a-f\d]{24}$/i) }).strict().parse(job.payload);
+      await (await import('../sales/sales-calendar.service.js')).SalesCalendarService.reconcile(input.meetingId); return;
+    }
+    if (job.type === 'sales.calendar.expire') {
+      const { z } = await import('zod');
+      const input = z.object({ meetingId: z.string().regex(/^[a-f\d]{24}$/i) }).strict().parse(job.payload);
+      await (await import('../sales/sales-calendar.service.js')).SalesCalendarService.expire(input.meetingId); return;
+    }
     if (job.type === 'sales.sms.webhook') {
       const { z } = await import('zod');
       const input = z.object({ webhookId: z.string().regex(/^[a-f\d]{24}$/i) }).strict().parse(job.payload);

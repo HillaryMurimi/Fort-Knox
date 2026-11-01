@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { redactSalesMeeting } from './sales-calendar.policy.js';
 import { z } from "zod";
 import type { AuthenticatedUser } from "../../core/types/auth.js";
 import { SalesActivity } from "../../database/models/SalesActivity.js";
@@ -83,7 +84,7 @@ export class SalesHistoryService {
     }
     const records = await SalesMeeting.find(filter)
       .select(
-        allowed("sales.notes.read") ? "-__v" : "-__v -description -outcome",
+        allowed("sales.notes.read") ? "-__v" : "-__v -description -outcome -calendar.evidence",
       )
       .sort({ startsAt: -1, _id: -1 })
       .limit(input.limit + 1)
@@ -91,7 +92,7 @@ export class SalesHistoryService {
     const items = records.slice(0, input.limit),
       last = items.at(-1);
     return {
-      items,
+      items: items.map(meeting => redactSalesMeeting(meeting)),
       nextCursor:
         records.length > input.limit && last
           ? historyCursor(last.startsAt, last._id)

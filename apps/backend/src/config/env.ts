@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { z } from "zod";
+import { salesCalendarConnections } from './sales-calendar.config.js';
 
 const optionalValue = (schema: z.ZodString) =>
   z.preprocess(
@@ -44,6 +45,7 @@ export const envSchema = z
     SALES_WHATSAPP_VERIFY_TOKEN: optionalValue(z.string().min(32).max(256)),
     SALES_WHATSAPP_ESTIMATED_MICRO_USD: z.coerce.number().int().nonnegative().max(100000000).default(0),
     SALES_WHATSAPP_REQUESTS_PER_MINUTE: z.coerce.number().int().min(1).max(60).default(10),
+    SALES_CALENDAR_CONNECTIONS_JSON: salesCalendarConnections,
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),

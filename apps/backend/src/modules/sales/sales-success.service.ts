@@ -16,10 +16,12 @@ import {
   SuccessRepository as repository,
   assertSuccessPermission,
   customerScope,
+  lockSalesRepresentative, salesMeetingConflict,
 } from "./sales-success.repository.js";
 import * as schemas from "./sales-success.schemas.js";
 import { assertCustomerIdentityIndex } from "./sales-success-indexes.js";
 import { assertFreshAdmin } from '../auth/admin-security.js';
+import { redactSalesMeeting } from './sales-calendar.policy.js';
 
 async function transaction<T>(work: (session: ClientSession) => Promise<T>) {
   const session = await mongoose.startSession();
@@ -173,7 +175,7 @@ export class SalesSuccessService {
             .select(
               allowed("sales.notes.read")
                 ? "-__v"
-                : "-__v -description -outcome",
+                : "-__v -description -outcome -calendar.evidence",
             )
             .sort({ startsAt: -1, _id: -1 })
             .limit(50)
@@ -211,7 +213,7 @@ export class SalesSuccessService {
         organizationId: lead.organizationId,
         identityState: lead.organizationId ? "LINKED" : lead.identityState,
       },
-      meetings,
+      meetings: meetings.map(meeting => redactSalesMeeting(meeting)),
       timeline,
       historyLimit: { meetings: 50, activities: 100 },
       historyCursors: {
@@ -400,31 +402,8 @@ export class SalesSuccessService {
           "FORBIDDEN",
           "Delegates may schedule only their own meetings",
         );
-      // Serialize reservations per representative to prevent concurrent overlap write skew.
-      const representative = await User.findOneAndUpdate(
-        { _id: input.representativeId, status: "ACTIVE" },
-        { $inc: { salesCalendarRevision: 1 } },
-        { session },
-      );
-      if (!representative)
-        throw new AppError(
-          404,
-          "USER_NOT_FOUND",
-          "Active representative not found",
-        );
-      if (
-        await SalesMeeting.exists({
-          representativeId: input.representativeId,
-          status: "SCHEDULED",
-          startsAt: { $lt: new Date(input.endsAt) },
-          endsAt: { $gt: new Date(input.startsAt) },
-        }).session(session)
-      )
-        throw new AppError(
-          409,
-          "MEETING_CONFLICT",
-          "Representative already has a meeting during this period",
-        );
+      await lockSalesRepresentative(input.representativeId, session);
+      if (await salesMeetingConflict(input.representativeId, new Date(input.startsAt), new Date(input.endsAt), session)) throw new AppError(409, 'MEETING_CONFLICT', 'Representative already has a meeting or calendar hold during this period');
       const [meeting] = await SalesMeeting.create(
         [{ ...input, leadId: lead._id, createdBy: auth.userId }],
         { session },
@@ -465,11 +444,13 @@ export class SalesSuccessService {
         session,
       );
       if (input.notes) assertSuccessPermission(auth, "sales.notes.create");
+      const calendarMeeting = await SalesMeeting.findOne({ _id: meetingId, leadId: lead._id }).select('calendar.status').session(session);
+      if (calendarMeeting?.calendar?.status === 'PENDING' || (calendarMeeting?.calendar && calendarMeeting.calendar.status !== 'CANCELLED' && ['CANCELLED', 'RESCHEDULED'].includes(input.status))) throw new AppError(409, 'CALENDAR_RECONCILIATION_REQUIRED', 'Resolve the pending calendar command or cancel/reschedule the connected event through its reviewed calendar workflow first');
       const meeting = await SalesMeeting.findOneAndUpdate(
         {
           _id: meetingId,
           leadId: lead._id,
-          status: "SCHEDULED",
+          $or: [{ status: 'SCHEDULED' }, { status: input.status, outcome: { $exists: false }, 'calendar.status': 'CANCELLED' }],
           revision: input.revision === 0 ? { $in: [0, null] } : input.revision,
         },
         {

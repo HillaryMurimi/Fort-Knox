@@ -39,6 +39,7 @@ import type { AuthenticatedUser } from "../../src/core/types/auth.js";
 import { completedAdminFixture } from "../helpers/admin-assurance.js";
 import { setSalesResearchTestProvider } from '../../src/integrations/research/sales-research.provider.js';
 import { Organization } from '../../src/database/models/Organization.js';
+import { setSalesCalendarTestProvider } from '../../src/integrations/calendar/sales-calendar.provider.js';
 const output = (key: AgentKey): AgentOutput => ({
   summary: "Review actual customer context",
   evidence: ["Customer expressed a migration concern."],
@@ -143,7 +144,7 @@ describe.skipIf(!process.env.RUN_E2E)(
           mode: "ON",
         });
     });
-    afterEach(() => { setSalesModelTestProvider(undefined); setSalesResearchTestProvider(undefined); });
+    afterEach(() => { setSalesModelTestProvider(undefined); setSalesResearchTestProvider(undefined); setSalesCalendarTestProvider(String(admin.userId)); });
     async function configure(
       key: AgentKey,
       overrides: Record<string, unknown> = {},
@@ -168,6 +169,18 @@ describe.skipIf(!process.env.RUN_E2E)(
       });
     }
 
+    it('grounds coordinator proposals in actual calendar evidence without booking', async () => {
+      await configure('MEETING_COORDINATOR');
+      await PlatformSwitch.create({ key: 'SALES_CALENDAR', kind: 'FEATURE', name: 'Calendar', description: 'Controlled calendar source', enabled: true, mode: 'ON' });
+      const start = new Date(Date.now() + 86400000), end = new Date(start.getTime() + 3600000), proposedEnd = new Date(start.getTime() + 1800000);
+      let observed: unknown;
+      setSalesCalendarTestProvider(String(admin.userId), { key: 'GOOGLE', fingerprint: 'controlled-calendar', availability: async () => [], get: async () => null, find: async () => null, create: async () => { throw new Error('Agent must never create invitations'); }, update: async () => { throw new Error('Agent must never update invitations'); }, cancel: async () => { throw new Error('Agent must never cancel invitations'); } });
+      setSalesModelTestProvider(provider('MEETING_COORDINATOR', async input => { observed = input.context; return { output: { ...output('MEETING_COORDINATOR'), action: { ...output('MEETING_COORDINATOR').action, text: start.toISOString() + ' / ' + proposedEnd.toISOString() } }, requestId: 'controlled-calendar-model', model: 'controlled-model', inputTokens: 100, outputTokens: 100 }; }));
+      const run = await service.create(admin, { agent: 'MEETING_COORDINATOR', leadId, objective: 'Propose a briefing in the checked calendar window', commandId: randomUUID(), calendarWindow: { representativeId: String(admin.userId), startsAt: start.toISOString(), endsAt: end.toISOString() } });
+      await service.execute(run.id);
+      expect(observed).toMatchObject({ calendarAvailability: { provider: 'GOOGLE', busy: [], reservationCreated: false } });
+      expect((await SalesAgentRun.findById(run.id))?.status).toBe('AWAITING_APPROVAL');
+    });
     it.each(agentKeys)(
       "executes %s with a controlled provider, creates exact-payload approval and never sends",
       async (key) => {

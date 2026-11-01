@@ -203,6 +203,19 @@ try {
   await page.getByLabel("Description and customer requirements", { exact: true }).fill("Review migration of 120 units and address customer objections.");
   await page.getByRole("button", { name: "Schedule internal meeting", exact: true }).click();
   await page.getByLabel("Meeting status", { exact: true }).waitFor();
+  await page.getByText('External calendar: Not connected', { exact: true }).click();
+  await page.getByText(/A manual scheduled meeting has no external confirmation/).waitFor();
+  const unavailableCalendar = page.waitForResponse(r => r.url().includes('/calendar/availability?') && r.request().method() === 'GET');
+  await page.getByRole('button', { name: 'Check actual availability', exact: true }).click();
+  assert.equal((await unavailableCalendar).status(), 503, 'Disabled optional calendar must not invent available slots');
+  await page.getByText('This operation is currently unavailable for maintenance.', { exact: true }).waitFor();
+  for (const width of [390, 834]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(350);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Calendar review fits ' + width);
+    await page.screenshot({ path: temporaryRoot + `/pcc-calendar-review-${width}.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByLabel("Outcome, objections and promised actions", { exact: true }).fill("Meeting completed. Customer requests a migration plan.");
   await page.getByRole("button", { name: "Record outcome", exact: true }).click();
   await page.getByText(/DEMO.*COMPLETED/).waitFor();
@@ -778,7 +791,7 @@ try {
         "Fort Knox security and evidence",
         "guided pilot validation, import and owner activation milestone",
         "existing commercial activation handoff without paid-access bypass",
-        "sales conversion intelligence", "customer creation, qualification, notes and meeting outcomes", "campaign approval and consented first-party invitations", "controlled sourced-prospect review and CRM import", "unavailable email readiness and explicit public opt-out confirmation", "controlled SMS consent and exact draft review without dispatch",
+        "sales conversion intelligence", "customer creation, qualification, notes and meeting outcomes", "unavailable calendar with actual server guard and no invented availability", "campaign approval and consented first-party invitations", "controlled sourced-prospect review and CRM import", "unavailable email readiness and explicit public opt-out confirmation", "controlled SMS consent and exact draft review without dispatch",
       ],
       viewports: sizes,
       themes: ["light", "dark"],

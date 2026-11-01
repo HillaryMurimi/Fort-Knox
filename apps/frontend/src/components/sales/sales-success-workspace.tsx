@@ -12,6 +12,7 @@ import { SalesCampaigns } from './sales-campaigns';
 import { SalesCustomerIdentity } from "./sales-customer-identity";
 import { SalesCustomerHistory } from "./sales-customer-history";
 import { SalesCustomerOutreach } from './sales-customer-outreach';
+import { SalesMeetingCalendar } from './sales-meeting-calendar';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Alert, Button } from "@/components/ui";
@@ -559,15 +560,14 @@ export function SalesSuccessWorkspace() {
                       </p>
                     )}
                     {data.meetings.map((m) => (
-                      <MeetingCard
-                        key={m._id}
+                      <div key={m._id} className="min-w-0 space-y-3"><MeetingCard
                         meeting={m}
                         editable={can("sales.meetings.update")}
                         pending={pending}
                         save={(body) =>
                           act(() => client.outcome(selected, m._id, body))
                         }
-                      />
+                      />{can('sales.meetings.update') && <SalesMeetingCalendar key={m._id + ':' + m.revision} customerId={data.customer.id} meeting={m} admin={admin} pending={pending} act={act}/>}</div>
                     ))}
                     <SalesCustomerHistory
                       id={data.customer.id}
@@ -777,7 +777,7 @@ function MeetingCard({
         </p>
       )}
       {m.outcome && <p className="whitespace-pre-wrap text-sm">{m.outcome}</p>}
-      {editable && m.status === "SCHEDULED" && (
+      {editable && (m.status === 'SCHEDULED' || (m.calendar?.status === 'CANCELLED' && !m.outcome)) && (
         <form
           className="space-y-3"
           onSubmit={(e) => {
@@ -792,13 +792,13 @@ function MeetingCard({
         >
           <Field label="Meeting status">
             <select name="status" className={inputClass}>
-              {[
+              {(m.status !== 'SCHEDULED' ? [m.status] : [
                 "COMPLETED",
                 "CANCELLED",
                 "RESCHEDULED",
                 "NO_SHOW",
                 "NOT_HELD",
-              ].map((s) => (
+              ]).map((s) => (
                 <option key={s}>{s}</option>
               ))}
             </select>

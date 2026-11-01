@@ -14,6 +14,8 @@ import { SalesActivity } from "../../database/models/SalesActivity.js";
 import { SalesLead } from '../../database/models/SalesLead.js';
 import { SalesConversationEntry } from '../../database/models/SalesCommunication.js';
 import { salesDeliveryProvider } from '../../integrations/notifications/sales-delivery.provider.js';
+import { salesCalendarProvider } from '../../integrations/calendar/sales-calendar.provider.js';
+import { validateCalendarProposal } from './sales-calendar.policy.js';
 import { User } from '../../database/models/User.js';
 import { Organization } from '../../database/models/Organization.js';
 import { Job } from '../../database/models/Job.js';
@@ -58,7 +60,7 @@ const instructions: Record<AgentKey, string> = {
   SALES_OUTREACH:
     "Prepare one personalized outreach draft. Use only supplied product capabilities and current authoritative pricing. Never offer discounts or claim unverified integrations. Respect opt-out.",
   MEETING_COORDINATOR:
-    "Prepare a customer briefing or meeting proposal. Availability is unknown unless actual calendar evidence is supplied. Never invent a free slot or claim a booking.",
+    "Prepare a customer briefing or meeting proposal. Availability is unknown unless actual calendar evidence is supplied. Never invent a free slot or claim a booking. When calendarAvailability is supplied, MEETING_PROPOSAL action text must contain one to five available future start/end pairs formatted as ISO timestamps with seconds and explicit offsets, within the checked window. Put no other timestamps in action text.",
   FOLLOW_UP:
     "Review previous communications, meeting outcomes and next action. Recommend a relevant follow-up only if unresolved. Avoid repeats and respect consent and opt-out.",
   ONBOARDING_SUCCESS:
@@ -127,7 +129,7 @@ export class SalesAgentService {
         ai: salesModelProvider().configured()
           ? "CONFIGURED_UNVERIFIED"
           : "NOT_CONFIGURED",
-        calendar: "NOT_CONNECTED",
+        calendar: salesCalendarProvider(String(auth.userId)) ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONNECTED',
         outreach: salesDeliveryProvider('EMAIL') || salesDeliveryProvider('SMS') || salesDeliveryProvider('WHATSAPP') ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED',
         research: salesResearchProvider() ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED',
       },
@@ -225,6 +227,10 @@ export class SalesAgentService {
     const input = agentTaskSchema.parse(raw);
     await authorizeTask(auth, input.leadId, input.agent);
     if (input.researchQuery) assertSuccessPermission(auth, 'sales.research.execute');
+    if (input.calendarWindow) {
+      assertSuccessPermission(auth, 'sales.meetings.read'); assertSuccessPermission(auth, 'sales.meetings.create');
+      if (!auth.isPlatformAdmin && input.calendarWindow.representativeId !== String(auth.userId)) throw new AppError(403, 'FORBIDDEN', 'Delegates may use only their configured representative calendar');
+    }
     await assertAgentIndexes();
     const digest = payloadHash(input);
     try {
@@ -353,6 +359,10 @@ export class SalesAgentService {
     assertSuccessPermission(auth, "sales.notes.read");
     assertSuccessPermission(auth, "sales.meetings.read");
     if (['SALES_OUTREACH', 'FOLLOW_UP'].includes(run.agent)) assertSuccessPermission(auth, 'sales.outreach.read');
+    if (run.calendarWindow) {
+      assertSuccessPermission(auth, 'sales.meetings.create');
+      if (!auth.isPlatformAdmin && run.calendarWindow.representativeId !== String(auth.userId)) throw new AppError(403, 'FORBIDDEN', 'Calendar output is outside current representative scope');
+    }
     await SuccessRepository.load(
       auth,
       String(run.leadId),
@@ -605,6 +615,7 @@ export class SalesAgentService {
             }
           : { basis: "UNKNOWN_UNIT_COUNT_NO_PRICE_PROMISE" };
       const context = {
+        calendarAvailability: run.calendarWindow ? await (await import('./sales-calendar.service.js')).SalesCalendarService.availability(auth, String(run.leadId), { representativeId: run.calendarWindow.representativeId, startsAt: run.calendarWindow.startsAt, endsAt: run.calendarWindow.endsAt }) : { basis: 'NOT_CHECKED_NO_AVAILABLE_SLOT_CLAIM' },
         conversation: ['SALES_OUTREACH', 'FOLLOW_UP'].includes(run.agent)
           ? (await SalesConversationEntry.find({ leadId: run.leadId, contentExpiresAt: { $gt: new Date() }, redactedAt: { $exists: false } }).sort({ occurredAt: -1, _id: -1 }).limit(5).lean()).map(entry => ({
               direction: entry.direction, at: entry.occurredAt, correlation: entry.correlation,
@@ -814,6 +825,11 @@ export class SalesAgentService {
         );
       const currentActor = await repository.principal(run.requestedBy);
       await authorizeTask(currentActor, String(run.leadId), run.agent);
+      if (run.calendarWindow) {
+        assertSuccessPermission(currentActor, 'sales.meetings.create');
+        if (!currentActor.isPlatformAdmin && run.calendarWindow.representativeId !== String(currentActor.userId)) throw new AppError(403, 'FORBIDDEN', 'Calendar scope changed during generation');
+        if (output.action.tool === 'MEETING_PROPOSAL' && 'busy' in context.calendarAvailability) validateCalendarProposal(output.action.text, run.calendarWindow, context.calendarAvailability.busy);
+      }
       if (run.researchQuery) { assertSuccessPermission(currentActor, 'sales.research.execute'); await assertSwitchEnabled('SALES_RESEARCH'); }
       await assertSwitchEnabled("SALES_AI_RUNTIME");
       await assertSwitchEnabled(`SALES_AGENT_${run.agent}`);
