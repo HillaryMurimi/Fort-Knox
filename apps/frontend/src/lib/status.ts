@@ -42,6 +42,7 @@ export const statusGroups = {
     "SMS",
   ],
   processing: [
+    "DISPATCHING",
     "IN_PROGRESS",
     "PROCESSING",
     "RUNNING",
@@ -67,6 +68,7 @@ export const statusGroups = {
     "ACTIVE_WORK",
   ],
   review: [
+    "UNCERTAIN",
     "SUBMITTED",
     "UNDER_REVIEW",
     "CHANGES_REQUESTED",
@@ -121,6 +123,7 @@ export const statusGroups = {
     "ROLLBACK",
   ],
   failed: [
+    "BOUNCED",
     "FAILED",
     "REJECTED",
     "LINK_REJECTED",
@@ -130,6 +133,7 @@ export const statusGroups = {
     "UNCOLLECTIBLE",
   ],
   success: [
+    "OPT_IN",
     "APPROVED",
     "VERIFIED",
     "LINKED",
@@ -174,6 +178,8 @@ export const statusGroups = {
   ],
   paused: ["PAUSED", "SUSPENDED", "ON_HOLD", "MAINTENANCE"],
   inactive: [
+    "OPT_OUT",
+    "SUPPRESSED",
     "CANCELLED",
     "NOT_HELD",
     "DISABLED",

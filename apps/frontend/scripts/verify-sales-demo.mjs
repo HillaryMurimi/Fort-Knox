@@ -204,6 +204,23 @@ try {
   await page.getByLabel("Outcome, objections and promised actions", { exact: true }).fill("Meeting completed. Customer requests a migration plan.");
   await page.getByRole("button", { name: "Record outcome", exact: true }).click();
   await page.getByText(/DEMO.*COMPLETED/).waitFor();
+  const outreachPanel = page.getByRole('region', { name: 'Customer outreach', exact: true });
+  await outreachPanel.waitFor();
+  await outreachPanel.getByText('Business delivery readiness', { exact: true }).click();
+  await outreachPanel.getByText(/Sending prerequisites: Unavailable/).waitFor();
+  await outreachPanel.getByText('Record explicit consent or opt-out', { exact: true }).click();
+  assert.equal(await outreachPanel.getByRole('button', { name: 'Record consent evidence', exact: true }).count(), 1);
+  assert.equal(await outreachPanel.getByText('No recorded channel-specific consent. A CRM checkbox alone does not permit delivery.', { exact: true }).count(), 1);
+  // Unknown-token confirmation exercises the actual public preference route without changing a contact or sending.
+  const preferenceContext = await browser.newContext(), preference = await preferenceContext.newPage();
+  let preferenceWrites = 0;
+  preference.on('request', r => { if (r.url().includes('/outreach/unsubscribe') && r.method() === 'POST') preferenceWrites += 1; });
+  await preference.goto(origin + '/sales/unsubscribe/' + 'a'.repeat(43));
+  await preference.getByRole('button', { name: 'Confirm stop sales updates', exact: true }).waitFor();
+  assert.equal(preferenceWrites, 0, 'Opening an unsubscribe link must not mutate preferences');
+  await preference.getByRole('button', { name: 'Confirm stop sales updates', exact: true }).click();
+  await preference.getByText('Sales updates have been stopped where this request matched an invitation.', { exact: true }).waitFor();
+  assert.equal(preferenceWrites, 1); await preferenceContext.close();
   for (const theme of ["light", "dark"]) {
     await page.evaluate(t => { document.documentElement.classList.remove("light", "dark"); document.documentElement.classList.add(t); }, theme);
     for (const width of [390, 834, 1440]) {
@@ -564,7 +581,17 @@ try {
   await ownerPage
     .getByRole("button", { name: "Continue", exact: true })
     .click();
-  const ownerResponse = await ownerLogin;
+  let ownerResponse = await ownerLogin;
+  if (ownerResponse.status() === 429) {
+    // This full journey authenticates several identities from one loopback IP. Honor the real limiter.
+    const retryAfter = Number(ownerResponse.headers()['retry-after']);
+    assert.ok(Number.isFinite(retryAfter) && retryAfter > 0 && retryAfter <= 60, 'A bounded authentication cooldown must be provided');
+    await new Promise(resolve => setTimeout(resolve, (retryAfter + 1) * 1000));
+    await ownerPage.getByLabel('Password', { exact: true }).fill(password);
+    const retry = ownerPage.waitForResponse(r => r.url().endsWith('/api/v1/auth/login') && r.request().method() === 'POST');
+    await ownerPage.getByRole('button', { name: 'Continue', exact: true }).click();
+    ownerResponse = await retry;
+  }
   assert.equal(ownerResponse.status(), 200);
   const ownerChallenge = (await ownerResponse.json()).data;
   assert.equal(
@@ -693,7 +720,7 @@ try {
         "Fort Knox security and evidence",
         "guided pilot validation, import and owner activation milestone",
         "existing commercial activation handoff without paid-access bypass",
-        "sales conversion intelligence", "customer creation, qualification, notes and meeting outcomes", "campaign approval and consented first-party invitations", "controlled sourced-prospect review and CRM import",
+        "sales conversion intelligence", "customer creation, qualification, notes and meeting outcomes", "campaign approval and consented first-party invitations", "controlled sourced-prospect review and CRM import", "unavailable email readiness and explicit public opt-out confirmation",
       ],
       viewports: sizes,
       themes: ["light", "dark"],

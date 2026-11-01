@@ -11,6 +11,7 @@ import { SalesAgentControl } from "./sales-agent-control";
 import { SalesCampaigns } from './sales-campaigns';
 import { SalesCustomerIdentity } from "./sales-customer-identity";
 import { SalesCustomerHistory } from "./sales-customer-history";
+import { SalesCustomerOutreach } from './sales-customer-outreach';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Alert, Button } from "@/components/ui";
@@ -461,6 +462,7 @@ export function SalesSuccessWorkspace() {
                     </details>
                   )}
                 </section>
+                <SalesCustomerOutreach key={data.customer.id} customer={data.customer}/>
                 <SalesCustomerIdentity
                   id={data.customer.id}
                   revision={data.customer.revision}
@@ -832,6 +834,8 @@ const delegatedPermissions = [
   "sales.agents.read",
   "sales.agents.execute",
   "sales.research.execute",
+  "sales.outreach.read",
+  "sales.outreach.prepare",
 ];
 function PermissionForm({
   pending,

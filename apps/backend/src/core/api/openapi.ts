@@ -6,6 +6,7 @@ import { salesSuccessPaths } from "../../modules/sales/sales-success.openapi.js"
 import { salesAgentPaths } from '../../modules/sales/sales-agent.openapi.js';
 import { salesIdentityPaths } from '../../modules/sales/sales-identity.openapi.js';
 import { salesCampaignPaths } from '../../modules/sales/sales-campaign.openapi.js';
+import { salesOutreachPaths } from '../../modules/sales/sales-outreach.openapi.js';
 import { platformBusinessPaths } from "../../modules/platform-control/platform-business.openapi.js";
 import { landlordContractPaths } from "../../modules/onboarding/landlord-onboarding.openapi.js";
 import { landlordOperationsPaths } from "../../modules/landlord-operations/landlord-operations.openapi.js";
@@ -186,6 +187,7 @@ export function buildOpenApiDocument() {
       ...salesAgentPaths,
       ...salesIdentityPaths,
       ...salesCampaignPaths,
+      ...salesOutreachPaths,
       ...platformBusinessPaths,
       ...landlordContractPaths,
       ...landlordOperationsPaths,

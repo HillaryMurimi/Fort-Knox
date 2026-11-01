@@ -588,3 +588,8 @@ SUPER_ADMIN operates across the SaaS platform; landlords retain their own organi
 Self-service acquisition now connects public plan selection, minimal signup and owner email verification to the existing signed-agreement/Paystack authority. Verified activation opens guided real-property setup immediately; property setup remains separate from paid activation.
 
 See [implementation report and deployment runbook](SELF_SERVICE_LANDLORD_ONBOARDING.md) for final scope, verification, limitations and operating requirements.
+
+
+### Governed sales email and consent (2026-11-01)
+
+Sales email now uses channel-specific recorded consent, exact-payload human review, current assigned-customer permissions, existing Notification/Job delivery, bounded quiet-hour/recipient/campaign limits and provider idempotency. Signed callbacks distinguish acceptance, delivery, bounce, complaint and inbound replies; none establishes human reading or account authentication. Public opt-out is an explicit POST and stops sales channels without disabling account/security notifications. Primary-contact corrections require fresh administrator proof and invalidate consent snapshots. New data/indexes, privacy retention, configuration, provider acceptance limits and remaining SMS/WhatsApp/calendar/follow-up work are specified in [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md). New features remain OFF by default. Live transport acceptance remains unverified.

@@ -13,6 +13,8 @@ export const salesPermissions = [
   "sales.agents.read",
   "sales.agents.execute",
   "sales.research.execute",
+  "sales.outreach.read",
+  "sales.outreach.prepare",
 ] as const;
 export const listCustomersSchema = z
   .object({
@@ -54,6 +56,9 @@ export const customerSchema = z
 export const updateCustomerSchema = z
   .object({
     revision: z.number().int().min(0),
+    email: z.string().trim().toLowerCase().email().max(240).nullable().optional(),
+    phone: z.string().regex(/^\+[1-9]\d{7,14}$/).nullable().optional(),
+    contactChangeReason: z.string().trim().min(20).max(2000).optional(),
     leadStatus: z
       .enum(["New", "Qualified", "Disqualified", "Nurture"])
       .optional(),
@@ -61,7 +66,7 @@ export const updateCustomerSchema = z
     nextActionDate: z.iso.datetime({ offset: true }).optional(),
     consent: z.enum(["UNKNOWN", "OPTED_IN", "OPTED_OUT"]).optional(),
   })
-  .strict();
+  .strict().refine(v => (v.email === undefined && v.phone === undefined) || !!v.contactChangeReason, { message: 'Primary contact corrections require an explicit review reason' });
 export const meetingSchema = z
   .object({
     representativeId: objectId,

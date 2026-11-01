@@ -399,3 +399,8 @@ The existing sales CRM now integrates durable model tasks, fixed agent tools, cu
 ### Permitted sales research
 
 sales.research.execute is a separately delegated sales permission. It permits optional connected research only together with existing agent execution, current assigned-customer scope and constituent notes/meetings access. It never grants fresh administrator review, campaign governance, source import, organization linking, financial mutation or outbound delivery. Only a fresh dual-channel SUPER_ADMIN can promote an approved exact-source proposal using manually reviewed customer fields; consent remains UNKNOWN. Existing generic role mutation routes cannot add reserved sales permissions. Research evidence reads preserve the same customer scope and constituent read permissions as agent output.
+
+
+### Governed sales email and consent (2026-11-01)
+
+Sales email now uses channel-specific recorded consent, exact-payload human review, current assigned-customer permissions, existing Notification/Job delivery, bounded quiet-hour/recipient/campaign limits and provider idempotency. Signed callbacks distinguish acceptance, delivery, bounce, complaint and inbound replies; none establishes human reading or account authentication. Public opt-out is an explicit POST and stops sales channels without disabling account/security notifications. Primary-contact corrections require fresh administrator proof and invalidate consent snapshots. New data/indexes, privacy retention, configuration, provider acceptance limits and remaining SMS/WhatsApp/calendar/follow-up work are specified in [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md). New features remain OFF by default. Live transport acceptance remains unverified.

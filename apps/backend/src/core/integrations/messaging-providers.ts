@@ -28,10 +28,12 @@ export class ResendProvider implements EmailProvider {
   async send(input: MessageInput): Promise<MessageResult> { await assertSwitchEnabled('EMAIL_NOTIFICATIONS'); return this.sendProbe(input); }
   async sendProbe(input: MessageInput): Promise<MessageResult> {
     if (!env.EMAIL_ENABLED || !integrationConfig.resend.apiKey || !integrationConfig.email.from) throw new Error('RESEND_NOT_CONFIGURED');
-    const response = await fetch('https://api.resend.com/emails', { method: 'POST', signal: timeout(),
-      headers: { authorization: 'Bearer ' + integrationConfig.resend.apiKey, 'content-type': 'application/json' },
+    const response = await fetch('https://api.resend.com/emails', { method: 'POST', signal: timeout(), redirect: 'error',
+      headers: { authorization: 'Bearer ' + integrationConfig.resend.apiKey, 'content-type': 'application/json', ...(input.idempotencyKey ? { 'Idempotency-Key': input.idempotencyKey } : {}) },
       body: JSON.stringify({ from: integrationConfig.email.name + ' <' + (input.from ?? integrationConfig.email.from) + '>',
-        to: [input.to], subject: input.subject ?? PRODUCT_NAME + ' notification', text: input.body, ...(input.html ? { html: input.html } : {}) }) });
+        to: [input.to], subject: input.subject ?? PRODUCT_NAME + ' notification', text: input.body, ...(input.html ? { html: input.html } : {}),
+        ...(input.replyTo ? { reply_to: input.replyTo } : {}), ...(input.salesMessageId ? { tags: [{ name: 'sales_message_id', value: input.salesMessageId }] } : {}),
+        ...(input.listUnsubscribeUrl ? { headers: { 'List-Unsubscribe': '<' + input.listUnsubscribeUrl + '>' } } : {}) }) });
     if (!response.ok) throw new Error('RESEND_' + response.status);
     const result = await response.json() as { id?: string };
     if (!result.id) throw new Error('RESEND_RESPONSE_INVALID');

@@ -22,6 +22,7 @@ const salesLeadSchema = new Schema({
   contacts: { type: [new Schema({ name: { type: String, required: true }, email: String, phone: String, title: String }, { _id: false })], default: [] },
   optedOutAt: Date,
   consent: { type: String, enum: ['UNKNOWN', 'OPTED_IN', 'OPTED_OUT'], default: 'UNKNOWN' },
+  consentRevision: { type: Number, default: 0 },
   revision: { type: Number, default: 0 },
   identityState: { type: String, enum: ['UNLINKED', 'MATCH_SUGGESTED', 'LINK_PENDING_REVIEW', 'LINKED', 'LINK_REJECTED', 'CONFLICT'], default: 'UNLINKED' },
   pipelineRank: { type: Number, default: 0 },
@@ -33,6 +34,8 @@ const salesLeadSchema = new Schema({
 }, { timestamps: true });
 
 salesLeadSchema.index({ email: 1, createdAt: -1 });
+salesLeadSchema.index({ phone: 1, createdAt: -1 });
+salesLeadSchema.index({ mergedLeadIds: 1 });
 salesLeadSchema.index({ organizationId: 1 }, { unique: true, partialFilterExpression: { organizationId: { $type: 'objectId' } }, name: 'sales_customer_org_unique' });
 salesLeadSchema.index({ assignedTo: 1, createdAt: -1 });
 export const SalesLead = model('SalesLead', salesLeadSchema);

@@ -463,3 +463,8 @@ The existing sales CRM now integrates durable model tasks, fixed agent tools, cu
 ### Sales identity and lifecycle continuation (2026-10-31)
 
 Exact verified identity review, preserved-history merges, bounded permission-filtered history and durable idempotent commercial/inventory projections are implemented. Lifecycle/autolink default OFF. Authoritative billing and organization scope remain unchanged. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for API/model changes, index prerequisites, verification evidence and remaining milestones.
+
+
+### Governed sales email and consent (2026-11-01)
+
+Sales email now uses channel-specific recorded consent, exact-payload human review, current assigned-customer permissions, existing Notification/Job delivery, bounded quiet-hour/recipient/campaign limits and provider idempotency. Signed callbacks distinguish acceptance, delivery, bounce, complaint and inbound replies; none establishes human reading or account authentication. Public opt-out is an explicit POST and stops sales channels without disabling account/security notifications. Primary-contact corrections require fresh administrator proof and invalidate consent snapshots. New data/indexes, privacy retention, configuration, provider acceptance limits and remaining SMS/WhatsApp/calendar/follow-up work are specified in [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md). New features remain OFF by default. Live transport acceptance remains unverified.

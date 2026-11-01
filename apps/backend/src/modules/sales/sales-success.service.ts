@@ -19,6 +19,7 @@ import {
 } from "./sales-success.repository.js";
 import * as schemas from "./sales-success.schemas.js";
 import { assertCustomerIdentityIndex } from "./sales-success-indexes.js";
+import { assertFreshAdmin } from '../auth/admin-security.js';
 
 async function transaction<T>(work: (session: ClientSession) => Promise<T>) {
   const session = await mongoose.startSession();
@@ -221,6 +222,7 @@ export class SalesSuccessService {
   }
   static async update(auth: AuthenticatedUser, id: string, raw: unknown) {
     const input = schemas.updateCustomerSchema.parse(raw);
+    if (input.email !== undefined || input.phone !== undefined) assertFreshAdmin(auth);
     return transaction(async (session) => {
       const lead = await repository.load(
         auth,
@@ -228,7 +230,14 @@ export class SalesSuccessService {
         "sales.leads.update",
         session,
       );
-      const { revision, nextActionDate, ...changes } = input;
+      const { revision, nextActionDate, email, phone, contactChangeReason, ...changes } = input;
+      const contactChanged = (email !== undefined && email !== (lead.email ?? null)) || (phone !== undefined && phone !== (lead.phone ?? null));
+      if (contactChanged) {
+        const alternatives = [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])];
+        if (alternatives.length && await SalesLead.exists({ _id: { $nin: [lead._id, ...lead.mergedLeadIds] }, $or: alternatives }).session(session))
+          throw new AppError(409, 'POSSIBLE_DUPLICATE', 'A matching contact exists; review the canonical customer identity first');
+      }
+      const unset = { ...(email === null ? { email: 1 } : {}), ...(phone === null ? { phone: 1 } : {}) };
       const result = await SalesLead.updateOne(
         {
           _id: lead._id,
@@ -238,6 +247,8 @@ export class SalesSuccessService {
         {
           $set: {
             ...changes,
+            ...(typeof email === 'string' ? { email } : {}), ...(typeof phone === 'string' ? { phone } : {}),
+            ...(contactChanged ? { consent: changes.consent === 'OPTED_OUT' || lead.consent === 'OPTED_OUT' || lead.optedOutAt ? 'OPTED_OUT' : 'UNKNOWN' } : {}),
             ...(nextActionDate
               ? { nextActionDate: new Date(nextActionDate) }
               : {}),
@@ -245,11 +256,13 @@ export class SalesSuccessService {
               ? { optedOutAt: new Date() }
               : {}),
           },
-          $inc: { revision: 1 },
+          ...(Object.keys(unset).length ? { $unset: unset } : {}),
+          $inc: { revision: 1, ...(contactChanged || changes.consent === 'OPTED_OUT' ? { consentRevision: 1 } : {}) },
         },
         { session, runValidators: true },
       );
       if (!result.modifiedCount) conflict();
+      if (contactChanged) await AuditService.record({ actorUserId: auth.userId, action: 'sales.lead.contact.corrected', resourceType: 'SalesLead', resourceId: lead._id, metadata: { emailChanged: email !== undefined, phoneChanged: phone !== undefined, consentInvalidated: true, reason: contactChangeReason, organizationBindingChanged: false } }, session);
       await activity(
         auth,
         lead._id,

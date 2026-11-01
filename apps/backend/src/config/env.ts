@@ -26,6 +26,15 @@ export const envSchema = z
     SALES_RESEARCH_LICENSE_REVIEWED: booleanValue(false),
     SALES_RESEARCH_REQUEST_MICRO_USD: z.coerce.number().int().nonnegative().max(100000000).default(0),
     SALES_RESEARCH_RETENTION_DAYS: z.coerce.number().int().min(1).max(30).default(7),
+    SALES_EMAIL_ESTIMATED_MICRO_USD: z.coerce.number().int().nonnegative().max(100000000).default(0),
+    SALES_RESEND_WEBHOOK_SECRET: optionalValue(z.string().regex(/^whsec_[A-Za-z0-9+/=]+$/).min(24).refine(value => {
+      const encoded = value.slice(6), decoded = Buffer.from(encoded, 'base64');
+      return decoded.length >= 24 && decoded.toString('base64').replace(/=+$/, '') === encoded.replace(/=+$/, '');
+    }, { message: 'Use the provider-generated webhook signing secret' })),
+    SALES_REPLY_DOMAIN: optionalValue(z.string().max(200).regex(/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/)),
+    SALES_OUTREACH_CONTENT_RETENTION_DAYS: z.coerce.number().int().min(7).max(365).default(90),
+    SALES_RECIPIENT_DAILY_LIMIT: z.coerce.number().int().min(1).max(5).default(1),
+    SALES_EMAIL_REQUESTS_PER_MINUTE: z.coerce.number().int().min(1).max(60).default(30),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),

@@ -687,3 +687,8 @@ Campaign states and exact-payload approval, consented opaque invitations, existi
 ### Connected sales research (2026-11-01)
 
 The existing lead-researcher runtime supports an optional permitted-source connector, exact citations, fresh reviewed CRM import with unknown consent, and durable source-content retention. sales.research.execute is separately delegated; research defaults OFF and requires reviewed source-use rights and cost configuration. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for contracts, tests, configuration and remaining delivery/booking work.
+
+
+### Governed sales email and consent (2026-11-01)
+
+Sales email now uses channel-specific recorded consent, exact-payload human review, current assigned-customer permissions, existing Notification/Job delivery, bounded quiet-hour/recipient/campaign limits and provider idempotency. Signed callbacks distinguish acceptance, delivery, bounce, complaint and inbound replies; none establishes human reading or account authentication. Public opt-out is an explicit POST and stops sales channels without disabling account/security notifications. Primary-contact corrections require fresh administrator proof and invalidate consent snapshots. New data/indexes, privacy retention, configuration, provider acceptance limits and remaining SMS/WhatsApp/calendar/follow-up work are specified in [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md). New features remain OFF by default. Live transport acceptance remains unverified.
