@@ -117,4 +117,10 @@ describe.skipIf(!process.env.RUN_E2E)('Governed approved-template WhatsApp', () 
     const preview = await outreach.view(admin, String(leadId), m.id); expect(preview.message.whatsappTemplate?.values).toBeUndefined();
     await outreach.expireContent(m.id); expect((await SalesMessage.findById(m.id))?.whatsappTemplate?.values).toBeUndefined();
   });
+  it('honors a known contact stop before the first attempt without retaining unbound text', async () => {
+    await optIn(); const value = { messages: [{ id: 'incoming-before-first-attempt', from: phone.slice(1), timestamp: String(Math.floor(Date.now()/1000)), type: 'text', text: { body: 'STOP' } }] };
+    await callback(value); await callback(value);
+    expect((await SalesLead.findById(leadId))?.consent).toBe('OPTED_OUT'); expect(await SalesConversationEntry.countDocuments()).toBe(0); expect(send).not.toHaveBeenCalled(); expect((await SalesRecipientControl.findOne({ channel: 'WHATSAPP' }))?.responseRevision).toBe(1);
+  });
+
 });

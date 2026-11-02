@@ -22,12 +22,13 @@ import { AuditService } from '../audit/audit.service.js';
 import { SalesAgentRepository, salesTransaction } from './sales-agent.repository.js';
 import { payloadHash, authorizeTask } from './sales-agent.service.js';
 import { agentOutputSchema } from './sales-agent.schemas.js';
-import { SuccessRepository, assertSuccessPermission } from './sales-success.repository.js';
+import { SuccessRepository, assertSuccessPermission, hasSuccessPermission } from './sales-success.repository.js';
 import { SalesConsentService } from './sales-consent.service.js';
 import { campaignPayload } from './sales-campaign.service.js';
 import { assertOutreachIndexes } from './sales-success-indexes.js';
 import { outreachDraftSchema, outreachDecisionSchema, outreachPageSchema, unsubscribeSchema } from './sales-outreach.schemas.js';
 import { nextOutreachWindow, opaqueHash, recipientHash } from './sales-outreach.policy.js';
+import { signalSalesFollowUps } from './sales-followup.signal.js';
 
 type Message = HydratedDocument<SalesMessageRecord>;
 const terminal = ['SENT', 'FAILED', 'UNCERTAIN', 'CANCELLED', 'SUPPRESSED', 'EXPIRED', 'REJECTED'];
@@ -61,6 +62,7 @@ async function responsible(m: SalesMessageRecord) {
   const actor = await SalesAgentRepository.principal(m.requestedBy);
   await SuccessRepository.load(actor, String(m.leadId), 'sales.outreach.prepare');
   assertSuccessPermission(actor, 'sales.notes.read');
+  const followUpAt = m.followUpId ? await (await import('./sales-followup.service.js')).SalesFollowUpService.assertMessage(m.followUpId, m.requestedBy, String(m.leadId), m.commandId, m.campaignId) : undefined;
   if (m.originApprovalId) {
     const proposal = await SalesAgentApproval.findOne({ _id: m.originApprovalId, leadId: m.leadId, tool: 'OUTREACH_DRAFT', status: { $in: ['APPROVED', 'COMPLETED'] } });
     const run = proposal ? await SalesAgentRun.findById(proposal.runId) : null;
@@ -72,7 +74,7 @@ async function responsible(m: SalesMessageRecord) {
     const config = await SalesAgentRepository.config(run.agent);
     if (!config?.enabled || config.paused) throw new AppError(409, 'AGENT_PAUSED', 'Origin agent is disabled or paused');
   }
-  return actor;
+  return { actor, followUpAt };
 }
 async function consentMatches(m: SalesMessageRecord, session?: ClientSession) {
   const consent = await SalesConsentService.eligible(m.leadId, m.channel, session);
@@ -110,25 +112,29 @@ export class SalesOutreachService {
   }
   static async list(auth: AuthenticatedUser, id: string, raw: unknown) {
     const lead = await SuccessRepository.load(auth, id, 'sales.leads.read'); assertSuccessPermission(auth, 'sales.outreach.read'); const { page } = outreachPageSchema.parse(raw);
-    const items = await SalesMessage.find({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] } }).select('-body -replyTo -unsubscribeUrl -commandHash -whatsappTemplate.values').sort({ createdAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).lean();
+    const governed = hasSuccessPermission(auth, 'sales.followups.read') && (!lead.organizationId || hasSuccessPermission(auth, 'sales.onboarding.read'));
+    const items = await SalesMessage.find({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] }, ...(!governed ? { followUpId: { $exists: false } } : {}) }).select('-body -replyTo -unsubscribeUrl -commandHash -whatsappTemplate.values').sort({ createdAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).lean();
     return { items: items.map(m => m.contentExpiresAt && m.contentExpiresAt <= new Date() ? { ...m, subject: undefined, redactedAt: m.redactedAt ?? m.contentExpiresAt } : m), page, limit: 20 };
   }
   static async view(auth: AuthenticatedUser, id: string, messageId: string) {
     const lead = await SuccessRepository.load(auth, id, 'sales.leads.read'); assertSuccessPermission(auth, 'sales.outreach.read'); assertSuccessPermission(auth, 'sales.notes.read'); assertSuccessPermission(auth, 'sales.meetings.read');
     const message = await SalesMessage.findOne({ _id: messageId, leadId: { $in: [lead._id, ...lead.mergedLeadIds] } }).select('+recipient -commandHash').lean();
     if (!message) throw new AppError(404, 'OUTREACH_MESSAGE_NOT_FOUND', 'Message is unavailable for this customer');
+    if (message.followUpId) { assertSuccessPermission(auth, 'sales.followups.read'); if (lead.organizationId) assertSuccessPermission(auth, 'sales.onboarding.read'); }
     const campaign = await SalesCampaign.findById(message.campaignId).select('name status startsAt endsAt dailySendLimit perContactLimit budgetMicroUsd').lean();
     const expired = message.contentExpiresAt && message.contentExpiresAt <= new Date();
     return { message: expired ? { ...message, subject: undefined, recipient: undefined, whatsappTemplate: message.whatsappTemplate ? { ...message.whatsappTemplate, values: undefined } : undefined, body: 'Message content expired under retention.', redactedAt: message.redactedAt ?? message.contentExpiresAt } : message, campaign };
   }
   static async conversations(auth: AuthenticatedUser, id: string, raw: unknown) {
     const lead = await SuccessRepository.load(auth, id, 'sales.leads.read'); assertSuccessPermission(auth, 'sales.outreach.read'); assertSuccessPermission(auth, 'sales.notes.read'); const { page } = outreachPageSchema.parse(raw);
-    const items = await SalesConversationEntry.find({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] } }).sort({ occurredAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).lean();
+    const governed = hasSuccessPermission(auth, 'sales.followups.read') && (!lead.organizationId || hasSuccessPermission(auth, 'sales.onboarding.read'));
+    const items = await SalesConversationEntry.find({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] }, ...(!governed ? { followUpId: { $exists: false } } : {}) }).sort({ occurredAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).lean();
     return { items: items.map(e => e.contentExpiresAt && e.contentExpiresAt <= new Date() ? { ...e, subject: undefined, text: 'Conversation content expired under retention.', redactedAt: e.redactedAt ?? e.contentExpiresAt } : e), page, limit: 20 };
   }
-  static async prepare(auth: AuthenticatedUser, id: string, raw: unknown) {
+  static async prepare(auth: AuthenticatedUser, id: string, raw: unknown, followUpId?: Types.ObjectId) {
     const lead = await SuccessRepository.load(auth, id, 'sales.outreach.prepare'); assertSuccessPermission(auth, 'sales.notes.read');
-    const input = outreachDraftSchema.parse(raw), digest = payloadHash(input);
+    const input = outreachDraftSchema.parse(raw), digest = payloadHash({ ...input, ...(followUpId ? { followUpId: String(followUpId) } : {}) });
+    if (followUpId) await (await import('./sales-followup.service.js')).SalesFollowUpService.assertPreparation(followUpId, auth.userId, id, input.commandId);
     await assertOutreachIndexes();
     const existing = await SalesMessage.findOne({ requestedBy: auth.userId, commandId: input.commandId });
     if (existing) {
@@ -146,6 +152,8 @@ export class SalesOutreachService {
       assertSuccessPermission(auth, 'sales.agents.read'); assertSuccessPermission(auth, 'sales.meetings.read');
       const proposal = await SalesAgentApproval.findOne({ _id: input.originApprovalId, leadId: lead._id, tool: 'OUTREACH_DRAFT', status: { $in: ['APPROVED', 'COMPLETED'] }, decisionAt: { $gte: new Date(Date.now() - 7 * 86400000) } });
       if (!proposal || payloadHash(proposal.payload) !== proposal.payloadHash) throw new AppError(409, 'APPROVAL_CHANGED', 'Select a recently approved outreach proposal for this customer');
+      const origin = await SalesAgentRun.findById(proposal.runId).select('followUpId');
+      if (origin?.followUpId && String(origin.followUpId) !== String(followUpId)) throw new AppError(409, 'FOLLOWUP_CONTEXT_REQUIRED', 'A governed follow-up proposal cannot be detached from its parent sequence');
       const action = agentOutputSchema.shape.action.parse(proposal.payload); subject = action.subject ?? 'Dapinni product briefing'; body = action.text;
     }
     let whatsappTemplate: SalesMessageRecord['whatsappTemplate'];
@@ -164,11 +172,11 @@ export class SalesOutreachService {
     const sms = campaign.channel === 'SMS' ? salesSmsBody(body) : undefined;
     const renderedBody = whatsappTemplate ? body : sms?.text ?? body + '\n\nDapinni Real Estate Solutions\nTo stop sales updates: ' + unsubscribeUrl;
     if (campaign.channel === 'SMS') subject = undefined;
-    const contentFingerprint = payloadHash({ subject, body: sms?.text ?? body, channel: campaign.channel });
+    const contentFingerprint = payloadHash({ ...(followUpId ? {} : { subject }), body: sms?.text ?? body, channel: campaign.channel });
     const contentExpiresAt = new Date(Date.now() + env.SALES_OUTREACH_CONTENT_RETENTION_DAYS * 86400000);
     try {
       return await salesTransaction(async session => {
-        const message = new SalesMessage({ leadId: lead._id, campaignId: campaign._id, campaignHash: campaign.approvedHash, requestedBy: auth.userId, originApprovalId: input.originApprovalId,
+        const message = new SalesMessage({ leadId: lead._id, campaignId: campaign._id, campaignHash: campaign.approvedHash, requestedBy: auth.userId, originApprovalId: input.originApprovalId, ...(followUpId ? { followUpId } : {}),
           channel: campaign.channel, provider: provider.key, recipient: consent.contact, recipientHash: consent.hash, consentEventId: consent.event._id, consentEpoch: consent.lead.consentRevision ?? 0,
           sender, senderConfigHash: salesSenderConfigHash(provider.key), subject, body: renderedBody,
           timezone: consent.event.timezone, recipientDailyLimit: env.SALES_RECIPIENT_DAILY_LIMIT, commandId: input.commandId, commandHash: digest, contentFingerprint,
@@ -214,16 +222,17 @@ export class SalesOutreachService {
       if (input.action === 'SUBMIT') message.status = 'PENDING_APPROVAL';
       else if (['APPROVE', 'RESUME'].includes(input.action)) {
         await enabled(message.channel); await assertSwitchEnabled(transportSwitch(message.channel));
-        await responsible(message); const campaign = await campaignFor(message, session, true); await consentMatches(message, session);
+        const { followUpAt } = await responsible(message); const campaign = await campaignFor(message, session, true); await consentMatches(message, session);
         const provider = salesDeliveryProvider(message.channel);
         if (!provider || provider.key !== message.provider || message.senderConfigHash !== salesSenderConfigHash(provider.key) || !transportReady(message.channel)) throw new AppError(503, 'OUTREACH_PROVIDER_NOT_CONFIGURED', 'Sender, reply route, webhook verification or reviewed transport configuration is unavailable');
         if (env.NODE_ENV !== 'test' && !message.estimatedCostMicroUsd) throw new AppError(409, 'OUTREACH_COST_POLICY_REQUIRED', 'Configure a reviewed per-message cost ceiling before delivery');
-        const at = nextOutreachWindow(new Date(Math.max(Date.now(), campaign.startsAt.getTime())), message.timezone);
+        const at = nextOutreachWindow(new Date(Math.max(Date.now(), campaign.startsAt.getTime(), followUpAt?.getTime() ?? 0)), message.timezone);
         const expires = new Date(Math.min(Date.now() + 7 * 86400000, campaign.endsAt.getTime(), message.contentExpiresAt?.getTime() ?? Infinity));
         if (at >= expires) throw new AppError(409, 'OUTREACH_WINDOW_UNAVAILABLE', 'No approved sending window remains; prepare or review the campaign schedule again');
         message.reviewedBy = auth.userId; message.reviewedAt = new Date(); message.approvalExpiresAt = expires; message.status = 'QUEUED'; await this.enqueue(message, at, session);
       } else { message.status = message.firstAttemptAt ? 'UNCERTAIN' : input.action === 'REJECT' ? 'REJECTED' : 'CANCELLED'; if (!message.firstAttemptAt) message.dedupeActive = false; }
       message.revision += 1; await message.save({ session });
+      await signalSalesFollowUps(message.leadId, 'message-decision:' + message._id + ':' + message.revision, session);
       await AuditService.record({ actorUserId: auth.userId, action: 'sales.outreach.reviewed', resourceType: 'SalesMessage', resourceId: message._id, metadata: { action: input.action, payloadHash: input.payloadHash, reason: input.reason, status: message.status } }, session);
       return { status: message.status, nextAttemptAt: message.nextAttemptAt, approvalExpiresAt: message.approvalExpiresAt };
     });
@@ -278,7 +287,7 @@ export class SalesOutreachService {
       await enabled(initial.channel); await assertSwitchEnabled(transportSwitch(initial.channel));
       if (!provider || provider.key !== initial.provider || !transportReady(initial.channel) || initial.senderConfigHash !== salesSenderConfigHash(provider.key)) throw new AppError(409, 'OUTREACH_CONFIG_CHANGED', 'Reviewed delivery configuration changed');
       if (initial.channel === 'WHATSAPP') await assertWhatsAppSnapshot(initial);
-      await responsible(initial);
+      const { followUpAt } = await responsible(initial);
       if (!initial.reviewedBy) throw new AppError(409, 'OUTREACH_APPROVAL_REQUIRED', 'Human review is required');
       AuthorizationService.assertPlatformAdmin(await SalesAgentRepository.principal(initial.reviewedBy));
       claimed = await salesTransaction(async session => {
@@ -287,7 +296,7 @@ export class SalesOutreachService {
         if (message.payloadHash !== payloadHash(outreachPayload(message)) || message.redactedAt) throw new AppError(409, 'OUTREACH_MESSAGE_CHANGED', 'Message no longer matches its human approval');
         if (!message.approvalExpiresAt || message.approvalExpiresAt <= new Date()) throw new AppError(409, 'OUTREACH_APPROVAL_EXPIRED', 'Human approval expired');
         const campaign = await campaignFor(message, session, true), consent = await consentMatches(message, session), now = new Date();
-        const at = nextOutreachWindow(new Date(Math.max(now.getTime(), campaign.startsAt.getTime(), message.nextAttemptAt?.getTime() ?? 0)), message.timezone);
+        const at = nextOutreachWindow(new Date(Math.max(now.getTime(), campaign.startsAt.getTime(), message.nextAttemptAt?.getTime() ?? 0, followUpAt?.getTime() ?? 0)), message.timezone);
         if (message.firstAttemptAt && (!provider.idempotencyHours || now.getTime() - message.firstAttemptAt.getTime() >= provider.idempotencyHours * 3600000 || message.attempt >= 3)) throw new AppError(409, 'OUTREACH_OUTCOME_UNKNOWN', 'Automatic resend stopped at the provider idempotency boundary');
         if (at > now) {
           if (at >= message.approvalExpiresAt || (message.firstAttemptAt && at.getTime() >= message.firstAttemptAt.getTime() + provider.idempotencyHours * 3600000)) throw new AppError(409, 'OUTREACH_OUTCOME_UNKNOWN', 'No safe approved retry window remains');
@@ -319,6 +328,10 @@ export class SalesOutreachService {
       if (!claimed) return { deferred: true };
       // Final policy checks occur immediately before transport; in-flight provider requests cannot be recalled.
       await enabled(claimed.channel); await consentMatches(claimed);
+      if (claimed.followUpId) {
+        const earliest = await (await import('./sales-followup.service.js')).SalesFollowUpService.assertMessage(claimed.followUpId, claimed.requestedBy, String(claimed.leadId), claimed.commandId, claimed.campaignId);
+        if (earliest > new Date()) throw new AppError(409, 'FOLLOWUP_DATE_CHANGED', 'The follow-up date moved after dispatch was reserved; no new transport call was made');
+      }
       const result = await provider.send({ to: claimed.recipient, from: claimed.sender, subject: claimed.subject ?? 'Dapinni sales update', body: claimed.body, idempotencyKey: 'sales-message/' + claimed._id, salesMessageId: String(claimed._id), ...(claimed.whatsappTemplate ? { whatsappTemplate: { name: claimed.whatsappTemplate.name, language: claimed.whatsappTemplate.language, values: [...(claimed.whatsappTemplate.values ?? [])] } } : {}), ...(claimed.replyTo ? { replyTo: claimed.replyTo } : {}), listUnsubscribeUrl: claimed.unsubscribeUrl });
       if (!result.providerMessageId) throw new AppError(503, 'OUTREACH_PROVIDER_EVIDENCE_MISSING', 'Provider acceptance identifier is missing');
       await salesTransaction(async session => {
@@ -331,9 +344,10 @@ export class SalesOutreachService {
         if (!['FAILED', 'BOUNCED'].includes(message.deliveryStatus)) message.errorCode = undefined;
         await message.save({ session });
         await Notification.updateOne({ _id: notificationId }, { $set: { status: message.deliveryStatus === 'DELIVERED' ? 'DELIVERED' : ['FAILED', 'BOUNCED'].includes(message.deliveryStatus) ? 'FAILED' : 'SENT', sentAt: message.providerAcceptedAt }, ...(!['FAILED', 'BOUNCED'].includes(message.deliveryStatus) ? { $unset: { failureReason: 1 } } : {}) }, { session });
+        await signalSalesFollowUps(message.leadId, 'accepted:' + message._id, session);
         await SalesRecipientControl.updateOne({ channel: message.channel, recipientHash: message.recipientHash, leaseOwner: String(message._id) }, { $unset: { leaseOwner: 1, leaseUntil: 1 } }, { session });
-        await SalesConversationEntry.updateOne({ sourceKey: `outbound:${message._id}` }, { $setOnInsert: { leadId: message.leadId, messageId: message._id, direction: 'OUTBOUND', provider: message.provider, subject: message.subject, text: message.body, occurredAt: message.providerAcceptedAt, contentExpiresAt: message.contentExpiresAt } }, { session, upsert: true });
-        await SalesActivity.updateOne({ leadId: message.leadId, sourceKey: `outreach-accepted:${message._id}` }, { $setOnInsert: { actorKind: 'SYSTEM', kind: 'sales.outreach.accepted', text: 'Approved sales outreach accepted by the provider; delivery and reading are not confirmed.', resourceId: message._id, sourceOccurredAt: message.providerAcceptedAt } }, { session, upsert: true });
+        await SalesConversationEntry.updateOne({ sourceKey: `outbound:${message._id}` }, { $setOnInsert: { leadId: message.leadId, messageId: message._id, followUpId: message.followUpId, direction: 'OUTBOUND', provider: message.provider, subject: message.subject, text: message.body, occurredAt: message.providerAcceptedAt, contentExpiresAt: message.contentExpiresAt } }, { session, upsert: true });
+        await SalesActivity.updateOne({ leadId: message.leadId, sourceKey: `outreach-accepted:${message._id}` }, { $setOnInsert: { followUpId: message.followUpId, actorKind: 'SYSTEM', kind: 'sales.outreach.accepted', text: 'Approved sales outreach accepted by the provider; delivery and reading are not confirmed.', resourceId: message._id, sourceOccurredAt: message.providerAcceptedAt } }, { session, upsert: true });
         await AuditService.record({ action: 'sales.outreach.provider.accepted', resourceType: 'SalesMessage', resourceId: message._id, metadata: { provider: message.provider, providerMessageId: result.providerMessageId, payloadHash: message.payloadHash } }, session);
       });
       return { accepted: true };

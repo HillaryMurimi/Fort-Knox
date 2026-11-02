@@ -1,3 +1,4 @@
+import { signalSalesFollowUps } from './sales-followup.signal.js';
 import { randomUUID } from 'node:crypto';
 import { Types, type ClientSession } from 'mongoose';
 import { env } from '../../config/env.js';
@@ -239,6 +240,7 @@ export class SalesCalendarService {
       if (status === 'CANCELLED' && meeting.status === 'SCHEDULED') meeting.status = 'CANCELLED';
       meeting.revision += 1; await meeting.save({ session });
       await SalesActivity.create([{ leadId: meeting.leadId, actorKind: 'SYSTEM', kind: 'sales.calendar.' + status.toLowerCase(), text: 'External calendar operation: ' + status + '. Invitation submission is not recipient delivery or attendance evidence.', resourceId: meeting._id, sourceKey: 'calendar-result:' + commandId + ':' + status }], { session });
+      await signalSalesFollowUps(meeting.leadId, 'calendar:' + commandId + ':' + status, session);
       await AuditService.record({ action: 'sales.calendar.reconciled', resourceType: 'SalesMeeting', resourceId: meeting._id, metadata: { commandId, provider: state.provider, eventId: event?.id, status, before, startsAt: meeting.startsAt, endsAt: meeting.endsAt, invitationRequested: state.invitationRequested, code } }, session);
       return { status, externalEventId: state.eventId, invitationRequested: state.invitationRequested ?? false, confirmationDelivered: false };
     });

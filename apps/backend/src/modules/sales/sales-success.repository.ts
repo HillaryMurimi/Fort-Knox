@@ -6,6 +6,9 @@ import { salesPermissions } from "./sales-success.schemas.js";
 import { SalesMeeting } from '../../database/models/SalesMeeting.js';
 import { User } from '../../database/models/User.js';
 import { Types } from 'mongoose';
+export function hasSuccessPermission(auth: AuthenticatedUser, permission: string) {
+  return auth.isPlatformAdmin || (salesPermissions.includes(permission as typeof salesPermissions[number]) && auth.memberships.some(member => member.scope.allProperties && member.permissions.includes(permission)));
+}
 
 export async function lockSalesRepresentative(id: string, session: ClientSession) {
   const representative = await User.findOneAndUpdate({ _id: id, status: 'ACTIVE' }, { $inc: { salesCalendarRevision: 1 } }, { session });

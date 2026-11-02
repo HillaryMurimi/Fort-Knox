@@ -64,6 +64,7 @@ export class SalesHistoryService {
     if (input.kind === "ACTIVITIES") {
       const records = await SalesActivity.find({
         ...filter,
+        ...((allowed('sales.followups.read') && (!lead.organizationId || allowed('sales.onboarding.read'))) ? {} : { followUpId: { $exists: false } }),
         ...(allowed("sales.onboarding.read")
           ? {}
           : { sourceType: { $exists: false } }),

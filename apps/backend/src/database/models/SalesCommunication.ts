@@ -20,6 +20,7 @@ const recipient = new Schema({
   suppressionReason: { type: String, enum: ['OPT_OUT', 'BOUNCE', 'COMPLAINT'] },
   epoch: { type: Number, default: 0 },
   dayMessages: [{ type: Schema.Types.ObjectId, ref: 'SalesMessage' }],
+  responseRevision: { type: Number, default: 0 },
   lastAttemptAt: Date, lastReplyAt: Date, lastResponseAt: Date, leaseOwner: String, leaseUntil: Date,
   day: String, dailyAttempts: { type: Number, default: 0 },
 }, { timestamps: true });
@@ -84,6 +85,7 @@ export const SalesCampaignUsage = model('SalesCampaignUsage', usage);
 const entry = new Schema({
   leadId: { type: Schema.Types.ObjectId, ref: 'SalesLead', required: true },
   messageId: { type: Schema.Types.ObjectId, ref: 'SalesMessage', required: true },
+  followUpId: { type: Schema.Types.ObjectId, ref: 'SalesFollowUp' },
   direction: { type: String, enum: ['OUTBOUND', 'INBOUND'], required: true },
   sourceKey: { type: String, required: true }, provider: { type: String, required: true },
   subject: { type: String, maxlength: 200 }, text: { type: String, maxlength: 10000 },

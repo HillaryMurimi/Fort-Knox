@@ -162,6 +162,15 @@ export class JobService {
       return;
     }
     if (job.type === 'sales.calendar.scan') { await (await import('../sales/sales-calendar.service.js')).SalesCalendarService.scan(job.payload); return; }
+    if (job.type === 'sales.followup.scan') { await (await import('../sales/sales-followup.service.js')).SalesFollowUpService.scan(job.payload); return; }
+    if (['sales.followup.wake', 'sales.followup.signal', 'sales.followup.detect'].includes(job.type)) {
+      const { z } = await import('zod');
+      const service = (await import('../sales/sales-followup.service.js')).SalesFollowUpService;
+      if (job.type === 'sales.followup.wake') { const input = z.object({ planId: z.string().regex(/^[a-f\d]{24}$/i) }).strict().parse(job.payload); await service.wake(input.planId); }
+      else if (job.type === 'sales.followup.signal') { const input = z.object({ leadId: z.string().regex(/^[a-f\d]{24}$/i) }).strict().parse(job.payload); await service.signal(input.leadId); }
+      else { const input = z.object({ policyId: z.string().regex(/^[a-f\d]{24}$/i), leadId: z.string().regex(/^[a-f\d]{24}$/i) }).strict().parse(job.payload); await service.detect(input.policyId, input.leadId); }
+      return;
+    }
     if (job.type === 'sales.calendar.reconcile') {
       const { z } = await import('zod');
       const input = z.object({ meetingId: z.string().regex(/^[a-f\d]{24}$/i) }).strict().parse(job.payload);

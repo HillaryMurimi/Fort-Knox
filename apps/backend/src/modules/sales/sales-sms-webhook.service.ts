@@ -1,3 +1,5 @@
+import type { Types } from 'mongoose';
+import { signalSalesFollowUps } from './sales-followup.signal.js';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { AppError } from '../../core/errors/AppError.js';
@@ -28,10 +30,10 @@ export class SalesSmsWebhookService {
     const observedAt = new Date();
     let verifiedDigest: string | undefined;
     return salesTransaction(async session => {
-      let message;
+      let message; let canonicalLeadId: Types.ObjectId | undefined;
       if (inbound) {
         const leads = await SalesLead.find({ phone: from, mergedInto: { $exists: false } }).select('mergedLeadIds').limit(2).session(session);
-        const lead = leads.length === 1 ? leads[0] : undefined;
+        const lead = leads.length === 1 ? leads[0] : undefined; canonicalLeadId = lead?._id;
         message = lead ? await SalesMessage.findOne({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] }, channel: 'SMS', provider: 'TWILIO', recipientHash: hash, sender, firstAttemptAt: { $type: 'date' } }).sort({ createdAt: -1, _id: -1 }).session(session) : null;
         const dedicated = sender === env.SALES_SMS_FROM && sender !== env.SMS_FROM;
         if (!message && !dedicated) return { received: true, ignored: true };
@@ -51,13 +53,15 @@ export class SalesSmsWebhookService {
       if (!event) throw new AppError(500, 'WEBHOOK_WRITE_FAILED', 'Could not persist SMS callback');
       if (inbound) {
         if (message) await SalesMessage.updateOne({ _id: message._id }, { $max: { lastResponseAt: event.receivedAt } }, { session });
-        await SalesRecipientControl.updateOne({ channel: 'SMS', recipientHash: hash }, { $max: { lastResponseAt: event.receivedAt } }, { session, upsert: true });
+        await SalesRecipientControl.updateOne({ channel: 'SMS', recipientHash: hash }, { $inc: { responseRevision: 1 }, $max: { lastResponseAt: event.receivedAt } }, { session, upsert: true });
       }
+      const knownLeadId = message?.leadId ?? canonicalLeadId;
       // Signed stop instructions are denial-only and must take effect before optional body retrieval.
       if (stop) {
-        if (message) await SalesConsentService.suppress(message.leadId, { channel: 'SMS', recipientHash: hash }, 'PROVIDER_REPLY', 'Verified sales SMS callback recorded an explicit stop request.', session);
+        if (knownLeadId) await SalesConsentService.suppress(knownLeadId, { channel: 'SMS', recipientHash: hash }, 'PROVIDER_REPLY', 'Verified sales SMS callback recorded an explicit stop request.', session);
         else await SalesRecipientControl.updateOne({ channel: 'SMS', recipientHash: hash }, { $inc: { epoch: 1 }, $set: { suppressedAt: new Date(), suppressionReason: 'OPT_OUT' } }, { session, upsert: true });
       }
+      if (knownLeadId) await signalSalesFollowUps(knownLeadId, 'sms-event:' + event._id, session);
       if (message) await Job.create([{ type: 'sales.sms.webhook', payload: { webhookId: String(event._id) }, priority: 10, maxAttempts: 5, availableAt: new Date(), dedupeKey: 'sales-sms-webhook:' + event._id }], { session });
       else if (inbound) { event.status = 'PROCESSED'; event.processedAt = new Date(); await event.save({ session }); }
       await AuditService.record({ action: 'sales.sms.callback.verified', resourceType: 'WebhookEvent', resourceId: event._id, metadata: { providerMessageId: sid, status, matchedMessage: !!message, stop, payloadHash: digest, accountAuthentication: false } }, session);
@@ -87,7 +91,7 @@ export class SalesSmsWebhookService {
         if (received) {
           if (received.id !== value.sid || received.to !== value.sender || recipientHash('SMS', received.from) !== value.recipientHash) throw new AppError(409, 'SALES_SMS_REPLY_MISMATCH', 'Retrieved SMS does not match its verified callback');
           const expiry = new Date(Date.now() + env.SALES_OUTREACH_CONTENT_RETENTION_DAYS * 86400000);
-          await SalesConversationEntry.updateOne({ sourceKey: 'sms-inbound:' + value.sid }, { $setOnInsert: { leadId: message.leadId, messageId: message._id, direction: 'INBOUND', provider: 'TWILIO', text: received.text || 'Incoming SMS had no readable text; attachments were not retrieved.', occurredAt: received.occurredAt, correlation: 'RECIPIENT_MATCHED', senderAuthentication: 'UNKNOWN', contentTruncated: received.truncated, contentExpiresAt: expiry } }, { session, upsert: true });
+          await SalesConversationEntry.updateOne({ sourceKey: 'sms-inbound:' + value.sid }, { $setOnInsert: { leadId: message.leadId, messageId: message._id, followUpId: message.followUpId, direction: 'INBOUND', provider: 'TWILIO', text: received.text || 'Incoming SMS had no readable text; attachments were not retrieved.', occurredAt: received.occurredAt, correlation: 'RECIPIENT_MATCHED', senderAuthentication: 'UNKNOWN', contentTruncated: received.truncated, contentExpiresAt: expiry } }, { session, upsert: true });
           await SalesMessage.updateOne({ _id: message._id }, { $max: { lastReplyAt: event.receivedAt, lastResponseAt: event.receivedAt } }, { session });
           await SalesRecipientControl.updateOne({ channel: 'SMS', recipientHash: value.recipientHash }, { $max: { lastReplyAt: event.receivedAt, lastResponseAt: event.receivedAt } }, { session, upsert: true });
           await Job.updateOne({ dedupeKey: `sales-outreach-retention:${message._id}:${value.sid}` }, { $setOnInsert: { type: 'sales.outreach.expire', payload: { messageId: String(message._id) }, availableAt: expiry, maxAttempts: 5 } }, { session, upsert: true });
@@ -103,11 +107,12 @@ export class SalesSmsWebhookService {
           }
           await message.save({ session });
           await Notification.updateOne({ _id: message.notificationId, salesMessageId: message._id }, { $set: { status: message.deliveryStatus === 'DELIVERED' ? 'DELIVERED' : message.deliveryStatus === 'FAILED' ? 'FAILED' : 'SENT', sentAt: message.providerAcceptedAt, ...(message.errorCode ? { failureReason: message.errorCode } : {}) }, ...(!message.errorCode ? { $unset: { failureReason: 1 } } : {}) }, { session });
-          await SalesConversationEntry.updateOne({ sourceKey: 'outbound:' + message._id }, { $setOnInsert: { leadId: message.leadId, messageId: message._id, direction: 'OUTBOUND', provider: 'TWILIO', text: message.body, occurredAt: message.providerAcceptedAt, contentExpiresAt: message.contentExpiresAt, ...(message.redactedAt ? { redactedAt: message.redactedAt } : {}) } }, { session, upsert: true });
+          await SalesConversationEntry.updateOne({ sourceKey: 'outbound:' + message._id }, { $setOnInsert: { leadId: message.leadId, messageId: message._id, followUpId: message.followUpId, direction: 'OUTBOUND', provider: 'TWILIO', text: message.body, occurredAt: message.providerAcceptedAt, contentExpiresAt: message.contentExpiresAt, ...(message.redactedAt ? { redactedAt: message.redactedAt } : {}) } }, { session, upsert: true });
           if (value.errorCode === '21610') await SalesConsentService.suppress(message.leadId, { channel: 'SMS', recipientHash: message.recipientHash }, 'PROVIDER_REPLY', 'Verified provider reported a previously opted-out SMS recipient (21610); no new reply is inferred.', session);
           else if (rank === 3 && ['30003', '30005', '30006'].includes(value.errorCode ?? '')) await SalesRecipientControl.updateOne({ channel: 'SMS', recipientHash: message.recipientHash }, { $inc: { epoch: 1 }, $set: { suppressedAt: new Date(), suppressionReason: 'BOUNCE' } }, { session, upsert: true });
         }
-        await SalesActivity.updateOne({ leadId: message.leadId, sourceKey: 'sms-event:' + event.eventId }, { $setOnInsert: { actorKind: 'SYSTEM', kind: value.status === 'received' ? 'sales.outreach.reply.received' : 'sales.outreach.sms.' + value.status, text: 'Verified SMS provider event: ' + value.status + '. Network address correlation is not account authentication or human-reading evidence.', resourceId: message._id, sourceOccurredAt: received?.occurredAt ?? event.receivedAt } }, { session, upsert: true });
+        await SalesActivity.updateOne({ leadId: message.leadId, sourceKey: 'sms-event:' + event.eventId }, { $setOnInsert: { followUpId: message.followUpId, actorKind: 'SYSTEM', kind: value.status === 'received' ? 'sales.outreach.reply.received' : 'sales.outreach.sms.' + value.status, text: 'Verified SMS provider event: ' + value.status + '. Network address correlation is not account authentication or human-reading evidence.', resourceId: message._id, sourceOccurredAt: received?.occurredAt ?? event.receivedAt } }, { session, upsert: true });
+        await signalSalesFollowUps(message.leadId, 'sms-processed:' + event._id, session);
         current.status = 'PROCESSED'; current.processedAt = new Date(); current.error = undefined; await current.save({ session });
         await AuditService.record({ action: 'sales.sms.event.processed', resourceType: 'SalesMessage', resourceId: message._id, metadata: { webhookId: String(event._id), providerMessageId: value.sid, status: value.status, sourceTime: received ? 'PROVIDER_CREATED_AT' : 'APPLICATION_OBSERVED_AT' } }, session);
         return { processed: true };

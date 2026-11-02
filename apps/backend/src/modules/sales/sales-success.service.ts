@@ -22,6 +22,7 @@ import * as schemas from "./sales-success.schemas.js";
 import { assertCustomerIdentityIndex } from "./sales-success-indexes.js";
 import { assertFreshAdmin } from '../auth/admin-security.js';
 import { redactSalesMeeting } from './sales-calendar.policy.js';
+import { signalSalesFollowUps } from './sales-followup.signal.js';
 
 async function transaction<T>(work: (session: ClientSession) => Promise<T>) {
   const session = await mongoose.startSession();
@@ -39,7 +40,7 @@ async function activity(
   text?: string,
   resourceId?: Types.ObjectId,
 ) {
-  await SalesActivity.create(
+  const [entry] = await SalesActivity.create(
     [{ leadId, actorUserId: auth.userId, kind, text, resourceId }],
     { session },
   );
@@ -53,6 +54,7 @@ async function activity(
     },
     session,
   );
+  if (entry) await signalSalesFollowUps(leadId, 'activity:' + entry._id, session);
 }
 function conflict(): never {
   throw new AppError(
@@ -182,7 +184,7 @@ export class SalesSuccessService {
             .lean()
         : [],
       allowed("sales.notes.read")
-        ? SalesActivity.find({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] }, ...(allowed("sales.onboarding.read") ? {} : { sourceType: { $exists: false } }) })
+        ? SalesActivity.find({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] }, ...(allowed("sales.onboarding.read") ? {} : { sourceType: { $exists: false } }), ...((allowed('sales.followups.read') && (!lead.organizationId || allowed('sales.onboarding.read'))) ? {} : { followUpId: { $exists: false } }) })
             .select("-__v")
             .sort({ createdAt: -1, _id: -1 })
             .limit(100)

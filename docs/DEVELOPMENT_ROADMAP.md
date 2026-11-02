@@ -209,7 +209,7 @@ The pain-first demo and guided activation release extends existing authorities r
 
 ## AI Sales & Customer Success - 2026-10-31
 
-AI Sales & Customer Success is an explicitly requested later-phase extension: CRM/meeting vertical slice implemented; complete agent department, lifecycle projection, campaigns/attribution and follow-up automation remain outstanding. Do not treat this as full-phase acceptance.
+AI Sales & Customer Success is an explicitly requested later-phase extension. CRM/meetings, executable agent runtime, verified lifecycle projection, campaigns/attribution, governed channel outreach, authorized calendars and source-based follow-ups have controlled-provider implementations. Onboarding assistance, complete analytics, final hardening and external operational acceptance remain outstanding. This is not full-phase production acceptance.
 
 See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).
 
@@ -232,3 +232,8 @@ Sales email now uses channel-specific recorded consent, exact-payload human revi
 ### Governed dedicated-sender sales SMS (2026-11-01)
 
 The existing sales outreach/consent/review queue now supports optional Twilio SMS through the existing messaging provider, with a dedicated two-way sender, GSM/Unicode segment ceilings and integer per-segment reservations. Signed form callbacks use the maintained Twilio SDK against the configured public URL; replies/STOP and delivery facts persist through existing WebhookEvent/Job workflows, with no automatic resend after an ambiguous attempt. Operational SMS remains separate. SALES_SMS remains OFF by default. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for contracts, provider-independent verification, dependency audit and external acceptance gates. WhatsApp/calendar/follow-up work continues separately.
+
+
+### AI sales follow-up continuation
+
+AI sales follow-up engineering is under final verification. Subsequent work remains assistance, analytics and complete operational hardening. See AI_SALES_CONTINUATION.md, Governed follow-up sequences, for the full contract.

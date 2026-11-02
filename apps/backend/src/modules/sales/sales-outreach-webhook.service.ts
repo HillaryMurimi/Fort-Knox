@@ -1,3 +1,4 @@
+import { signalSalesFollowUps } from './sales-followup.signal.js';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { AppError } from '../../core/errors/AppError.js';
@@ -60,8 +61,9 @@ export class SalesOutreachWebhookService {
           if (payload.type === 'email.received') {
             const message = await SalesMessage.findById(payload.messageId).session(session);
             if (message) {
+              await signalSalesFollowUps(message.leadId, 'reply:' + event._id, session);
               await SalesMessage.updateOne({ _id: message._id }, { $max: { lastResponseAt: event.receivedAt } }, { session });
-              await SalesRecipientControl.updateOne({ channel: message.channel, recipientHash: message.recipientHash }, { $max: { lastResponseAt: event.receivedAt } }, { session, upsert: true });
+              await SalesRecipientControl.updateOne({ channel: message.channel, recipientHash: message.recipientHash }, { $inc: { responseRevision: 1 }, $max: { lastResponseAt: event.receivedAt } }, { session, upsert: true });
             }
           }
           await Job.create([{ type: 'sales.outreach.webhook', payload: { webhookId: String(event._id) }, availableAt: new Date(), priority: 10, maxAttempts: 5, dedupeKey: `sales-outreach-webhook:${event._id}` }], { session });
@@ -97,10 +99,10 @@ export class SalesOutreachWebhookService {
           const matched = recipientHash('EMAIL', received.from) === message.recipientHash;
           const expiry = new Date(Date.now() + env.SALES_OUTREACH_CONTENT_RETENTION_DAYS * 86400000);
           const body = matched ? received.text || 'Incoming email contained no readable text. Review the receiving provider for original content or attachments.' : 'A response reached this invitation from an unreviewed sender address. Review it in the receiving provider before associating its content with this customer.';
-          await SalesConversationEntry.updateOne({ sourceKey: 'inbound:' + payload.emailId }, { $setOnInsert: { leadId: message.leadId, messageId: message._id, direction: 'INBOUND', provider: 'RESEND', subject: matched ? received.subject : 'Reply requires identity review', text: body, occurredAt: received.occurredAt, senderAuthentication: received.domainAuthenticated ? 'DOMAIN_AUTHENTICATED' : 'UNKNOWN', correlation: matched ? 'RECIPIENT_MATCHED' : 'REVIEW_REQUIRED', contentTruncated: received.truncated, contentExpiresAt: expiry } }, { session, upsert: true });
+          await SalesConversationEntry.updateOne({ sourceKey: 'inbound:' + payload.emailId }, { $setOnInsert: { leadId: message.leadId, messageId: message._id, followUpId: message.followUpId, direction: 'INBOUND', provider: 'RESEND', subject: matched ? received.subject : 'Reply requires identity review', text: body, occurredAt: received.occurredAt, senderAuthentication: received.domainAuthenticated ? 'DOMAIN_AUTHENTICATED' : 'UNKNOWN', correlation: matched ? 'RECIPIENT_MATCHED' : 'REVIEW_REQUIRED', contentTruncated: received.truncated, contentExpiresAt: expiry } }, { session, upsert: true });
           await SalesMessage.updateOne({ _id: message._id }, { $max: { lastResponseAt: observedAt, ...(matched ? { lastReplyAt: observedAt } : {}) } }, { session });
           await SalesRecipientControl.updateOne({ channel: message.channel, recipientHash: message.recipientHash }, { $max: { lastResponseAt: observedAt, ...(matched ? { lastReplyAt: observedAt } : {}) } }, { session, upsert: true });
-          await SalesActivity.updateOne({ leadId: message.leadId, sourceKey: 'outreach-reply:' + payload.emailId }, { $setOnInsert: { actorKind: 'SYSTEM', kind: matched ? 'sales.outreach.reply.received' : 'sales.outreach.reply.review_required', text: matched ? 'A provider-received reply matched the reviewed contact address; sender authentication is retained separately.' : 'An incoming response requires sender identity review before its content is associated.', resourceId: message._id, sourceOccurredAt: received.occurredAt } }, { session, upsert: true });
+          await SalesActivity.updateOne({ leadId: message.leadId, sourceKey: 'outreach-reply:' + payload.emailId }, { $setOnInsert: { followUpId: message.followUpId, actorKind: 'SYSTEM', kind: matched ? 'sales.outreach.reply.received' : 'sales.outreach.reply.review_required', text: matched ? 'A provider-received reply matched the reviewed contact address; sender authentication is retained separately.' : 'An incoming response requires sender identity review before its content is associated.', resourceId: message._id, sourceOccurredAt: received.occurredAt } }, { session, upsert: true });
           await Job.updateOne({ dedupeKey: `sales-outreach-retention:${message._id}:${payload.emailId}` }, { $setOnInsert: { type: 'sales.outreach.expire', payload: { messageId: String(message._id) }, availableAt: expiry, maxAttempts: 5 } }, { session, upsert: true });
           if (requestsSalesOptOut(received.text)) await SalesConsentService.suppress(message.leadId, { channel: message.channel, recipientHash: message.recipientHash }, 'PROVIDER_REPLY', 'Verified receiving provider recorded an explicit stop request on the message reply route.', session);
         } else {
@@ -121,11 +123,12 @@ export class SalesOutreachWebhookService {
           else if (['ACCEPTED', 'DELIVERED'].includes(message.deliveryStatus)) message.errorCode = undefined;
           await message.save({ session });
           await Notification.updateOne({ _id: message.notificationId, salesMessageId: message._id }, { $set: { status: message.deliveryStatus === 'DELIVERED' ? 'DELIVERED' : ['FAILED', 'BOUNCED'].includes(message.deliveryStatus) ? 'FAILED' : 'SENT', sentAt: message.providerAcceptedAt, ...(message.errorCode ? { failureReason: message.errorCode } : {}) }, ...(!message.errorCode ? { $unset: { failureReason: 1 } } : {}) }, { session });
-          await SalesConversationEntry.updateOne({ sourceKey: `outbound:${message._id}` }, { $setOnInsert: { leadId: message.leadId, messageId: message._id, direction: 'OUTBOUND', provider: message.provider, subject: message.subject, text: message.body, occurredAt: message.providerAcceptedAt, contentExpiresAt: message.contentExpiresAt, ...(message.redactedAt ? { redactedAt: message.redactedAt } : {}) } }, { session, upsert: true });
-          await SalesActivity.updateOne({ leadId: message.leadId, sourceKey: `outreach-provider:${event.eventId}` }, { $setOnInsert: { actorKind: 'SYSTEM', kind: 'sales.outreach.' + payload.type.slice(6), text: 'Verified provider event: ' + payload.type + '. No human-reading claim is implied.', resourceId: message._id, sourceOccurredAt: occurredAt } }, { session, upsert: true });
+          await SalesConversationEntry.updateOne({ sourceKey: `outbound:${message._id}` }, { $setOnInsert: { leadId: message.leadId, messageId: message._id, followUpId: message.followUpId, direction: 'OUTBOUND', provider: message.provider, subject: message.subject, text: message.body, occurredAt: message.providerAcceptedAt, contentExpiresAt: message.contentExpiresAt, ...(message.redactedAt ? { redactedAt: message.redactedAt } : {}) } }, { session, upsert: true });
+          await SalesActivity.updateOne({ leadId: message.leadId, sourceKey: `outreach-provider:${event.eventId}` }, { $setOnInsert: { followUpId: message.followUpId, actorKind: 'SYSTEM', kind: 'sales.outreach.' + payload.type.slice(6), text: 'Verified provider event: ' + payload.type + '. No human-reading claim is implied.', resourceId: message._id, sourceOccurredAt: occurredAt } }, { session, upsert: true });
           if (payload.type === 'email.bounced') await SalesRecipientControl.updateOne({ channel: message.channel, recipientHash: message.recipientHash }, { $inc: { epoch: 1 }, $set: { suppressedAt: new Date(), suppressionReason: 'BOUNCE' } }, { session, upsert: true });
           if (payload.type === 'email.complained') await SalesConsentService.suppress(message.leadId, { channel: message.channel, recipientHash: message.recipientHash }, 'PROVIDER_COMPLAINT', 'Verified provider reported a complaint about the sales message.', session);
         }
+        await signalSalesFollowUps(message.leadId, 'provider-event:' + event._id, session);
         current.status = 'PROCESSED'; current.processedAt = new Date(); current.error = undefined; await current.save({ session });
         await AuditService.record({ action: 'sales.outreach.provider.event.processed', resourceType: 'SalesMessage', resourceId: message._id, metadata: { eventId: event.eventId, type: payload.type, webhookId: String(event._id), senderAuthenticationIsNotAccountAuthentication: true } }, session);
         return { processed: true };

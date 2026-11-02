@@ -450,7 +450,7 @@ SUPER_ADMIN can search the landlord onboarding directory, create a real organiza
 
 ## AI Sales & Customer Success - 2026-10-31
 
-Added persisted AI Sales & Customer Success workspace for customer records, qualification/consent, append-only notes, internal meeting outcomes and actual onboarding monitoring. Six agent definitions are unavailable; campaigns, outreach, agent runtime and configurable follow-up workflows remain unfinished.
+Added persisted AI Sales & Customer Success workspace for customer records, qualification/consent, append-only notes, internal meeting outcomes and actual onboarding monitoring. All six agents have durable, permission-scoped model execution and human-reviewed proposal tools. Campaigns, verified identity/lifecycle attribution, governed email/SMS/WhatsApp outreach, authorized calendar commands and configurable source-based follow-ups are implemented at the controlled-provider level. Onboarding assistance, complete analytics and final operational hardening remain in progress; optional live providers are not certified.
 
 See [implementation, security review and remaining work](AI_SALES_CUSTOMER_SUCCESS.md).
 
@@ -491,3 +491,8 @@ The existing outreach queue also supports optional authorized Meta WhatsApp Busi
 ### Authorized sales calendar booking
 
 Optional Google/Microsoft adapters now extend existing meetings with actual availability, shared local holds, fresh reviewed invitation commands, provider IDs, rescheduling, cancellation and read-only reconciliation. Uncertain mutation outcomes never automatically create another invitation. Bounded durable polling detects external changes; provider/local conflicts remain explicit. The Meeting Coordinator can ground proposals in actual busy intervals; approved exact time pairs can feed human-reviewed booking. Customer 360 distinguishes manual scheduling, provider confirmation, invitation submission and attendance. Calendar recipient/review snapshots expire while minimal hashes and provider evidence remain. SALES_CALENDAR remains OFF by default and live provider acceptance is unverified. Secret-managed configuration, new API/index/retention contracts and controlled verification are detailed in [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md). Follow-ups, assistance, analytics and final hardening continue.
+
+
+### AI sales follow-up continuation
+
+Customer 360 includes evidence-based follow-up policies, bounded sequences, separate fresh message reviews and operator controls. Optional SALES_FOLLOWUPS remains OFF by default. See AI_SALES_CONTINUATION.md, Governed follow-up sequences, for the full contract.

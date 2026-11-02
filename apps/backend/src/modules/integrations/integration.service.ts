@@ -563,6 +563,8 @@ export class IntegrationService {
   ) {
     if (provider === 'PAYSTACK') {
       const data = body.data as Record<string, unknown> | undefined;
+      const subscription = data?.subscription as Record<string, unknown> | undefined;
+      const subscriptionCode = subscription?.subscription_code ?? data?.subscription_code;
       return {
         event: body.event,
         data: data
@@ -577,6 +579,7 @@ export class IntegrationService {
               receipt_number: data.receipt_number,
               transaction_reference: data.transaction_reference,
               refund_reference: data.refund_reference,
+              ...(body.event === 'invoice.payment_failed' && typeof subscriptionCode === 'string' && subscriptionCode.length > 0 && subscriptionCode.length <= 200 ? { salesSubscriptionHash: hashPayload(Buffer.from(subscriptionCode)) } : {}),
             }
           : undefined,
       };

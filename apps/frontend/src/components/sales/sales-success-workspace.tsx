@@ -11,6 +11,7 @@ import { SalesAgentControl } from "./sales-agent-control";
 import { SalesCampaigns } from './sales-campaigns';
 import { SalesCustomerIdentity } from "./sales-customer-identity";
 import { SalesCustomerHistory } from "./sales-customer-history";
+import { SalesCustomerFollowups } from './sales-customer-followups';
 import { SalesCustomerOutreach } from './sales-customer-outreach';
 import { SalesMeetingCalendar } from './sales-meeting-calendar';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -365,6 +366,7 @@ export function SalesSuccessWorkspace() {
                             leadStatus: value(d, "leadStatus"),
                             consent: value(d, "consent"),
                             nextAction: value(d, "nextAction"),
+                            ...(value(d, "nextActionDate") ? { nextActionDate: value(d, "nextActionDate") } : {}),
                           }),
                         );
                       }}
@@ -392,6 +394,9 @@ export function SalesSuccessWorkspace() {
                             <option key={s}>{s}</option>
                           ))}
                         </select>
+                      </Field>
+                      <Field label="Requested next contact, ISO date with offset">
+                        <input name="nextActionDate" defaultValue={data.customer.nextActionDate} placeholder="2026-11-12T10:00:00+03:00" className={inputClass}/>
                       </Field>
                       <Field label="Next action">
                         <input
@@ -464,6 +469,7 @@ export function SalesSuccessWorkspace() {
                   )}
                 </section>
                 <SalesCustomerOutreach key={data.customer.id} customer={data.customer}/>
+                <SalesCustomerFollowups key={data.customer.id + "-followups"} customer={data.customer}/>
                 <SalesCustomerIdentity
                   id={data.customer.id}
                   revision={data.customer.revision}
@@ -834,6 +840,8 @@ const delegatedPermissions = [
   "sales.agents.read",
   "sales.agents.execute",
   "sales.research.execute",
+  "sales.followups.read",
+  "sales.followups.manage",
   "sales.outreach.read",
   "sales.outreach.prepare",
 ];

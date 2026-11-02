@@ -358,7 +358,7 @@ try {
     await page.getByLabel('Budget (micro USD)', { exact: true }).fill('10000');
     await page.getByRole('button', { name: 'Save draft campaign', exact: true }).click();
     const smsCard = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Browser SMS review campaign', exact: true }) });
-    for (const [action, state] of [['SUBMIT', 'PENDING APPROVAL'], ['APPROVE', 'APPROVED']]) {
+    for (const [action, state] of [['SUBMIT', 'PENDING APPROVAL'], ['APPROVE', 'APPROVED'], ['ACTIVATE', 'ACTIVE']]) {
       await smsCard.getByLabel('Campaign action', { exact: true }).selectOption(action);
       await smsCard.getByLabel('Review reason', { exact: true }).fill('Reviewed controlled SMS content and conservative limits.');
       await smsCard.getByRole('button', { name: 'Apply reviewed action', exact: true }).click();
@@ -393,12 +393,59 @@ try {
     const smsMessage = await fixtureDb.collection('salesmessages').findOne({ leadId: customer._id, channel: 'SMS' });
     assert.equal(smsMessage.status, 'PENDING_APPROVAL'); assert.equal(smsMessage.providerMessageId, undefined);
     assert.equal(await fixtureDb.collection('notifications').countDocuments({ type: 'SALES_OUTREACH' }), 0);
+    const requestedAt = new Date(Date.now()+2*3600000).toISOString();
+    await page.getByLabel('Requested next contact, ISO date with offset', { exact: true }).fill(requestedAt);
+    const updateCustomer = page.waitForResponse(r => r.url().endsWith('/customers/'+customer._id) && r.request().method() === 'PATCH');
+    await page.getByRole('button', { name: 'Save customer', exact: true }).click();
+    assert.equal((await updateCustomer).status(), 200);
+    const followPanel = page.getByRole('region', { name: 'Customer follow-ups', exact: true });
+    await followPanel.getByText('Create a customer follow-up policy', { exact: true }).click();
+    await followPanel.getByLabel('Policy name', { exact: true }).fill('Browser requested followup policy');
+    await followPanel.getByLabel('Approved campaign', { exact: true }).selectOption(String(smsCampaign._id));
+    await followPanel.getByLabel('Recorded trigger', { exact: true }).selectOption('CUSTOMER_REQUESTED');
+    await followPanel.getByLabel('Draft preparation', { exact: true }).selectOption('HUMAN_TEMPLATE');
+    await followPanel.getByLabel('Initial delay, hours', { exact: true }).fill('1');
+    await followPanel.getByLabel('Expires after days', { exact: true }).fill('1');
+    await followPanel.getByRole('group', { name: 'Step 1, distinct content', exact: true }).getByLabel('Message body', { exact: true }).fill('Your requested product briefing is available.');
+    await followPanel.getByRole('group', { name: 'Step 2, distinct content', exact: true }).getByLabel('Message body', { exact: true }).fill('Would a guided inventory review help?');
+    const createdPolicy = page.waitForResponse(r => r.url().endsWith('/followups/policies') && r.request().method() === 'POST');
+    await followPanel.getByRole('button', { name: 'Create draft policy', exact: true }).click();
+    assert.equal((await createdPolicy).status(), 201);
+    await followPanel.getByText('Review exact policy content', { exact: true }).click();
+    const policyReview = followPanel.getByRole('article').filter({ hasText: 'Browser requested followup policy' });
+    await policyReview.getByLabel('Policy decision', { exact: true }).selectOption('ACTIVATE');
+    await policyReview.getByLabel('Policy review reason', { exact: true }).fill('Reviewed this customer, exact distinct texts, cadence and fresh message review.');
+    const activatePolicy = page.waitForResponse(r => r.url().includes('/followups/policies/') && r.url().endsWith('/decisions') && r.request().method() === 'POST');
+    await policyReview.getByRole('button', { name: 'Record policy decision', exact: true }).click();
+    assert.equal((await activatePolicy).status(), 200);
+    await policyReview.getByLabel('Policy review reason', { exact: true }).waitFor();
+    await page.waitForFunction(() => [...document.querySelectorAll('select[aria-label="Policy decision"]')].every(select => select.value === ''));
+    assert.equal(await policyReview.getByLabel('Policy review reason', { exact: true }).inputValue(), '');
+    const policyRecord = await fixtureDb.collection('salesfollowuppolicies').findOne({ name: 'Browser requested followup policy' }); assert.ok(policyRecord);
+    await followPanel.getByText('Enroll an eligible follow-up', { exact: true }).click();
+    await followPanel.getByLabel('Approved follow-up policy', { exact: true }).selectOption(String(policyRecord._id));
+    await followPanel.getByLabel('Enrollment evidence', { exact: true }).fill('Customer requested a bounded sequence after this controlled product briefing.');
+    const enrolled = page.waitForResponse(r => r.url().endsWith('/customers/'+customer._id+'/followups') && r.request().method() === 'POST');
+    await followPanel.getByRole('button', { name: 'Enroll follow-up', exact: true }).click();
+    assert.equal((await enrolled).status(), 201);
+    await followPanel.getByText('Review sequence controls', { exact: true }).click();
+    await followPanel.getByLabel('Sequence action', { exact: true }).selectOption('PAUSE');
+    await followPanel.getByLabel('Review context', { exact: true }).fill('Pause this controlled sequence for an explicit review before any draft preparation.');
+    const pauseSequence = page.waitForResponse(r => r.url().includes('/followups/') && r.url().endsWith('/controls') && r.request().method() === 'POST');
+    await followPanel.getByRole('button', { name: 'Apply sequence control', exact: true }).click();
+    assert.equal((await pauseSequence).status(), 200);
+    await page.waitForFunction(() => [...document.querySelectorAll('select[aria-label="Sequence action"]')].every(select => select.value === ''));
+    assert.equal(await followPanel.getByLabel('Review context', { exact: true }).inputValue(), '');
+    assert.equal((await fixtureDb.collection('salesfollowups').findOne({ leadId: customer._id })).status, 'PAUSED');
+    assert.equal(await fixtureDb.collection('salesmessages').countDocuments({ followUpId: { $exists: true } }), 0);
+    assert.equal(await fixtureDb.collection('notifications').countDocuments({ type: 'SALES_OUTREACH' }), 0);
     for (const width of [390, 834]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.waitForTimeout(350);
-      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'SMS review fits ' + width);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'SMS and follow-up review fit ' + width);
       await page.screenshot({ path: temporaryRoot + `/pcc-sms-review-${width}.png`, fullPage: true });
+      await followPanel.screenshot({ path: temporaryRoot + `/pcc-followup-review-${width}.png` });
     }
   } finally { await fixtureDb.close(); }
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -791,7 +838,7 @@ try {
         "Fort Knox security and evidence",
         "guided pilot validation, import and owner activation milestone",
         "existing commercial activation handoff without paid-access bypass",
-        "sales conversion intelligence", "customer creation, qualification, notes and meeting outcomes", "unavailable calendar with actual server guard and no invented availability", "campaign approval and consented first-party invitations", "controlled sourced-prospect review and CRM import", "unavailable email readiness and explicit public opt-out confirmation", "controlled SMS consent and exact draft review without dispatch",
+        "sales conversion intelligence", "customer creation, qualification, notes and meeting outcomes", "unavailable calendar with actual server guard and no invented availability", "campaign approval and consented first-party invitations", "controlled sourced-prospect review and CRM import", "unavailable email readiness and explicit public opt-out confirmation", "controlled SMS consent and exact draft review without dispatch", "follow-up policy review, enrollment, pause and safe decision-form reset without dispatch",
       ],
       viewports: sizes,
       themes: ["light", "dark"],

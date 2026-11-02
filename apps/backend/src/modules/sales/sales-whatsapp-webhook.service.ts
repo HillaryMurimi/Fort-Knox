@@ -1,3 +1,5 @@
+import type { Types } from 'mongoose';
+import { signalSalesFollowUps } from './sales-followup.signal.js';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { AppError } from '../../core/errors/AppError.js';
@@ -38,26 +40,27 @@ export class SalesWhatsAppWebhookService {
         await salesTransaction(async session => {
           const existing = await WebhookEvent.findOne({ provider: 'WHATSAPP_SALES', eventId }).session(session);
           if (existing) { if (existing.payloadHash !== digest) throw new AppError(409, 'WEBHOOK_EVENT_CONFLICT', 'WhatsApp event conflicts with recorded evidence'); return; }
-          let message;
+          let message; let canonicalLeadId: Types.ObjectId | undefined;
           if (inbound) {
             if (senderId !== env.WHATSAPP_PHONE_NUMBER_ID || entry.id !== env.SALES_WHATSAPP_BUSINESS_ACCOUNT_ID) return;
             const leads = await SalesLead.find({ phone: '+' + item.from, mergedInto: { $exists: false } }).limit(2).select('mergedLeadIds').session(session);
-            const lead = leads.length === 1 ? leads[0] : undefined;
+            const lead = leads.length === 1 ? leads[0] : undefined; canonicalLeadId = lead?._id;
             message = lead ? await SalesMessage.findOne({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] }, channel: 'WHATSAPP', provider: 'WHATSAPP_CLOUD', recipientHash: hash, 'whatsappTemplate.phoneNumberId': senderId, 'whatsappTemplate.businessAccountId': entry.id, firstAttemptAt: { $type: 'date' } }).sort({ createdAt: -1 }).session(session) : null;
           } else {
             message = await SalesMessage.findOne({ channel: 'WHATSAPP', provider: 'WHATSAPP_CLOUD', ...(item.biz_opaque_callback_data ? { _id: item.biz_opaque_callback_data } : { providerMessageId: item.id }), recipientHash: hash, 'whatsappTemplate.phoneNumberId': senderId, 'whatsappTemplate.businessAccountId': entry.id, firstAttemptAt: { $type: 'date' } }).session(session);
             if (message?.providerMessageId && message.providerMessageId !== item.id) message = null;
           }
           const [event] = await WebhookEvent.create([{ provider: 'WHATSAPP_SALES', eventId, externalReference: item.id, payloadHash: digest, payload: { status: state, recipientHash: hash, phoneNumberId: senderId, sourceOccurredAt: sourceAt }, receivedAt: observedAt, processedAt: observedAt, status: message || inbound ? 'PROCESSED' : 'IGNORED' }], { session });
+          const knownLeadId = message?.leadId ?? canonicalLeadId;
           if (inbound) {
-            await SalesRecipientControl.updateOne({ channel: 'WHATSAPP', recipientHash: hash }, { $max: { lastResponseAt: observedAt, lastReplyAt: observedAt } }, { session, upsert: true });
+            await SalesRecipientControl.updateOne({ channel: 'WHATSAPP', recipientHash: hash }, { $inc: { responseRevision: 1 }, $max: { lastResponseAt: observedAt, lastReplyAt: observedAt } }, { session, upsert: true });
             if (requestsWhatsAppOptOut(text)) {
-              if (message) await SalesConsentService.suppress(message.leadId, { channel: 'WHATSAPP', recipientHash: hash }, 'PROVIDER_REPLY', 'Signed WhatsApp callback recorded an explicit stop request.', session);
+              if (knownLeadId) await SalesConsentService.suppress(knownLeadId, { channel: 'WHATSAPP', recipientHash: hash }, 'PROVIDER_REPLY', 'Signed WhatsApp callback recorded an explicit stop request.', session);
               else await SalesRecipientControl.updateOne({ channel: 'WHATSAPP', recipientHash: hash }, { $inc: { epoch: 1 }, $set: { suppressedAt: observedAt, suppressionReason: 'OPT_OUT' } }, { session, upsert: true });
             }
             if (message) {
               const expiry = new Date(observedAt.getTime() + env.SALES_OUTREACH_CONTENT_RETENTION_DAYS * 86400000);
-              await SalesConversationEntry.create([{ sourceKey: 'whatsapp-inbound:' + item.id, leadId: message.leadId, messageId: message._id, direction: 'INBOUND', provider: 'WHATSAPP_CLOUD', text: text || 'Incoming WhatsApp message had no supported text; media was not retrieved.', occurredAt: sourceAt, correlation: 'RECIPIENT_MATCHED', senderAuthentication: 'UNKNOWN', contentExpiresAt: expiry }], { session });
+              await SalesConversationEntry.create([{ sourceKey: 'whatsapp-inbound:' + item.id, leadId: message.leadId, messageId: message._id, followUpId: message.followUpId, direction: 'INBOUND', provider: 'WHATSAPP_CLOUD', text: text || 'Incoming WhatsApp message had no supported text; media was not retrieved.', occurredAt: sourceAt, correlation: 'RECIPIENT_MATCHED', senderAuthentication: 'UNKNOWN', contentExpiresAt: expiry }], { session });
               await SalesMessage.updateOne({ _id: message._id }, { $max: { lastResponseAt: observedAt, lastReplyAt: observedAt } }, { session });
               await Job.create([{ type: 'sales.outreach.expire', payload: { messageId: String(message._id) }, availableAt: expiry, maxAttempts: 5, dedupeKey: 'sales-whatsapp-retention:' + item.id }], { session });
             }
@@ -70,9 +73,10 @@ export class SalesWhatsAppWebhookService {
               message.errorCode = rank === 3 ? 'WHATSAPP_DELIVERY_FAILED' : undefined;
             }
             await message.save({ session });
-            await SalesConversationEntry.updateOne({ sourceKey: 'outbound:' + message._id }, { $setOnInsert: { leadId: message.leadId, messageId: message._id, direction: 'OUTBOUND', provider: 'WHATSAPP_CLOUD', text: message.body, occurredAt: message.providerAcceptedAt, contentExpiresAt: message.contentExpiresAt, ...(message.redactedAt ? { redactedAt: message.redactedAt } : {}) } }, { session, upsert: true });
+            await SalesConversationEntry.updateOne({ sourceKey: 'outbound:' + message._id }, { $setOnInsert: { leadId: message.leadId, messageId: message._id, followUpId: message.followUpId, direction: 'OUTBOUND', provider: 'WHATSAPP_CLOUD', text: message.body, occurredAt: message.providerAcceptedAt, contentExpiresAt: message.contentExpiresAt, ...(message.redactedAt ? { redactedAt: message.redactedAt } : {}) } }, { session, upsert: true });
             await Notification.updateOne({ _id: message.notificationId, salesMessageId: message._id }, { $set: { status: message.deliveryStatus === 'DELIVERED' ? 'DELIVERED' : message.deliveryStatus === 'FAILED' ? 'FAILED' : 'SENT', sentAt: message.providerAcceptedAt, ...(message.errorCode ? { failureReason: message.errorCode } : {}) }, ...(!message.errorCode ? { $unset: { failureReason: 1 } } : {}) }, { session });
           }
+          if (knownLeadId && event) await signalSalesFollowUps(knownLeadId, 'whatsapp-event:' + event._id, session);
           if (event) await AuditService.record({ action: 'sales.whatsapp.callback.verified', resourceType: 'WebhookEvent', resourceId: event._id, metadata: { providerMessageId: item.id, status: state, matchedMessage: !!message, sourceOccurredAt: sourceAt, humanReadingConfirmed: false, accountAuthenticated: false } }, session);
         }).catch(async (error: unknown) => {
           if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {

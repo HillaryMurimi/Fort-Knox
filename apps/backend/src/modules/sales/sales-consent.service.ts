@@ -1,3 +1,4 @@
+import { signalSalesFollowUps } from './sales-followup.signal.js';
 import { Types, type ClientSession } from 'mongoose';
 import type { AuthenticatedUser } from '../../core/types/auth.js';
 import { SalesLead } from '../../database/models/SalesLead.js';
@@ -43,6 +44,7 @@ export class SalesConsentService {
       if (!control) throw new AppError(409, 'CONSENT_CHANGED', 'Recipient consent changed');
       const [event] = await SalesConsentEvent.create([{ leadId: lead._id, channel: input.channel, recipientHash: hash, epoch: lead.consentRevision ?? 0, recipientEpoch: control.epoch, decision: 'OPT_IN', source: 'EXPLICIT_REQUEST', evidence: input.evidence, timezone: input.timezone, actorUserId: auth.userId }], { session });
       await lead.save({ session });
+      await signalSalesFollowUps(lead._id, 'consent:' + lead._id + ':' + lead.revision, session);
       await AuditService.record({ actorUserId: auth.userId, action: 'sales.consent.recorded', resourceType: 'SalesLead', resourceId: lead._id, metadata: { decision: 'OPT_IN', channel: input.channel, eventId: String(event?._id), previousSuppressionAcknowledged: reinstating } }, session);
       return { decision: 'OPT_IN', consentEventId: String(event?._id), revision: lead.revision };
     });
@@ -87,6 +89,7 @@ export class SalesConsentService {
     }
     lead.consent = 'OPTED_OUT'; lead.optedOutAt = new Date(); lead.consentRevision = (lead.consentRevision ?? 0) + 1; lead.revision += 1;
     await lead.save({ session });
+    await signalSalesFollowUps(lead._id, 'optout:' + lead._id + ':' + lead.revision, session);
     if (String(lead._id) !== String(leadId)) await SalesLead.updateOne({ _id: leadId }, { $set: { consent: 'OPTED_OUT', optedOutAt: new Date() }, $inc: { consentRevision: 1, revision: 1 } }, { session });
     const ids = [lead._id, leadId, ...lead.mergedLeadIds];
     const pending = { leadId: { $in: ids }, status: { $in: ['DRAFT', 'PENDING_APPROVAL', 'QUEUED', 'PAUSED'] as const } };

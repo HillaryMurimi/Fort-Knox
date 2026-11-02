@@ -16,6 +16,7 @@ import { SalesConversationEntry } from '../../database/models/SalesCommunication
 import { salesDeliveryProvider } from '../../integrations/notifications/sales-delivery.provider.js';
 import { salesCalendarProvider } from '../../integrations/calendar/sales-calendar.provider.js';
 import { validateCalendarProposal } from './sales-calendar.policy.js';
+import { signalSalesFollowUps } from './sales-followup.signal.js';
 import { User } from '../../database/models/User.js';
 import { Organization } from '../../database/models/Organization.js';
 import { Job } from '../../database/models/Job.js';
@@ -26,7 +27,7 @@ import { PlatformSwitch } from "../../database/models/PlatformSwitch.js";
 import { SalesSuccessService, successAgents } from "./sales-success.service.js";
 import {
   SuccessRepository,
-  assertSuccessPermission,
+  assertSuccessPermission, hasSuccessPermission,
 } from "./sales-success.repository.js";
 import {
   SalesAgentRepository as repository,
@@ -223,16 +224,20 @@ export class SalesAgentService {
       return { updated: true, revision: config.revision };
     });
   }
-  static async create(auth: AuthenticatedUser, raw: unknown) {
+  static async create(auth: AuthenticatedUser, raw: unknown, followUpId?: Types.ObjectId) {
     const input = agentTaskSchema.parse(raw);
     await authorizeTask(auth, input.leadId, input.agent);
+    if (followUpId) {
+      if (input.agent !== 'FOLLOW_UP') throw new AppError(409, 'FOLLOWUP_AGENT_REQUIRED', 'Governed sequences use the fixed Follow-up Agent');
+      await (await import('./sales-followup.service.js')).SalesFollowUpService.assertPreparation(followUpId, auth.userId, input.leadId, input.commandId);
+    }
     if (input.researchQuery) assertSuccessPermission(auth, 'sales.research.execute');
     if (input.calendarWindow) {
       assertSuccessPermission(auth, 'sales.meetings.read'); assertSuccessPermission(auth, 'sales.meetings.create');
       if (!auth.isPlatformAdmin && input.calendarWindow.representativeId !== String(auth.userId)) throw new AppError(403, 'FORBIDDEN', 'Delegates may use only their configured representative calendar');
     }
     await assertAgentIndexes();
-    const digest = payloadHash(input);
+    const digest = payloadHash({ ...input, ...(followUpId ? { followUpId: String(followUpId) } : {}) });
     try {
       return await salesTransaction(async (session) => {
         const existing = await SalesAgentRun.findOne({
@@ -252,6 +257,7 @@ export class SalesAgentService {
           [
             {
               ...input,
+              ...(followUpId ? { followUpId } : {}),
               requestedBy: auth.userId,
               serviceIdentity: `sales:${input.agent}`,
               instructionVersion: 1,
@@ -359,6 +365,11 @@ export class SalesAgentService {
     assertSuccessPermission(auth, "sales.notes.read");
     assertSuccessPermission(auth, "sales.meetings.read");
     if (['SALES_OUTREACH', 'FOLLOW_UP'].includes(run.agent)) assertSuccessPermission(auth, 'sales.outreach.read');
+    if (run.followUpId) {
+      assertSuccessPermission(auth, 'sales.followups.read');
+      const parentLead = await SuccessRepository.load(auth, String(run.leadId), 'sales.leads.read');
+      if (parentLead.organizationId) assertSuccessPermission(auth, 'sales.onboarding.read');
+    }
     if (run.calendarWindow) {
       assertSuccessPermission(auth, 'sales.meetings.create');
       if (!auth.isPlatformAdmin && run.calendarWindow.representativeId !== String(auth.userId)) throw new AppError(403, 'FORBIDDEN', 'Calendar output is outside current representative scope');
@@ -380,6 +391,7 @@ export class SalesAgentService {
     const input = runControlSchema.parse(raw);
     const run = auth.isPlatformAdmin ? await SalesAgentRun.findById(id).lean() : (await this.view(auth, id)).run;
     if (!run) throw new AppError(404, 'AGENT_RUN_NOT_FOUND', 'Execution not accessible');
+    if (run.followUpId && input.action === 'RESUME') await (await import('./sales-followup.service.js')).SalesFollowUpService.assertPreparation(run.followUpId, run.requestedBy, String(run.leadId), run.commandId);
     const allowed: Array<
       | "QUEUED"
       | "RUNNING"
@@ -400,7 +412,7 @@ export class SalesAgentService {
             : "CANCELLED";
       const changed = await SalesAgentRun.findOneAndUpdate(
         { _id: run._id, status: { $in: allowed } },
-        { $set: { status }, $unset: { leaseOwner: 1, leaseUntil: 1 } },
+        { $set: { status }, $unset: { leaseOwner: 1, leaseUntil: 1, ...(input.action === 'RESUME' ? { errorCode: 1 } : {}) } },
         { returnDocument: "after", session },
       );
       if (!changed)
@@ -456,6 +468,7 @@ export class SalesAgentService {
         );
       const actor = input.decision === 'APPROVE' ? await repository.principal(run.requestedBy) : null;
       if (actor) await authorizeTask(actor, String(run.leadId), run.agent);
+      if (actor && run.followUpId) await (await import('./sales-followup.service.js')).SalesFollowUpService.assertPreparation(run.followUpId, actor.userId, String(run.leadId), run.commandId);
       if (actor && run.researchQuery) assertSuccessPermission(actor, 'sales.research.execute');
       approval.status = (
         {
@@ -482,7 +495,7 @@ export class SalesAgentService {
               actorUserId: auth.userId,
               kind: "sales.agent.note",
               text: approvedAction.text,
-              resourceId: run._id,
+              resourceId: run._id, followUpId: run.followUpId,
             },
           ],
           { session },
@@ -492,6 +505,7 @@ export class SalesAgentService {
       }
       // Approval of an outreach/booking/research proposal never asserts dispatch or creation.
       await approval.save({ session });
+      if (run.followUpId) await signalSalesFollowUps(run.leadId, 'agent-decision:' + approval._id + ':' + input.decision, session);
       await run.save({ session });
       await audit(
         auth,
@@ -583,6 +597,7 @@ export class SalesAgentService {
         );
       const auth = await repository.principal(run.requestedBy);
       await authorizeTask(auth, String(run.leadId), run.agent);
+      if (run.followUpId) await (await import('./sales-followup.service.js')).SalesFollowUpService.assertPreparation(run.followUpId, auth.userId, String(run.leadId), run.commandId);
       if (run.researchQuery) {
         assertSuccessPermission(auth, 'sales.research.execute');
         await assertSwitchEnabled('SALES_RESEARCH');
@@ -617,7 +632,7 @@ export class SalesAgentService {
       const context = {
         calendarAvailability: run.calendarWindow ? await (await import('./sales-calendar.service.js')).SalesCalendarService.availability(auth, String(run.leadId), { representativeId: run.calendarWindow.representativeId, startsAt: run.calendarWindow.startsAt, endsAt: run.calendarWindow.endsAt }) : { basis: 'NOT_CHECKED_NO_AVAILABLE_SLOT_CLAIM' },
         conversation: ['SALES_OUTREACH', 'FOLLOW_UP'].includes(run.agent)
-          ? (await SalesConversationEntry.find({ leadId: run.leadId, contentExpiresAt: { $gt: new Date() }, redactedAt: { $exists: false } }).sort({ occurredAt: -1, _id: -1 }).limit(5).lean()).map(entry => ({
+          ? (await SalesConversationEntry.find({ leadId: run.leadId, contentExpiresAt: { $gt: new Date() }, redactedAt: { $exists: false }, ...((hasSuccessPermission(auth, 'sales.followups.read') && (!view.customer.organizationId || hasSuccessPermission(auth, 'sales.onboarding.read'))) ? {} : { followUpId: { $exists: false } }) }).sort({ occurredAt: -1, _id: -1 }).limit(5).lean()).map(entry => ({
               direction: entry.direction, at: entry.occurredAt, correlation: entry.correlation,
               text: (entry.text ?? '').slice(0, 1000).replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]').replace(/\+\d[\d\s()-]{7,18}\d/g, '[phone]').replace(/https?:\/\/[^\s]+/gi, '[link]').replace(/\b(?:Bearer\s+\S+|(?:sk|re|whsec)_[\w-]+)\b/gi, '[credential]'),
             })) : [],
@@ -825,6 +840,7 @@ export class SalesAgentService {
         );
       const currentActor = await repository.principal(run.requestedBy);
       await authorizeTask(currentActor, String(run.leadId), run.agent);
+      if (run.followUpId) await (await import('./sales-followup.service.js')).SalesFollowUpService.assertPreparation(run.followUpId, currentActor.userId, String(run.leadId), run.commandId);
       if (run.calendarWindow) {
         assertSuccessPermission(currentActor, 'sales.meetings.create');
         if (!currentActor.isPlatformAdmin && run.calendarWindow.representativeId !== String(currentActor.userId)) throw new AppError(403, 'FORBIDDEN', 'Calendar scope changed during generation');

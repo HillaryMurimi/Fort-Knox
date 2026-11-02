@@ -2,6 +2,8 @@
 export const statusGroups = {
   neutral: [
     "INFO",
+    "HUMAN_TEMPLATE",
+    "AI_PROPOSAL",
     "UNKNOWN",
     "DRAFT",
     "NOT_STARTED",
@@ -77,6 +79,8 @@ export const statusGroups = {
     "REVIEW",
     "APPROVAL_REQUIRED",
     "AWAITING_APPROVAL",
+    "AWAITING_AGENT_REVIEW",
+    "AWAITING_MESSAGE_REVIEW",
     "PENDING_SIGNATURE",
     "CONTRACT_PENDING_SIGNATURE",
     "INSPECTION_PENDING",
@@ -195,6 +199,8 @@ export const statusGroups = {
     "REVERSED",
     "EXPIRED",
     "ENDED",
+    "STOPPED",
+    "EXHAUSTED",
     "DISABLE",
   ],
   archived: [
