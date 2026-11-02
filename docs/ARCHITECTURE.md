@@ -473,3 +473,8 @@ Sales email now uses channel-specific recorded consent, exact-payload human revi
 ### Governed dedicated-sender sales SMS (2026-11-01)
 
 The existing sales outreach/consent/review queue now supports optional Twilio SMS through the existing messaging provider, with a dedicated two-way sender, GSM/Unicode segment ceilings and integer per-segment reservations. Signed form callbacks use the maintained Twilio SDK against the configured public URL; replies/STOP and delivery facts persist through existing WebhookEvent/Job workflows, with no automatic resend after an ambiguous attempt. Operational SMS remains separate. SALES_SMS remains OFF by default. See [AI_SALES_CONTINUATION.md](AI_SALES_CONTINUATION.md) for contracts, provider-independent verification, dependency audit and external acceptance gates. WhatsApp/calendar/follow-up work continues separately.
+
+
+### AI sales follow-up continuation
+
+Follow-up policies/sequences reuse the existing sales module, agent/outreach services and Job worker; no parallel scheduler or transport. See AI_SALES_CONTINUATION.md, Governed follow-up sequences, for the full contract.

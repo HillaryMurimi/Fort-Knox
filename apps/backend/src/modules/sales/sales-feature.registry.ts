@@ -65,6 +65,7 @@ export const salesFeatureCatalog = [
     "Sales calendar integration",
     "Authorized external availability and reservations.",
   ],
+  ['SALES_FOLLOWUPS', 'Durable sales follow-ups', 'Bounded reviewed sequences, source evidence and mandatory stop conditions.'],
   [
     "SALES_EMAIL",
     "Sales email outreach",
@@ -83,5 +84,5 @@ export const salesFeatureCatalog = [
 ] as const;
 export function isPlannedSalesFeature(key: string) {
   return salesFeatureCatalog.some(([candidate]) => candidate === key) &&
-    !['SALES_DASHBOARD', 'SALES_AI_RUNTIME', 'SALES_APPROVALS', 'SALES_LIFECYCLE', 'SALES_AUTOLINK', 'SALES_CAMPAIGNS', 'SALES_TRACKING', 'SALES_ATTRIBUTION', 'SALES_RESEARCH', 'SALES_OUTBOUND', 'SALES_EMAIL', 'SALES_SMS', 'SALES_WHATSAPP', 'SALES_CALENDAR', ...agentKeys.map(k => `SALES_AGENT_${k}`)].includes(key);
+    !['SALES_DASHBOARD', 'SALES_AI_RUNTIME', 'SALES_APPROVALS', 'SALES_LIFECYCLE', 'SALES_AUTOLINK', 'SALES_CAMPAIGNS', 'SALES_TRACKING', 'SALES_ATTRIBUTION', 'SALES_RESEARCH', 'SALES_OUTBOUND', 'SALES_EMAIL', 'SALES_SMS', 'SALES_WHATSAPP', 'SALES_CALENDAR', 'SALES_FOLLOWUPS', ...agentKeys.map(k => `SALES_AGENT_${k}`)].includes(key);
 }

@@ -17,10 +17,12 @@ import { SalesCampaign, SalesTrackingLink, SalesAttribution } from '../src/datab
 import { SalesConsentEvent, SalesRecipientControl, SalesMessage, SalesCampaignUsage, SalesConversationEntry, SalesProviderControl } from '../src/database/models/SalesCommunication.js';
 import { Notification } from '../src/database/models/Notification.js';
 import { WebhookEvent } from '../src/database/models/WebhookEvent.js';
+import { SalesFollowUpPolicy, SalesFollowUp } from '../src/database/models/SalesFollowUp.js';
 await connectDatabase();
 try {
   for (const model of [SalesDemoSession, SalesValueEvent, AcquisitionJourney, SalesLead, SalesMeeting, SalesActivity, SalesAgent, SalesAgentRun, SalesAgentApproval, Job, SalesIdentityMatch, SalesMergeRequest, SalesProjectionCheckpoint, AuditLog, DomainEvent, SalesCampaign, SalesTrackingLink, SalesAttribution, SalesConsentEvent, SalesRecipientControl, SalesMessage, SalesCampaignUsage, SalesConversationEntry, SalesProviderControl, Notification, WebhookEvent])
     await model.createIndexes();
+  await SalesFollowUpPolicy.createIndexes(); await SalesFollowUp.createIndexes();
   for (const [key, options] of Organization.schema.indexes())
     if (options.name?.startsWith("guided_pilot_"))
       await Organization.collection.createIndex(key, options);

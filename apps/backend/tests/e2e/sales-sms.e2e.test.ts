@@ -160,4 +160,11 @@ describe.skipIf(!process.env.RUN_E2E)('Governed dedicated-sender sales SMS', () 
     const body = fetch.mock.calls[0]?.[1]?.body as URLSearchParams; expect(body.get('From')).toBe(operationsNumber); expect(body.get('To')).toBe(phone);
     expect((await SalesLead.findById(leadId))?.consent).toBe('OPTED_OUT');
   });
+  it('applies a known contact stop before any attempted message and does not bind unknown conversation text', async () => {
+    await optIn();
+    const params = { AccountSid: env.TWILIO_ACCOUNT_SID!, MessageSid: 'SM'+randomBytes(16).toString('hex'), SmsStatus: 'received', From: phone, To: salesNumber, Body: 'STOP', OptOutType: 'STOP' };
+    await webhooks.receive(params, sign(params)); await webhooks.receive(params, sign(params));
+    expect((await SalesLead.findById(leadId))?.consent).toBe('OPTED_OUT'); expect(await SalesConversationEntry.countDocuments()).toBe(0); expect(send).not.toHaveBeenCalled(); expect((await SalesRecipientControl.findOne({ channel: 'SMS' }))?.responseRevision).toBe(1);
+  });
+
 });

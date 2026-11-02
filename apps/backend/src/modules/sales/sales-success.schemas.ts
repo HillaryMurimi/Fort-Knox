@@ -15,6 +15,8 @@ export const salesPermissions = [
   "sales.research.execute",
   "sales.outreach.read",
   "sales.outreach.prepare",
+  "sales.followups.read",
+  "sales.followups.manage",
 ] as const;
 export const listCustomersSchema = z
   .object({

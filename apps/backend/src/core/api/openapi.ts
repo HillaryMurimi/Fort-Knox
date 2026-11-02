@@ -3,6 +3,7 @@ import { selfServicePaths } from "../../modules/onboarding/self-service.openapi.
 import { PRODUCT_NAME } from "../../config/brand.js";
 import { salesDemoPaths } from "../../modules/sales/sales-demo.openapi.js";
 import { salesSuccessPaths } from "../../modules/sales/sales-success.openapi.js";
+import { salesFollowUpPaths } from '../../modules/sales/sales-followup.openapi.js';
 import { salesAgentPaths } from '../../modules/sales/sales-agent.openapi.js';
 import { salesIdentityPaths } from '../../modules/sales/sales-identity.openapi.js';
 import { salesCampaignPaths } from '../../modules/sales/sales-campaign.openapi.js';
@@ -185,6 +186,7 @@ export function buildOpenApiDocument() {
       ...salesDemoPaths,
       ...salesSuccessPaths,
       ...salesAgentPaths,
+      ...salesFollowUpPaths,
       ...salesIdentityPaths,
       ...salesCampaignPaths,
       ...salesOutreachPaths,

@@ -1,3 +1,4 @@
+import { signalSalesFollowUps } from './sales-followup.signal.js';
 import { lifecycleReplaySchema } from "./sales-identity.schemas.js";
 import { randomUUID } from "node:crypto";
 import { Types, type ClientSession } from "mongoose";
@@ -379,6 +380,7 @@ export class SalesLifecycleService {
           { upsert: true, session },
         );
         inserted += result.upsertedCount;
+        if (result.upsertedCount) await signalSalesFollowUps(lead._id, 'lifecycle:' + sourceKey, session);
       };
       const advance = async (name: string, state?: string) => {
         const stage = sourceStage(name, state);

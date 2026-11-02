@@ -24,7 +24,7 @@ setSalesDeliveryTestProvider({ key: 'TWILIO', idempotencyHours: 0, minimumInterv
 for (const model of Object.values(mongoose.models))
   await model.createCollection();
 await PlatformBrief.createIndexes();
-for (const key of ["EMAIL_OTP", "SMS_OTP", "EMAIL_NOTIFICATIONS", "SMS_NOTIFICATIONS", "SALES_CAMPAIGNS", "SALES_TRACKING"]) await PlatformSwitch.create({ key, kind: "FEATURE", name: key, description: "Explicit private browser test channel policy", enabled: true, mode: "ON" });
+for (const key of ["EMAIL_OTP", "SMS_OTP", "EMAIL_NOTIFICATIONS", "SMS_NOTIFICATIONS", "SALES_CAMPAIGNS", "SALES_TRACKING", "SALES_FOLLOWUPS"]) await PlatformSwitch.create({ key, kind: "FEATURE", name: key, description: "Explicit private browser test channel policy", enabled: true, mode: "ON" });
 setOtpTestDelivery(async (channel, _destination, code) => { if (!process.send) throw new Error("Private test IPC is required"); process.send({ type: "PCC_TEST_MFA_DELIVERY", channel, code }); });
 await User.create({
   phone: "+254700009130",

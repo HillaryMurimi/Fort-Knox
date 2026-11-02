@@ -9,6 +9,7 @@ const schema = new Schema(
     kind: { type: String, required: true },
     text: { type: String, maxlength: 20000 },
     resourceId: Schema.Types.ObjectId,
+    followUpId: { type: Schema.Types.ObjectId, ref: 'SalesFollowUp' },
     sourceKey: String,
     sourceType: { type: String, enum: ['DOMAIN_EVENT', 'AUDIT_EVENT', 'AUTHORITATIVE_RECORD'] },
     sourceOccurredAt: Date,

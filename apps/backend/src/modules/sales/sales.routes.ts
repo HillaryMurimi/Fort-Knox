@@ -9,6 +9,7 @@ import * as identity from './sales-identity.controller.js';
 import * as campaigns from './sales-campaign.controller.js';
 import * as outreach from './sales-outreach.controller.js';
 import * as calendar from './sales-calendar.controller.js';
+import * as followups from './sales-followup.controller.js';
 import rateLimit from 'express-rate-limit';
 
 export const salesRouter = Router();
@@ -23,6 +24,13 @@ salesRouter.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next
 salesRouter.get('/success/customers', asyncHandler(success.list));
 salesRouter.get('/success/outreach/capabilities', asyncHandler(outreach.capabilities));
 salesRouter.get('/success/outreach/whatsapp/templates', asyncHandler(outreach.whatsappTemplates));
+salesRouter.get('/success/followups/policies', asyncHandler(followups.policies));
+salesRouter.post('/success/followups/policies', asyncHandler(followups.createPolicy));
+salesRouter.post('/success/followups/policies/:policyId/decisions', asyncHandler(followups.decidePolicy));
+salesRouter.get('/success/customers/:id/followups', asyncHandler(followups.list));
+salesRouter.get('/success/customers/:id/followups/options', asyncHandler(followups.options));
+salesRouter.post('/success/customers/:id/followups', asyncHandler(followups.enroll));
+salesRouter.post('/success/customers/:id/followups/:planId/controls', asyncHandler(followups.control));
 salesRouter.get('/success/customers/:id/calendar/availability', asyncHandler(calendar.availability));
 salesRouter.post('/success/customers/:id/meetings/:meetingId/calendar', asyncHandler(calendar.command));
 salesRouter.get('/success/customers/:id/consents', asyncHandler(outreach.consents));
