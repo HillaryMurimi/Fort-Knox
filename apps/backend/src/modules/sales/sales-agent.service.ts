@@ -12,6 +12,7 @@ import {
 } from "../../database/models/SalesAgent.js";
 import { SalesActivity } from "../../database/models/SalesActivity.js";
 import { SalesLead } from '../../database/models/SalesLead.js';
+import { SalesCampaign } from '../../database/models/SalesCampaign.js';
 import { SalesConversationEntry } from '../../database/models/SalesCommunication.js';
 import { salesDeliveryProvider } from '../../integrations/notifications/sales-delivery.provider.js';
 import { salesCalendarProvider } from '../../integrations/calendar/sales-calendar.provider.js';
@@ -232,6 +233,14 @@ export class SalesAgentService {
       await (await import('./sales-followup.service.js')).SalesFollowUpService.assertPreparation(followUpId, auth.userId, input.leadId, input.commandId);
     }
     if (input.researchQuery) assertSuccessPermission(auth, 'sales.research.execute');
+    let campaignHash: string | undefined;
+    if (input.campaignId) {
+      await assertSwitchEnabled('SALES_AUTONOMOUS_EMAIL');
+      const campaign = await SalesCampaign.findById(input.campaignId);
+      await (await import('./sales-campaign.service.js')).assertCampaignActive(campaign);
+      if (campaign?.channel !== 'EMAIL' || !campaign.autoEmailTemplates?.length) throw new AppError(409, 'AUTONOMOUS_TEMPLATE_REQUIRED', 'Select an active email campaign with approved autonomous templates');
+      campaignHash = campaign.approvedHash ?? undefined;
+    }
     if (input.calendarWindow) {
       assertSuccessPermission(auth, 'sales.meetings.read'); assertSuccessPermission(auth, 'sales.meetings.create');
       if (!auth.isPlatformAdmin && input.calendarWindow.representativeId !== String(auth.userId)) throw new AppError(403, 'FORBIDDEN', 'Delegates may use only their configured representative calendar');
@@ -257,6 +266,7 @@ export class SalesAgentService {
           [
             {
               ...input,
+              ...(campaignHash ? { campaignHash } : {}),
               ...(followUpId ? { followUpId } : {}),
               requestedBy: auth.userId,
               serviceIdentity: `sales:${input.agent}`,
@@ -466,6 +476,7 @@ export class SalesAgentService {
           "AGENT_STATE_CHANGED",
           "Execution is no longer awaiting this proposal",
         );
+      if (run.campaignId && input.decision === 'APPROVE') throw new AppError(409, 'AUTONOMOUS_TEMPLATE_ONLY', 'Template selection is resolved by the governed worker, not manual proposal approval');
       const actor = input.decision === 'APPROVE' ? await repository.principal(run.requestedBy) : null;
       if (actor) await authorizeTask(actor, String(run.leadId), run.agent);
       if (actor && run.followUpId) await (await import('./sales-followup.service.js')).SalesFollowUpService.assertPreparation(run.followUpId, actor.userId, String(run.leadId), run.commandId);
@@ -606,6 +617,7 @@ export class SalesAgentService {
       }
       await assertSwitchEnabled("SALES_AI_RUNTIME");
       await assertSwitchEnabled(`SALES_AGENT_${run.agent}`);
+      if (run.campaignId) await assertSwitchEnabled('SALES_AUTONOMOUS_EMAIL');
       if (!salesModelProvider().configured())
         throw new AppError(
           503,
@@ -613,6 +625,11 @@ export class SalesAgentService {
           "No model provider configured",
         );
       const view = await SalesSuccessService.view(auth, String(run.leadId));
+      const autoCampaign = run.campaignId ? await SalesCampaign.findById(run.campaignId) : null;
+      if (run.campaignId) {
+        await (await import('./sales-campaign.service.js')).assertCampaignActive(autoCampaign);
+        if (autoCampaign?.channel !== 'EMAIL' || !autoCampaign.autoEmailTemplates?.length || run.campaignHash !== autoCampaign.approvedHash) throw new AppError(409, 'AUTONOMOUS_TEMPLATE_REQUIRED', 'Approved email templates changed during the task');
+      }
       const numericUnits = /^\d+$/.test(view.customer.units)
         ? Number(view.customer.units)
         : null;
@@ -637,6 +654,7 @@ export class SalesAgentService {
               text: (entry.text ?? '').slice(0, 1000).replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]').replace(/\+\d[\d\s()-]{7,18}\d/g, '[phone]').replace(/https?:\/\/[^\s]+/gi, '[link]').replace(/\b(?:Bearer\s+\S+|(?:sk|re|whsec)_[\w-]+)\b/gi, '[credential]'),
             })) : [],
         researchSources: [] as ResearchSource[],
+        ...(autoCampaign ? { approvedEmailChoices: autoCampaign.autoEmailTemplates!.map(template => ({ id: template.id, segment: template.segment })) } : {}),
         customer: {
           name: view.customer.name,
           estimatedProperties: view.customer.properties,
@@ -681,7 +699,7 @@ export class SalesAgentService {
             }
           : {}),
       };
-      const instructionsText = agentInstructions(run.agent),
+      const instructionsText = agentInstructions(run.agent) + (autoCampaign ? ' The campaign email templates were approved by a human in advance. For an eligible customer, choose one approvedEmailChoices id based on verified context; this selection may queue delivery without an individual review. Set action.tool to OUTREACH_DRAFT, action.text to only the id, and action.subject to null. Do not generate message wording; approved template rendering is server-controlled. If no choice is appropriate, use an ordinary proposal that requires human review.' : ''),
         config = await repository.config(run.agent);
       if (!config?.enabled || config.paused)
         throw new AppError(409, "AGENT_PAUSED", "Agent is disabled or paused");
@@ -826,6 +844,7 @@ export class SalesAgentService {
         signal: AbortSignal.timeout(env.SALES_AI_TIMEOUT_SECONDS * 1000),
       });
       const output = agentOutputSchema.parse(result.output);
+      const selectedAutonomousTemplate = autoCampaign?.autoEmailTemplates?.some(template => template.id === output.action.text && output.action.tool === 'OUTREACH_DRAFT' && output.action.subject === null) ?? false;
       if (!agentTools[run.agent].includes(output.action.tool))
         throw new AppError(
           403,
@@ -904,6 +923,8 @@ export class SalesAgentService {
           },
           { upsert: true, session },
         );
+        if (run.campaignId && selectedAutonomousTemplate && await PlatformSwitch.exists({ key: 'SALES_AUTONOMOUS_EMAIL', enabled: true, mode: 'ON' }).session(session))
+          await Job.updateOne({ dedupeKey: `sales-autonomous-email:${run._id}:${run.attempt}` }, { $setOnInsert: { type: 'sales.autonomous.email', payload: { runId: String(run._id) }, availableAt: new Date(), maxAttempts: 5, createdBy: run.requestedBy } }, { upsert: true, session });
         await SalesAgent.updateOne(
           { _id: config._id, leaseOwner: owner },
           { $inc: { usedTokens: result.inputTokens + result.outputTokens } },

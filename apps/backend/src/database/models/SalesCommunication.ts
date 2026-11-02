@@ -63,6 +63,7 @@ const message = new Schema({
   unsubscribeUrl: { type: String, required: true },
   contentExpiresAt: Date, redactedAt: Date,
   followUpId: { type: Schema.Types.ObjectId, ref: 'SalesFollowUp' },
+  autonomousTemplateId: String,
 }, { timestamps: true });
 message.index({ requestedBy: 1, commandId: 1 }, { unique: true, name: 'sales_message_command_unique' });
 message.index({ campaignId: 1, recipientHash: 1, contentFingerprint: 1 }, { unique: true, name: 'sales_message_content_unique', partialFilterExpression: { dedupeActive: true } });

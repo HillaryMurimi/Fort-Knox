@@ -52,6 +52,10 @@ export class PlatformControlService {
     AuthorizationService.assertPlatformAdmin(auth);
     if (input.mode === 'ON' && key === 'SALES_CALENDAR') await (await import('../sales/sales-calendar.service.js')).SalesCalendarService.readiness();
     if (input.mode === 'ON' && key === 'SALES_FOLLOWUPS') await (await import('../sales/sales-followup-policy.service.js')).assertFollowUpIndexes();
+    if (input.mode === 'ON' && key === 'SALES_AUTONOMOUS_EMAIL') {
+      const indexes = await import('../sales/sales-success-indexes.js');
+      await Promise.all([indexes.assertAgentIndexes(), indexes.assertCampaignIndexes(), indexes.assertOutreachIndexes()]);
+    }
     if (input.mode === 'ON' && ['SALES_LIFECYCLE', 'SALES_AUTOLINK'].includes(key)) await (await import('../sales/sales-success-indexes.js')).assertLifecycleIndexes();
     if (input.mode === 'ON' && ['SALES_CAMPAIGNS', 'SALES_TRACKING', 'SALES_ATTRIBUTION'].includes(key)) await (await import('../sales/sales-success-indexes.js')).assertCampaignIndexes();
     if (input.mode === 'ON' && isPlannedSalesFeature(key)) throw new AppError(409, 'SALES_FEATURE_NOT_READY', 'This optional sales capability has not been implemented yet');

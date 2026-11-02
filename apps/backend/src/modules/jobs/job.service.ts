@@ -5,7 +5,7 @@ import { NotificationService } from "../notifications/notification.service.js";
 import { AuthorizationService } from "../../core/authorization/authorization.service.js";
 import { AppError } from "../../core/errors/AppError.js";
 import type { AuthenticatedUser } from "../../core/types/auth.js";
-import type { z } from "zod";
+import { z } from "zod";
 import type { enqueueJobSchema, jobQuerySchema } from "./job.schemas.js";
 import { paginationMeta, paginationSkip } from "../../core/api/pagination.js";
 type EnqueueInput = z.infer<typeof enqueueJobSchema>;
@@ -203,6 +203,11 @@ export class JobService {
       const { objectId } = await import('../sales/sales-success.schemas.js');
       const payload = job.payload as { runId?: unknown };
       await (await import('../sales/sales-agent.service.js')).SalesAgentService.execute(objectId.parse(payload?.runId));
+      return;
+    }
+    if (job.type === 'sales.autonomous.email') {
+      const input = z.object({ runId: z.string().regex(/^[a-f\d]{24}$/i) }).strict().parse(job.payload);
+      await (await import('../sales/sales-autonomous-email.service.js')).SalesAutonomousEmailService.process(input.runId);
       return;
     }
     if (job.type === "domain-event.onboarding-recovery") {

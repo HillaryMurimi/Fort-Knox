@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { objectId } from './sales-success.schemas.js';
+import { autonomousEmailTemplateSchema } from './sales-autonomous-email.policy.js';
 export const campaignSchema = z.object({
   name: z.string().trim().min(3).max(160), description: z.string().trim().min(10).max(4000),
   audience: z.string().trim().min(10).max(2000), market: z.string().trim().min(2).max(120),
@@ -8,8 +9,11 @@ export const campaignSchema = z.object({
   messaging: z.string().trim().min(10).max(12000), selectionCriteria: z.string().trim().min(10).max(2000),
   dailySendLimit: z.number().int().min(1).max(1000), perContactLimit: z.number().int().min(1).max(5),
   followUpDays: z.array(z.number().int().min(1).max(90)).max(4).default([]),
+  autoEmailTemplates: z.array(autonomousEmailTemplateSchema).max(5).default([]),
   budgetMicroUsd: z.number().int().min(0).max(1_000_000_000), attributionDays: z.number().int().min(1).max(90).default(30),
-}).strict().refine(v => Date.parse(v.endsAt) > Date.parse(v.startsAt), { message: 'Campaign must end after it starts' })
+}).strict().refine(v => v.channel === 'EMAIL' || v.autoEmailTemplates.length === 0, { message: 'Autonomous templates are email only' })
+  .refine(v => new Set(v.autoEmailTemplates.map(template => template.id)).size === v.autoEmailTemplates.length, { message: 'Template ids must be unique' })
+  .refine(v => Date.parse(v.endsAt) > Date.parse(v.startsAt), { message: 'Campaign must end after it starts' })
   .refine(v => v.followUpDays.every((n, i) => i === 0 || n > v.followUpDays[i - 1]!), { message: 'Follow-up days must be distinct and increasing' });
 export const campaignCommandSchema = z.object({
   revision: z.number().int().nonnegative(), action: z.enum(['SUBMIT', 'APPROVE', 'REJECT', 'ACTIVATE', 'PAUSE', 'RESUME', 'COMPLETE', 'CANCEL']),

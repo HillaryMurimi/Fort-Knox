@@ -316,3 +316,6 @@ The existing sales outreach/consent/review queue now supports optional Twilio SM
 ### AI sales follow-up continuation
 
 Follow-ups recheck original evidence, current scope/consent and parent policy before generation, review and dispatch. Opt-outs, replies and meeting/payment/onboarding progress stop old sequences even while paused. Public callers cannot detach internal parent bindings. Uncertain sends escalate without automatic resend. Constituent permissions apply across list/detail/history/model paths. See AI_SALES_CONTINUATION.md, Governed follow-up sequences, for the full contract.
+### Autonomous sales email boundary (2026-11-02)
+
+The optional `SALES_AUTONOMOUS_EMAIL` switch defaults OFF and is separate from transactional email and authentication OTP. Only an active, exact-hash administrator-approved email campaign may supply outbound words. The model selects a reviewed template ID; arbitrary model prose is not sent. The existing recipient consent, suppression, frequency, quiet-hour, campaign-budget, provider pacing and current actor/agent checks remain authoritative at preparation and dispatch. A switch disable before provider invocation prevents that call; already-started provider requests cannot be recalled. Live legal-basis review, provider identity and webhook acceptance are external launch gates.

@@ -10,6 +10,7 @@ const campaign = new Schema({
   agent: { type: String, default: 'SALES_OUTREACH' },
   startsAt: { type: Date, required: true }, endsAt: { type: Date, required: true },
   messaging: { type: String, required: true, maxlength: 12000 },
+  autoEmailTemplates: { type: [new Schema({ id: { type: String, required: true }, segment: { type: String, required: true }, subject: { type: String, required: true }, body: { type: String, required: true } }, { _id: false })], default: undefined },
   selectionCriteria: { type: String, required: true, maxlength: 2000 },
   dailySendLimit: { type: Number, required: true, min: 1, max: 1000 },
   perContactLimit: { type: Number, required: true, min: 1, max: 5 },

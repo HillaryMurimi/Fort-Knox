@@ -496,3 +496,7 @@ Optional Google/Microsoft adapters now extend existing meetings with actual avai
 ### AI sales follow-up continuation
 
 Customer 360 includes evidence-based follow-up policies, bounded sequences, separate fresh message reviews and operator controls. Optional SALES_FOLLOWUPS remains OFF by default. See AI_SALES_CONTINUATION.md, Governed follow-up sequences, for the full contract.
+
+### Approved-template autonomous sales email
+
+Sales Outreach supports an optional approved email campaign with up to five exact templates selected by customer qualification. A durable worker renders the current customer name and queues through existing consent, suppression, budget and notification controls. SALES_AUTONOMOUS_EMAIL is independently OFF by default. Campaign review exposes full subjects/bodies, and controls are rechecked before provider dispatch. Free-form model output remains subject to individual approval. See AI_SALES_CONTINUATION.md for the operating limits and external acceptance requirements.

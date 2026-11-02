@@ -71,6 +71,7 @@ export const salesFeatureCatalog = [
     "Sales email outreach",
     "Approved business email with delivery evidence.",
   ],
+  ['SALES_AUTONOMOUS_EMAIL', 'Autonomous sales email', 'Only approved campaign templates selected by an authorized agent; recipient and delivery gates remain mandatory.'],
   [
     "SALES_SMS",
     "Sales SMS outreach",
@@ -84,5 +85,5 @@ export const salesFeatureCatalog = [
 ] as const;
 export function isPlannedSalesFeature(key: string) {
   return salesFeatureCatalog.some(([candidate]) => candidate === key) &&
-    !['SALES_DASHBOARD', 'SALES_AI_RUNTIME', 'SALES_APPROVALS', 'SALES_LIFECYCLE', 'SALES_AUTOLINK', 'SALES_CAMPAIGNS', 'SALES_TRACKING', 'SALES_ATTRIBUTION', 'SALES_RESEARCH', 'SALES_OUTBOUND', 'SALES_EMAIL', 'SALES_SMS', 'SALES_WHATSAPP', 'SALES_CALENDAR', 'SALES_FOLLOWUPS', ...agentKeys.map(k => `SALES_AGENT_${k}`)].includes(key);
+    !['SALES_DASHBOARD', 'SALES_AI_RUNTIME', 'SALES_APPROVALS', 'SALES_LIFECYCLE', 'SALES_AUTOLINK', 'SALES_CAMPAIGNS', 'SALES_TRACKING', 'SALES_ATTRIBUTION', 'SALES_RESEARCH', 'SALES_OUTBOUND', 'SALES_EMAIL', 'SALES_AUTONOMOUS_EMAIL', 'SALES_SMS', 'SALES_WHATSAPP', 'SALES_CALENDAR', 'SALES_FOLLOWUPS', ...agentKeys.map(k => `SALES_AGENT_${k}`)].includes(key);
 }

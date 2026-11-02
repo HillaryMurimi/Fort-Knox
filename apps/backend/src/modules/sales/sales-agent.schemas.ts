@@ -57,9 +57,10 @@ export const agentTaskSchema = z
     objective: z.string().trim().min(5).max(2000),
     researchQuery: z.string().trim().min(3).max(300).refine(v => !/@|\+\d{8,}/.test(v), { message: 'Research queries must not contain private contact details' }).optional(),
     calendarWindow: z.object({ representativeId: objectId, startsAt: z.iso.datetime({ offset: true }), endsAt: z.iso.datetime({ offset: true }) }).strict().refine(value => Date.parse(value.endsAt) > Date.parse(value.startsAt) && Date.parse(value.endsAt) - Date.parse(value.startsAt) <= 7 * 86400000, 'Calendar window must span at most seven days').optional(),
+    campaignId: objectId.optional(),
     commandId: z.uuid(),
   })
-  .strict().refine(v => !v.researchQuery || v.agent === 'LEAD_RESEARCHER', { message: 'Connected research is available only to the lead researcher' }).refine(v => !v.calendarWindow || v.agent === 'MEETING_COORDINATOR', 'Calendar availability is available only to the meeting coordinator');
+  .strict().refine(v => !v.researchQuery || v.agent === 'LEAD_RESEARCHER', { message: 'Connected research is available only to the lead researcher' }).refine(v => !v.calendarWindow || v.agent === 'MEETING_COORDINATOR', 'Calendar availability is available only to the meeting coordinator').refine(v => !v.campaignId || v.agent === 'SALES_OUTREACH', 'Campaign template selection is available only to Sales Outreach');
 export const agentConfigurationSchema = z
   .object({
     revision: z.number().int().nonnegative(),

@@ -36,6 +36,8 @@ const run = new Schema(
     researchQuery: { type: String, maxlength: 300 },
     calendarWindow: { type: new Schema({ representativeId: { type: String, required: true }, startsAt: { type: String, required: true }, endsAt: { type: String, required: true } }, { _id: false }), default: undefined },
     followUpId: { type: Schema.Types.ObjectId, ref: 'SalesFollowUp' },
+    campaignId: { type: Schema.Types.ObjectId, ref: 'SalesCampaign' },
+    campaignHash: String,
     researchSources: Schema.Types.Mixed,
     researchHash: String,
     researchExpiresAt: Date,

@@ -237,3 +237,5 @@ The existing sales outreach/consent/review queue now supports optional Twilio SM
 ### AI sales follow-up continuation
 
 AI sales follow-up engineering is under final verification. Subsequent work remains assistance, analytics and complete operational hardening. See AI_SALES_CONTINUATION.md, Governed follow-up sequences, for the full contract.
+
+Approved-template autonomous sales email now has an OFF-by-default switch and a durable worker path. Continue with hosted/provider acceptance, onboarding assistance execution and authoritative CRM analytics before describing the AI Sales department as complete. See AI_SALES_CONTINUATION.md for current limits and operator gates.

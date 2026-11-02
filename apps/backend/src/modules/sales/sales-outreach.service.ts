@@ -29,6 +29,7 @@ import { assertOutreachIndexes } from './sales-success-indexes.js';
 import { outreachDraftSchema, outreachDecisionSchema, outreachPageSchema, unsubscribeSchema } from './sales-outreach.schemas.js';
 import { nextOutreachWindow, opaqueHash, recipientHash } from './sales-outreach.policy.js';
 import { signalSalesFollowUps } from './sales-followup.signal.js';
+import { autonomousEmailTemplateSchema, renderAutonomousEmail } from './sales-autonomous-email.policy.js';
 
 type Message = HydratedDocument<SalesMessageRecord>;
 const terminal = ['SENT', 'FAILED', 'UNCERTAIN', 'CANCELLED', 'SUPPRESSED', 'EXPIRED', 'REJECTED'];
@@ -47,6 +48,7 @@ export function outreachPayload(m: SalesMessageRecord) {
     recipientDailyLimit: m.recipientDailyLimit, estimatedCostMicroUsd: m.estimatedCostMicroUsd, replyTo: m.replyTo ?? null,
     unsubscribeUrl: m.unsubscribeUrl, originApprovalId: m.originApprovalId ? String(m.originApprovalId) : null,
     followUpId: m.followUpId ? String(m.followUpId) : null, contentExpiresAt: m.contentExpiresAt?.toISOString(),
+    ...(m.autonomousTemplateId ? { autonomousTemplateId: m.autonomousTemplateId } : {}),
     ...(m.channel === 'SMS' ? { smsSegments: m.smsSegments, smsEncoding: m.smsEncoding } : {}),
     ...(m.channel === 'WHATSAPP' ? { whatsappTemplate: m.whatsappTemplate ? { id: m.whatsappTemplate.id, name: m.whatsappTemplate.name, language: m.whatsappTemplate.language, hash: m.whatsappTemplate.hash, bindings: [...m.whatsappTemplate.bindings], values: [...(m.whatsappTemplate.values ?? [])], businessAccountId: m.whatsappTemplate.businessAccountId, phoneNumberId: m.whatsappTemplate.phoneNumberId, senderName: m.whatsappTemplate.senderName, checkedAt: m.whatsappTemplate.checkedAt.toISOString() } : null } : {}),
   };
@@ -91,8 +93,57 @@ async function assertWhatsAppSnapshot(m: SalesMessageRecord) {
   const rendered = renderSalesTemplate(template, z.array(z.enum(waBindingKinds)).parse(snapshot.bindings), lead.name);
   if (rendered.text !== m.body || JSON.stringify(rendered.values) !== JSON.stringify(snapshot.values)) throw new AppError(409, 'WHATSAPP_TEMPLATE_CHANGED', 'Current template values no longer match the reviewed message');
 }
+async function assertAutonomousSnapshot(m: SalesMessageRecord, templateId: string) {
+  if (m.channel !== 'EMAIL' || !m.originApprovalId || m.reviewedBy || m.followUpId) throw new AppError(409, 'AUTONOMOUS_EMAIL_INVALID', 'Autonomous email requires an approved email campaign and agent proposal');
+  const approval = await SalesAgentApproval.findById(m.originApprovalId);
+  const run = approval ? await SalesAgentRun.findById(approval.runId) : null;
+  const campaign = await SalesCampaign.findById(m.campaignId);
+  if (!approval || !run || !campaign || !['APPROVED', 'COMPLETED'].includes(approval.status) || !['AWAITING_APPROVAL', 'COMPLETED'].includes(run.status) || approval.decisionReason !== 'Approved campaign template selected by Sales Outreach agent' || approval.payloadHash !== payloadHash(approval.payload) || run.agent !== 'SALES_OUTREACH' || String(run.leadId) !== String(m.leadId) || String(run.requestedBy) !== String(m.requestedBy) || String(run.campaignId) !== String(m.campaignId) || run.campaignHash !== campaign.approvedHash || m.campaignHash !== campaign.approvedHash)
+    throw new AppError(409, 'AUTONOMOUS_EMAIL_INVALID', 'Approved template or agent context changed');
+  await (await import('./sales-campaign.service.js')).assertCampaignActive(campaign);
+  const selected = campaign.autoEmailTemplates?.find(template => template.id === templateId);
+  const lead = await SalesLead.findOne({ _id: m.leadId, mergedInto: { $exists: false } }).select('name leadStatus');
+  if (!selected || !lead) throw new AppError(409, 'AUTONOMOUS_EMAIL_INVALID', 'Approved template or customer is unavailable');
+  const template = autonomousEmailTemplateSchema.parse(selected.toObject());
+  if (template.segment !== lead.leadStatus) throw new AppError(409, 'AUTONOMOUS_SEGMENT_CHANGED', 'Customer qualification changed after generation');
+  const rendered = renderAutonomousEmail(template, lead.name);
+  if (m.subject !== rendered.subject || m.body !== `${rendered.body}\n\nDapinni Real Estate Solutions\nTo stop sales updates: ${m.unsubscribeUrl}` || approval.payloadHash !== payloadHash({ ...approval.payload, text: rendered.body, subject: rendered.subject }))
+    throw new AppError(409, 'AUTONOMOUS_EMAIL_CHANGED', 'Autonomous message differs from the approved campaign template');
+}
 
 export class SalesOutreachService {
+  static async queueAutonomous(messageId: string, runId: string, templateId: string) {
+    await assertOutreachIndexes();
+    await Promise.all(['SALES_AUTONOMOUS_EMAIL', 'SALES_OUTBOUND', 'SALES_EMAIL', 'EMAIL_NOTIFICATIONS', 'SALES_AI_RUNTIME', 'SALES_AGENT_SALES_OUTREACH', 'SALES_CAMPAIGNS'].map(assertSwitchEnabled));
+    const initial = await SalesMessage.findById(messageId).select('+recipient');
+    if (!initial || !initial.originApprovalId) throw new AppError(409, 'AUTONOMOUS_EMAIL_INVALID', 'Agent draft is unavailable');
+    if (initial.status === 'QUEUED' && initial.autonomousTemplateId === templateId) return { queued: true, idempotent: true };
+    if (initial.status !== 'DRAFT' || initial.autonomousTemplateId || initial.reviewedBy) throw new AppError(409, 'AUTONOMOUS_EMAIL_INVALID', 'Only an untouched agent draft can be queued');
+    const approval = await SalesAgentApproval.findById(initial.originApprovalId);
+    if (!approval || String(approval.runId) !== runId) throw new AppError(409, 'AUTONOMOUS_EMAIL_INVALID', 'Agent run does not own this message');
+    await assertAutonomousSnapshot(initial, templateId);
+    await responsible(initial);
+    return salesTransaction(async session => {
+      const message = await SalesMessage.findOne({ _id: messageId, status: 'DRAFT', autonomousTemplateId: { $exists: false } }).select('+recipient').session(session);
+      if (!message || message.payloadHash !== payloadHash(outreachPayload(message))) throw new AppError(409, 'AUTONOMOUS_EMAIL_CHANGED', 'Draft changed before queueing');
+      const campaign = await campaignFor(message, session, true);
+      await consentMatches(message, session);
+      const provider = salesDeliveryProvider('EMAIL');
+      if (!provider || provider.key !== message.provider || message.senderConfigHash !== salesSenderConfigHash(provider.key) || !transportReady('EMAIL')) throw new AppError(503, 'OUTREACH_PROVIDER_NOT_CONFIGURED', 'Approved email transport is unavailable');
+      if (env.NODE_ENV !== 'test' && !message.estimatedCostMicroUsd) throw new AppError(409, 'OUTREACH_COST_POLICY_REQUIRED', 'Configure a reviewed per-message cost ceiling');
+      const at = nextOutreachWindow(new Date(Math.max(Date.now(), campaign.startsAt.getTime())), message.timezone);
+      const expires = new Date(Math.min(Date.now() + 7 * 86400000, campaign.endsAt.getTime(), message.contentExpiresAt?.getTime() ?? Infinity));
+      if (at >= expires) throw new AppError(409, 'OUTREACH_WINDOW_UNAVAILABLE', 'No approved sending window remains');
+      message.autonomousTemplateId = templateId; message.payloadHash = payloadHash(outreachPayload(message)); message.approvalExpiresAt = expires; message.status = 'QUEUED';
+      await this.enqueue(message, at, session); await message.save({ session });
+      const updated = await SalesAgentApproval.updateOne({ _id: approval._id, status: 'APPROVED' }, { $set: { status: 'COMPLETED', result: { messageId: String(message._id), autonomousTemplateId: templateId, providerDispatched: false } } }, { session });
+      if (!updated.modifiedCount) throw new AppError(409, 'APPROVAL_CHANGED', 'Agent proposal changed before queueing');
+      const completed = await SalesAgentRun.updateOne({ _id: runId, status: 'AWAITING_APPROVAL' }, { $set: { status: 'COMPLETED' } }, { session });
+      if (!completed.modifiedCount) throw new AppError(409, 'AGENT_STATE_CHANGED', 'Agent run changed before queueing');
+      await AuditService.record({ action: 'sales.autonomous.email.queued', resourceType: 'SalesMessage', resourceId: message._id, metadata: { runId, approvalId: String(approval._id), campaignHash: campaign.approvedHash, templateId, messageHash: message.payloadHash } }, session);
+      return { queued: true };
+    });
+  }
   static async whatsappTemplates(auth: AuthenticatedUser, raw: unknown) {
     assertSuccessPermission(auth, 'sales.outreach.prepare');
     const { name } = z.object({ name: z.string().regex(/^[a-z0-9_]{1,512}$/).optional() }).strict().parse(raw);
@@ -131,7 +182,7 @@ export class SalesOutreachService {
     const items = await SalesConversationEntry.find({ leadId: { $in: [lead._id, ...lead.mergedLeadIds] }, ...(!governed ? { followUpId: { $exists: false } } : {}) }).sort({ occurredAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).lean();
     return { items: items.map(e => e.contentExpiresAt && e.contentExpiresAt <= new Date() ? { ...e, subject: undefined, text: 'Conversation content expired under retention.', redactedAt: e.redactedAt ?? e.contentExpiresAt } : e), page, limit: 20 };
   }
-  static async prepare(auth: AuthenticatedUser, id: string, raw: unknown, followUpId?: Types.ObjectId) {
+  static async prepare(auth: AuthenticatedUser, id: string, raw: unknown, followUpId?: Types.ObjectId, autoRunId?: Types.ObjectId) {
     const lead = await SuccessRepository.load(auth, id, 'sales.outreach.prepare'); assertSuccessPermission(auth, 'sales.notes.read');
     const input = outreachDraftSchema.parse(raw), digest = payloadHash({ ...input, ...(followUpId ? { followUpId: String(followUpId) } : {}) });
     if (followUpId) await (await import('./sales-followup.service.js')).SalesFollowUpService.assertPreparation(followUpId, auth.userId, id, input.commandId);
@@ -152,7 +203,8 @@ export class SalesOutreachService {
       assertSuccessPermission(auth, 'sales.agents.read'); assertSuccessPermission(auth, 'sales.meetings.read');
       const proposal = await SalesAgentApproval.findOne({ _id: input.originApprovalId, leadId: lead._id, tool: 'OUTREACH_DRAFT', status: { $in: ['APPROVED', 'COMPLETED'] }, decisionAt: { $gte: new Date(Date.now() - 7 * 86400000) } });
       if (!proposal || payloadHash(proposal.payload) !== proposal.payloadHash) throw new AppError(409, 'APPROVAL_CHANGED', 'Select a recently approved outreach proposal for this customer');
-      const origin = await SalesAgentRun.findById(proposal.runId).select('followUpId');
+      const origin = await SalesAgentRun.findById(proposal.runId).select('followUpId campaignId');
+      if (origin?.campaignId && String(origin._id) !== String(autoRunId)) throw new AppError(409, 'AUTONOMOUS_TEMPLATE_ONLY', 'Campaign template selections can only use the governed autonomous email worker');
       if (origin?.followUpId && String(origin.followUpId) !== String(followUpId)) throw new AppError(409, 'FOLLOWUP_CONTEXT_REQUIRED', 'A governed follow-up proposal cannot be detached from its parent sequence');
       const action = agentOutputSchema.shape.action.parse(proposal.payload); subject = action.subject ?? 'Dapinni product briefing'; body = action.text;
     }
@@ -229,6 +281,7 @@ export class SalesOutreachService {
         const at = nextOutreachWindow(new Date(Math.max(Date.now(), campaign.startsAt.getTime(), followUpAt?.getTime() ?? 0)), message.timezone);
         const expires = new Date(Math.min(Date.now() + 7 * 86400000, campaign.endsAt.getTime(), message.contentExpiresAt?.getTime() ?? Infinity));
         if (at >= expires) throw new AppError(409, 'OUTREACH_WINDOW_UNAVAILABLE', 'No approved sending window remains; prepare or review the campaign schedule again');
+        if (message.autonomousTemplateId) { message.autonomousTemplateId = undefined; message.payloadHash = payloadHash(outreachPayload(message)); }
         message.reviewedBy = auth.userId; message.reviewedAt = new Date(); message.approvalExpiresAt = expires; message.status = 'QUEUED'; await this.enqueue(message, at, session);
       } else { message.status = message.firstAttemptAt ? 'UNCERTAIN' : input.action === 'REJECT' ? 'REJECTED' : 'CANCELLED'; if (!message.firstAttemptAt) message.dedupeActive = false; }
       message.revision += 1; await message.save({ session });
@@ -289,12 +342,15 @@ export class SalesOutreachService {
       if (!provider || provider.key !== initial.provider || !transportReady(initial.channel) || initial.senderConfigHash !== salesSenderConfigHash(provider.key)) throw new AppError(409, 'OUTREACH_CONFIG_CHANGED', 'Reviewed delivery configuration changed');
       if (initial.channel === 'WHATSAPP') await assertWhatsAppSnapshot(initial);
       const { followUpAt } = await responsible(initial);
-      if (!initial.reviewedBy) throw new AppError(409, 'OUTREACH_APPROVAL_REQUIRED', 'Human review is required');
-      AuthorizationService.assertPlatformAdmin(await SalesAgentRepository.principal(initial.reviewedBy));
+      if (initial.autonomousTemplateId) { await assertSwitchEnabled('SALES_AUTONOMOUS_EMAIL'); await assertSwitchEnabled('SALES_CAMPAIGNS'); await assertAutonomousSnapshot(initial, initial.autonomousTemplateId); }
+      else {
+        if (!initial.reviewedBy) throw new AppError(409, 'OUTREACH_APPROVAL_REQUIRED', 'Human review is required');
+        AuthorizationService.assertPlatformAdmin(await SalesAgentRepository.principal(initial.reviewedBy));
+      }
       claimed = await salesTransaction(async session => {
         const message = await SalesMessage.findOne({ _id: initial._id, status: { $in: ['QUEUED', 'DISPATCHING'] } }).select('+recipient').session(session);
         if (!message || (message.leaseUntil && message.leaseUntil > new Date())) return null;
-        if (message.payloadHash !== payloadHash(outreachPayload(message)) || message.redactedAt) throw new AppError(409, 'OUTREACH_MESSAGE_CHANGED', 'Message no longer matches its human approval');
+        if (message.payloadHash !== payloadHash(outreachPayload(message)) || message.redactedAt) throw new AppError(409, 'OUTREACH_MESSAGE_CHANGED', 'Message no longer matches its approved content');
         if (!message.approvalExpiresAt || message.approvalExpiresAt <= new Date()) throw new AppError(409, 'OUTREACH_APPROVAL_EXPIRED', 'Human approval expired');
         const campaign = await campaignFor(message, session, true), consent = await consentMatches(message, session), now = new Date();
         const at = nextOutreachWindow(new Date(Math.max(now.getTime(), campaign.startsAt.getTime(), message.nextAttemptAt?.getTime() ?? 0, followUpAt?.getTime() ?? 0)), message.timezone);
@@ -329,6 +385,7 @@ export class SalesOutreachService {
       if (!claimed) return { deferred: true };
       // Final policy checks occur immediately before transport; in-flight provider requests cannot be recalled.
       await enabled(claimed.channel); await assertSwitchEnabled(transportSwitch(claimed.channel));
+      if (claimed.autonomousTemplateId) { await assertSwitchEnabled('SALES_AUTONOMOUS_EMAIL'); await assertSwitchEnabled('SALES_CAMPAIGNS'); await assertAutonomousSnapshot(claimed, claimed.autonomousTemplateId); }
       await responsible(claimed); await campaignFor(claimed, undefined, true); await consentMatches(claimed);
       if (!transportReady(claimed.channel) || claimed.senderConfigHash !== salesSenderConfigHash(provider.key)) throw new AppError(409, 'OUTREACH_CONFIG_CHANGED', 'Delivery configuration changed before transport');
       if (claimed.followUpId) {
@@ -375,7 +432,7 @@ export class SalesOutreachService {
         if (limited) retryAt = ['OUTREACH_RECIPIENT_DAY_LIMIT', 'OUTREACH_DAY_LIMIT'].includes(code) ? new Date((Math.floor(Date.now() / 86400000) + 1) * 86400000) : new Date(Date.now() + 5000);
         else if (providerFailure && provider?.idempotencyHours && message.attempt < 3 && message.firstAttemptAt && Date.now() - message.firstAttemptAt.getTime() < provider.idempotencyHours * 3600000) retryAt = new Date(Date.now() + 60000 * message.attempt);
         if (retryAt && message.approvalExpiresAt && retryAt < message.approvalExpiresAt) { message.status = 'QUEUED'; await this.enqueue(message, retryAt, session); }
-        else if (!providerCalled && (code.startsWith('WHATSAPP_') || ['SERVICE_DISABLED', 'AGENT_PAUSED', 'CAMPAIGN_NOT_ACTIVE', 'OUTREACH_CONFIG_CHANGED', 'OUTREACH_CAMPAIGN_LIMIT', 'SALES_SMS_NOT_CONFIGURED', 'SALES_SMS_CALLBACK_NOT_CONFIGURED'].includes(code))) message.status = 'PAUSED';
+        else if (!providerCalled && (code.startsWith('WHATSAPP_') || code.startsWith('AUTONOMOUS_') || ['SERVICE_DISABLED', 'AGENT_PAUSED', 'CAMPAIGN_NOT_ACTIVE', 'OUTREACH_CONFIG_CHANGED', 'OUTREACH_CAMPAIGN_LIMIT', 'SALES_SMS_NOT_CONFIGURED', 'SALES_SMS_CALLBACK_NOT_CONFIGURED'].includes(code))) message.status = 'PAUSED';
         else if (definitive) { message.status = 'FAILED'; message.dedupeActive = false; }
         else if (message.firstAttemptAt || claimed || code === 'OUTREACH_OUTCOME_UNKNOWN') message.status = 'UNCERTAIN';
         else message.status = code === 'OUTREACH_APPROVAL_EXPIRED' ? 'EXPIRED' : 'SUPPRESSED';

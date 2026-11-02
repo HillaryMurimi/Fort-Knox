@@ -23,7 +23,8 @@ export function campaignPayload(c: Campaign) {
   return { ownerId: String(c.ownerId), name: c.name, description: c.description, audience: c.audience, market: c.market,
     channel: c.channel, agent: c.agent, startsAt: c.startsAt.toISOString(), endsAt: c.endsAt.toISOString(),
     messaging: c.messaging, selectionCriteria: c.selectionCriteria, dailySendLimit: c.dailySendLimit,
-    perContactLimit: c.perContactLimit, followUpDays: [...c.followUpDays], budgetMicroUsd: c.budgetMicroUsd, attributionDays: c.attributionDays };
+    perContactLimit: c.perContactLimit, followUpDays: [...c.followUpDays], budgetMicroUsd: c.budgetMicroUsd, attributionDays: c.attributionDays,
+    ...(c.autoEmailTemplates?.length ? { autoEmailTemplates: c.autoEmailTemplates.map(template => ({ id: template.id, segment: template.segment, subject: template.subject, body: template.body })) } : {}) };
 }
 export async function assertCampaignActive(c: Campaign | null) {
   if (!c || c.status !== 'ACTIVE' || c.startsAt > new Date() || c.endsAt <= new Date() || !c.approvedHash || c.approvedHash !== payloadHash(campaignPayload(c)))

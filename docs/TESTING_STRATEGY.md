@@ -376,3 +376,7 @@ The existing sales outreach/consent/review queue now supports optional Twilio SM
 ### AI sales follow-up continuation
 
 Follow-up Mongo workflows verify cadence, independent approvals, idempotency/concurrent claims, original-baseline stops, same-clock changes, pause/reschedule, revoked authority and real source evidence. Controlled browser coverage verifies policy review/enrollment/pause and responsive controls with zero provider sends. These checks do not establish live acceptance. See AI_SALES_CONTINUATION.md, Governed follow-up sequences, for the full contract.
+
+### Autonomous sales email regression coverage
+
+Run the sales-autonomous-email replica-set suite alongside sales-agent, sales-campaign and sales-outreach suites with RUN_E2E=1. Cover switch-off task rejection, approved template rendering and queue idempotency, opt-out after queueing, changed campaign text, qualification changes and unapproved model prose. Fixture acceptance is not live email-provider delivery evidence. Unit coverage rejects unsupported placeholders and header injection and verifies customer-name rendering.

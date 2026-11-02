@@ -702,3 +702,6 @@ The existing sales outreach/consent/review queue now supports optional Twilio SM
 ### AI sales follow-up continuation
 
 Follow-up policy review and scoped customer sequence APIs are defined by sales-followup.openapi.ts under /api/v1/sales/success. Lists are bounded to 20; commands bind UUIDs/revisions/hashes and ISO dates with offsets. A draft/approval never claims delivery. See AI_SALES_CONTINUATION.md, Governed follow-up sequences, for the full contract.
+### Approved-template sales email automation (2026-11-02)
+
+`POST /sales/success/agent-runs` accepts an optional `campaignId` only for `SALES_OUTREACH`. It must identify an active, unchanged email campaign with approved autonomous templates and the separate `SALES_AUTONOMOUS_EMAIL` switch must be ON. The agent output selects a template ID; only the worker can render and queue the approved wording. Free-form output, a changed segment/campaign, revoked access or consent, and disabled switches fail closed. Campaign create/update payloads may include up to five distinct `autoEmailTemplates` containing `id`, `segment` (`New`, `Qualified`, `Nurture`), `subject` and `body`. Only `{{customer_name}}` is interpolated. Existing campaign and message list/view APIs expose the resulting metadata without new public send endpoints.

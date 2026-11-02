@@ -3,6 +3,7 @@ export interface SalesCampaign {
   _id: string; name: string; description: string; audience: string; market: string; channel: string; agent: string;
   startsAt: string; endsAt: string; messaging: string; selectionCriteria: string; dailySendLimit: number;
   perContactLimit: number; followUpDays: number[]; budgetMicroUsd: number; attributionDays: number;
+  autoEmailTemplates?: Array<{ id: string; segment: 'New' | 'Qualified' | 'Nurture'; subject: string; body: string }>;
   status: string; revision: number; payloadHash?: string;
 }
 export interface SalesLink { _id: string; leadId: string; destination: string; expiresAt: string; revokedAt?: string }
