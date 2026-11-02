@@ -103,6 +103,20 @@ describe.skipIf(!process.env.RUN_E2E)('Approved consent-bound sales email delive
     const m = await queued(); await PlatformSwitch.updateOne({ key: 'SALES_EMAIL' }, { $set: { enabled: false, mode: 'OFF' } });
     await service.deliverNotification(m.notificationId!); expect(send).not.toHaveBeenCalled(); expect((await SalesMessage.findById(m._id))?.status).toBe('PAUSED');
   });
+  it('stops a claimed message when the transport switch is disabled before provider dispatch', async () => {
+    const m = await queued();
+    const originalSave = SalesMessage.prototype.save;
+    const spy = vi.spyOn(SalesMessage.prototype, 'save').mockImplementation(async function (this: typeof SalesMessage.prototype, ...args) {
+      const saved = await originalSave.apply(this, args);
+      if (this.status === 'DISPATCHING') await PlatformSwitch.updateOne({ key: 'EMAIL_NOTIFICATIONS' }, { $set: { enabled: false, mode: 'OFF' } });
+      return saved;
+    });
+    try {
+      await service.deliverNotification(m.notificationId!);
+      expect(send).not.toHaveBeenCalled();
+      expect((await SalesMessage.findById(m._id))?.status).toBe('PAUSED');
+    } finally { spy.mockRestore(); }
+  });
   it('does not accept forged callbacks or confuse a delivery event with a read', async () => {
     const m = await queued(); await service.deliverNotification(m.notificationId!);
     const signed = await callback((await SalesMessage.findById(m._id))!);

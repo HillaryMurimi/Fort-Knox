@@ -1424,4 +1424,8 @@ The existing sales outreach/consent/review queue now supports optional Twilio SM
 
 ### AI sales follow-up continuation
 
-Follow-up increment: policy/source models, durable jobs, stop conditions, parent-bound model/message workflows, Customer 360 controls and tests implemented; final quality/browser review and push pending. Assistance, analytics and final hardening remain in progress. See AI_SALES_CONTINUATION.md, Governed follow-up sequences, for the full contract.
+Follow-up increment: policy/source models, durable jobs, stop conditions, parent-bound model/message workflows, Customer 360 controls and tests implemented. Local typecheck, lint, default tests, production build and the focused 34-case follow-up E2E suite passed before publication; hosted Quality run 41365755743 passed after the main push. Assistance, analytics and final hardening remain in progress. See AI_SALES_CONTINUATION.md, Governed follow-up sequences, for the full contract.
+
+### AI sales emergency stop race review (2026-11-02)
+
+The governed outreach worker now rechecks the transport service switch, actor/agent authority, campaign approval and sender configuration after a message claim and before provider dispatch. A known pre-call stop pauses the message and records no provider acceptance. The focused sales-outreach replica-set suite passed 21 cases including a switch flipped during the claim; backend typecheck, lint (zero errors) and build passed. No live provider was used. This is a safety prerequisite for the requested supervised autonomy, which remains unimplemented: autonomous email, onboarding assistance execution, authoritative sales analytics, external acceptance and Coolify staging are outstanding.

@@ -283,6 +283,7 @@ export class SalesOutreachService {
     const provider = salesDeliveryProvider(initial.channel);
     const owner = randomUUID();
     let claimed: Message | null = null;
+    let providerCalled = false;
     try {
       await enabled(initial.channel); await assertSwitchEnabled(transportSwitch(initial.channel));
       if (!provider || provider.key !== initial.provider || !transportReady(initial.channel) || initial.senderConfigHash !== salesSenderConfigHash(provider.key)) throw new AppError(409, 'OUTREACH_CONFIG_CHANGED', 'Reviewed delivery configuration changed');
@@ -327,11 +328,14 @@ export class SalesOutreachService {
       });
       if (!claimed) return { deferred: true };
       // Final policy checks occur immediately before transport; in-flight provider requests cannot be recalled.
-      await enabled(claimed.channel); await consentMatches(claimed);
+      await enabled(claimed.channel); await assertSwitchEnabled(transportSwitch(claimed.channel));
+      await responsible(claimed); await campaignFor(claimed, undefined, true); await consentMatches(claimed);
+      if (!transportReady(claimed.channel) || claimed.senderConfigHash !== salesSenderConfigHash(provider.key)) throw new AppError(409, 'OUTREACH_CONFIG_CHANGED', 'Delivery configuration changed before transport');
       if (claimed.followUpId) {
         const earliest = await (await import('./sales-followup.service.js')).SalesFollowUpService.assertMessage(claimed.followUpId, claimed.requestedBy, String(claimed.leadId), claimed.commandId, claimed.campaignId);
         if (earliest > new Date()) throw new AppError(409, 'FOLLOWUP_DATE_CHANGED', 'The follow-up date moved after dispatch was reserved; no new transport call was made');
       }
+      providerCalled = true;
       const result = await provider.send({ to: claimed.recipient, from: claimed.sender, subject: claimed.subject ?? 'Dapinni sales update', body: claimed.body, idempotencyKey: 'sales-message/' + claimed._id, salesMessageId: String(claimed._id), ...(claimed.whatsappTemplate ? { whatsappTemplate: { name: claimed.whatsappTemplate.name, language: claimed.whatsappTemplate.language, values: [...(claimed.whatsappTemplate.values ?? [])] } } : {}), ...(claimed.replyTo ? { replyTo: claimed.replyTo } : {}), listUnsubscribeUrl: claimed.unsubscribeUrl });
       if (!result.providerMessageId) throw new AppError(503, 'OUTREACH_PROVIDER_EVIDENCE_MISSING', 'Provider acceptance identifier is missing');
       await salesTransaction(async session => {
@@ -366,12 +370,12 @@ export class SalesOutreachService {
         }
         const limited = ['OUTREACH_PROVIDER_RATE_LIMITED', 'OUTREACH_RECIPIENT_BUSY', 'OUTREACH_RECIPIENT_DAY_LIMIT', 'OUTREACH_DAY_LIMIT'].includes(code);
         const definitive = !!claimed && claimed.attempt === 1 && /^(RESEND|TWILIO|WHATSAPP)_4\d\d$/.test(code) && !/_(408|409|429)$/.test(code);
-        const providerFailure = claimed && !definitive && !['SERVICE_DISABLED', 'CONTACT_SUPPRESSED', 'OUTREACH_CONSENT_CHANGED', 'OUTREACH_REPLY_RECEIVED', 'OUTREACH_PROVIDER_CONFLICT'].includes(code);
+        const providerFailure = providerCalled && !definitive && !['SERVICE_DISABLED', 'CONTACT_SUPPRESSED', 'OUTREACH_CONSENT_CHANGED', 'OUTREACH_REPLY_RECEIVED', 'OUTREACH_PROVIDER_CONFLICT'].includes(code);
         let retryAt: Date | undefined;
         if (limited) retryAt = ['OUTREACH_RECIPIENT_DAY_LIMIT', 'OUTREACH_DAY_LIMIT'].includes(code) ? new Date((Math.floor(Date.now() / 86400000) + 1) * 86400000) : new Date(Date.now() + 5000);
         else if (providerFailure && provider?.idempotencyHours && message.attempt < 3 && message.firstAttemptAt && Date.now() - message.firstAttemptAt.getTime() < provider.idempotencyHours * 3600000) retryAt = new Date(Date.now() + 60000 * message.attempt);
         if (retryAt && message.approvalExpiresAt && retryAt < message.approvalExpiresAt) { message.status = 'QUEUED'; await this.enqueue(message, retryAt, session); }
-        else if ((!claimed && code.startsWith('WHATSAPP_')) || ['SERVICE_DISABLED', 'AGENT_PAUSED', 'CAMPAIGN_NOT_ACTIVE', 'OUTREACH_CONFIG_CHANGED', 'OUTREACH_CAMPAIGN_LIMIT', 'SALES_SMS_NOT_CONFIGURED', 'SALES_SMS_CALLBACK_NOT_CONFIGURED'].includes(code) || (!claimed && code === 'OUTREACH_PROVIDER_UNCONFIRMED')) message.status = message.firstAttemptAt ? 'UNCERTAIN' : 'PAUSED';
+        else if (!providerCalled && (code.startsWith('WHATSAPP_') || ['SERVICE_DISABLED', 'AGENT_PAUSED', 'CAMPAIGN_NOT_ACTIVE', 'OUTREACH_CONFIG_CHANGED', 'OUTREACH_CAMPAIGN_LIMIT', 'SALES_SMS_NOT_CONFIGURED', 'SALES_SMS_CALLBACK_NOT_CONFIGURED'].includes(code))) message.status = 'PAUSED';
         else if (definitive) { message.status = 'FAILED'; message.dedupeActive = false; }
         else if (message.firstAttemptAt || claimed || code === 'OUTREACH_OUTCOME_UNKNOWN') message.status = 'UNCERTAIN';
         else message.status = code === 'OUTREACH_APPROVAL_EXPIRED' ? 'EXPIRED' : 'SUPPRESSED';
