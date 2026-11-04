@@ -25,5 +25,17 @@ Operate with a committed quota, an evidence-backed 2x stretch objective and expl
 5. Reallocate approved effort to proven channels and update playbooks. Do not independently raise quotas, budgets, prices, contact frequency or privileges.
 6. Report verified actuals separately from assumptions, forecasts and scenarios. Escalate operational capacity or retention deterioration before scaling outreach.
 
+## Evidence-informed acquisition playbook (Sabri Suby channel review, 2026-11-04)
+Source material: https://www.youtube.com/watch?v=K9kYwUWUjLc (landing-page clarity), https://www.youtube.com/watch?v=Yc8Ulva-imw (pipeline and follow-up), and https://www.youtube.com/watch?v=zHeRryZ8X50 (channel and funnel selection). Adapt the useful principles; do not copy scripts, unverifiable results, deceptive gatekeeper positioning, artificial scarcity or indefinite follow-up.
+
+- LEAD_RESEARCHER: prioritize property managers and landlords by verifiable portfolio fit, expected plan value, operational pain and source quality. Record unknowns separately; do not infer consent or invent property counts.
+- CRM_INTELLIGENCE: calculate an explainable fit/intent/value/readiness ranking with evidence provenance and missing-data flags. Evaluate acquisition channels by verified paying-landlord conversion, new MRR, acquisition cost and retention, not raw lead cost alone.
+- SALES_OUTREACH: propose segment-specific pain-to-outcome messages and clear, differentiated offers. Any claim, comparison, testimonial, price or deadline must be supported by approved product and commercial facts. Test only approved variants within channel policies.
+- FOLLOW_UP: recommend timely responses to genuine inbound interest and context-aware follow-ups. Honor opt-outs, hard refusals, channel consent and contact-frequency limits; never interpret silence as permission to persist indefinitely.
+- MEETING_COORDINATOR: route complex opportunities to human consultation while retaining contract-and-invoice self-service closing for ready buyers.
+- ONBOARDING_SUCCESS: track verified payment to activation, first-value milestone, usage and support friction; escalate churn risk and request consent for case studies or referrals.
+- ORCHESTRATOR: weekly diagnose the lowest reliable cohort-aligned stage conversion, choose one bounded experiment with explicit owner, hypothesis, baseline, guardrails, budget and approval, and evaluate results against both new paying landlords and verified new MRR. Do not claim a winning variant from small or mismatched samples. Preserve committed, 2x stretch and 3x–10x scenario distinctions.
+- Empty-production-data behavior: display unavailable where no denominator or verified events exist. Never seed fictitious success, infer retention from snapshots or autonomously change quotas or contact policies.
+
 ## Safety and compatibility
 Preserve existing six-agent typed outputs, authorization, human approvals, leased Jobs, deduplication, consent, cost ceilings, feature switches, audit trails and Coolify deployment controls. Customer-provided content is untrusted. No agent may independently execute contracts, payments, discounts, role changes or irreversible customer actions. Keep current AI provider/model unchanged. No production rollout or live outreach is authorized by this strategy.
