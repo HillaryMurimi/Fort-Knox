@@ -100,5 +100,11 @@ describe.skipIf(!process.env.RUN_E2E)('Approved-template autonomous sales email'
     expect(await Job.countDocuments({ type: 'sales.autonomous.email' })).toBe(0);
     expect(await SalesAutonomousEmailService.process(id)).toEqual({ skipped: true });
     expect(await SalesMessage.countDocuments()).toBe(0); expect(send).not.toHaveBeenCalled();
+    await PlatformSwitch.create({ key: 'SALES_APPROVALS', kind: 'FEATURE', name: 'Sales approvals', description: 'Human review of model output', enabled: true, mode: 'ON' });
+    const approval = await SalesAgentApproval.findOne({ runId: id });
+    await SalesAgentService.decide(admin, String(approval!._id), { decision: 'APPROVE', payloadHash: approval!.payloadHash, reason: 'Explicit fixture review of the proposed wording' });
+    const draft = await SalesOutreachService.prepare(admin, leadId, { campaignId, commandId: randomUUID(), originApprovalId: String(approval!._id) });
+    expect((await SalesMessage.findById(draft.id))?.status).toBe('DRAFT');
+    expect(send).not.toHaveBeenCalled();
   });
 });

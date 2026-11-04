@@ -476,7 +476,7 @@ export class SalesAgentService {
           "AGENT_STATE_CHANGED",
           "Execution is no longer awaiting this proposal",
         );
-      if (run.campaignId && input.decision === 'APPROVE') throw new AppError(409, 'AUTONOMOUS_TEMPLATE_ONLY', 'Template selection is resolved by the governed worker, not manual proposal approval');
+      if (run.campaignId && run.autonomousTemplateSelected !== false && input.decision === 'APPROVE') throw new AppError(409, 'AUTONOMOUS_TEMPLATE_ONLY', 'Template selection is resolved by the governed worker, not manual proposal approval');
       const actor = input.decision === 'APPROVE' ? await repository.principal(run.requestedBy) : null;
       if (actor) await authorizeTask(actor, String(run.leadId), run.agent);
       if (actor && run.followUpId) await (await import('./sales-followup.service.js')).SalesFollowUpService.assertPreparation(run.followUpId, actor.userId, String(run.leadId), run.commandId);
@@ -882,6 +882,7 @@ export class SalesAgentService {
             $set: {
               status: "AWAITING_APPROVAL",
               output,
+              autonomousTemplateSelected: selectedAutonomousTemplate,
               providerRequestId: result.requestId,
               model: result.model,
               inputTokens: result.inputTokens,

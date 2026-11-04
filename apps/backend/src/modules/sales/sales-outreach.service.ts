@@ -98,6 +98,7 @@ async function assertAutonomousSnapshot(m: SalesMessageRecord, templateId: strin
   const approval = await SalesAgentApproval.findById(m.originApprovalId);
   const run = approval ? await SalesAgentRun.findById(approval.runId) : null;
   const campaign = await SalesCampaign.findById(m.campaignId);
+  if (run?.autonomousTemplateSelected !== true) throw new AppError(409, 'AUTONOMOUS_EMAIL_INVALID', 'The model output was not an approved template selection');
   if (!approval || !run || !campaign || !['APPROVED', 'COMPLETED'].includes(approval.status) || !['AWAITING_APPROVAL', 'COMPLETED'].includes(run.status) || approval.decisionReason !== 'Approved campaign template selected by Sales Outreach agent' || approval.payloadHash !== payloadHash(approval.payload) || run.agent !== 'SALES_OUTREACH' || String(run.leadId) !== String(m.leadId) || String(run.requestedBy) !== String(m.requestedBy) || String(run.campaignId) !== String(m.campaignId) || run.campaignHash !== campaign.approvedHash || m.campaignHash !== campaign.approvedHash)
     throw new AppError(409, 'AUTONOMOUS_EMAIL_INVALID', 'Approved template or agent context changed');
   await (await import('./sales-campaign.service.js')).assertCampaignActive(campaign);
@@ -203,8 +204,8 @@ export class SalesOutreachService {
       assertSuccessPermission(auth, 'sales.agents.read'); assertSuccessPermission(auth, 'sales.meetings.read');
       const proposal = await SalesAgentApproval.findOne({ _id: input.originApprovalId, leadId: lead._id, tool: 'OUTREACH_DRAFT', status: { $in: ['APPROVED', 'COMPLETED'] }, decisionAt: { $gte: new Date(Date.now() - 7 * 86400000) } });
       if (!proposal || payloadHash(proposal.payload) !== proposal.payloadHash) throw new AppError(409, 'APPROVAL_CHANGED', 'Select a recently approved outreach proposal for this customer');
-      const origin = await SalesAgentRun.findById(proposal.runId).select('followUpId campaignId');
-      if (origin?.campaignId && String(origin._id) !== String(autoRunId)) throw new AppError(409, 'AUTONOMOUS_TEMPLATE_ONLY', 'Campaign template selections can only use the governed autonomous email worker');
+      const origin = await SalesAgentRun.findById(proposal.runId).select('followUpId campaignId autonomousTemplateSelected');
+      if (origin?.campaignId && origin.autonomousTemplateSelected !== false && String(origin._id) !== String(autoRunId)) throw new AppError(409, 'AUTONOMOUS_TEMPLATE_ONLY', 'Campaign template selections can only use the governed autonomous email worker');
       if (origin?.followUpId && String(origin.followUpId) !== String(followUpId)) throw new AppError(409, 'FOLLOWUP_CONTEXT_REQUIRED', 'A governed follow-up proposal cannot be detached from its parent sequence');
       const action = agentOutputSchema.shape.action.parse(proposal.payload); subject = action.subject ?? 'Dapinni product briefing'; body = action.text;
     }

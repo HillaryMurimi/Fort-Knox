@@ -22,7 +22,7 @@ export class SalesAutonomousEmailService {
   static async process(runId: string) {
     if (!Types.ObjectId.isValid(runId)) throw new AppError(400, 'INVALID_JOB_PAYLOAD', 'Invalid agent run id');
     const run = await SalesAgentRun.findById(runId);
-    if (!run || run.agent !== 'SALES_OUTREACH' || !run.campaignId || !run.campaignHash || run.followUpId) return { skipped: true };
+    if (!run || run.agent !== 'SALES_OUTREACH' || !run.campaignId || !run.campaignHash || run.autonomousTemplateSelected !== true || run.followUpId) return { skipped: true };
     const approval = await SalesAgentApproval.findOne({ runId: run._id, generation: run.attempt });
     if (run.status === 'COMPLETED' && approval?.status === 'COMPLETED') return { queued: true, idempotent: true };
     if (run.status !== 'AWAITING_APPROVAL' || !approval || !['PENDING', 'APPROVED'].includes(approval.status) || approval.expiresAt <= new Date()) return { skipped: true };

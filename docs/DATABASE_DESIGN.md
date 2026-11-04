@@ -698,3 +698,5 @@ SalesFollowUpPolicy stores immutable cohort/content/review hashes; SalesFollowUp
 ### Approved-template sales email automation (2026-11-02)
 
 SalesCampaign optionally stores reviewed autonomous email templates; its approved hash includes the list only when nonempty, preserving existing campaign hashes. SalesAgentRun stores the selected campaign ID and approved hash. SalesMessage stores an optional autonomous template ID in the immutable payload hash. The existing unique agent-command, approval-generation, message-command/content and Job dedupe indexes govern retries; no new collection or destructive migration is required. `sales:create-indexes` must be run on the chosen staging database before enabling the switch.
+
+Agent runs retain an internal autonomousTemplateSelected result flag. It is computed from the validated model output and approved campaign choices, never accepted from client input. Only true enters autonomous rendering; false can use normal human proposal review. Missing/legacy flags do not loosen template-selection review restrictions.

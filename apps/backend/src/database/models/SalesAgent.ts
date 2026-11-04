@@ -38,6 +38,7 @@ const run = new Schema(
     followUpId: { type: Schema.Types.ObjectId, ref: 'SalesFollowUp' },
     campaignId: { type: Schema.Types.ObjectId, ref: 'SalesCampaign' },
     campaignHash: String,
+    autonomousTemplateSelected: Boolean,
     researchSources: Schema.Types.Mixed,
     researchHash: String,
     researchExpiresAt: Date,
