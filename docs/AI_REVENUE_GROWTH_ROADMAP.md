@@ -27,3 +27,7 @@ The six-agent runtime already provides typed proposals, leased Jobs, retries, co
 - Add isolated finance/authorization/validation tests, frontend state coverage, typecheck/lint/tests/build, a safe main push and a completion report.
 
 Completion of a software milestone is not evidence of achieved growth, profitability or legal/production acceptance. Revenue targets and provider spending budgets remain separate controls.
+
+## M2 implementation boundary
+
+Revenue Command Center and audited planning targets are the first delivery, specified in [SALES_REVENUE_INTELLIGENCE.md](SALES_REVENUE_INTELLIGENCE.md). Historical immutable MRR movements, complete renewal evidence, retained-customer cohorts, monetary attribution allocation and measured profitability remain open. Finish those source foundations before the M3 Supervisor can claim those outcomes. The existing growth-readiness suggestions and curated sales playbooks remain advisory, not evidence of autonomous revenue optimization.

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api";
 import { Alert } from "@/components/ui";
+import { revenueMoney } from '@/lib/data/sales-revenue';
 
 type Readiness = {
   status: "REVIEW_REQUIRED";
@@ -26,7 +27,7 @@ function dates() {
 export function SalesGrowthReadiness() {
   const auth = useAuth();
   const query = useQuery({
-    queryKey: ["sales-growth-readiness", "KES"],
+    queryKey: ["sales-growth-readiness", auth.user?._id, auth.roles.includes('SUPER_ADMIN'), auth.isDevMode, "KES"],
     queryFn: () => {
       const { from, to } = dates();
       return api<Overview>(`/sales/success/revenue?from=${from}&to=${to}&currency=KES`);
@@ -41,9 +42,9 @@ export function SalesGrowthReadiness() {
       <p className="text-sm text-muted-foreground">Read-only recommendations based on persisted CRM activity. No experiment or outreach runs automatically.</p>
       {query.isPending && <p role="status">Loading verified growth diagnostics…</p>}
       {query.error && <Alert tone="destructive">Growth diagnostics unavailable: {query.error.message}</Alert>}
-      {query.data && (
+      {!query.error && query.data && (
         <>
-          <p className="text-sm">Current paid subscription snapshot: {query.data.currency} {(Number(query.data.currentMRR.amountMinor) / 100).toLocaleString()} MRR across {query.data.currentMRR.count} organizations.</p>
+          <p className="text-sm">Current paid subscription snapshot: {revenueMoney(query.data.currentMRR.amountMinor, query.data.currency)} MRR across {query.data.currentMRR.count} organizations.</p>
           <dl className="grid gap-3 sm:grid-cols-4">
             {[
               ["CRM leads", query.data.growthIntelligence.observedLeads],

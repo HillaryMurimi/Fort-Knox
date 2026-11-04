@@ -281,6 +281,36 @@ try {
     }
     await card.getByText(state, { exact: true }).waitFor();
   }
+  await page.getByRole('button', { name: 'Revenue', exact: true }).click();
+  await page.getByRole('heading', { name: 'Revenue Command Center', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Current month', exact: true }).click();
+  await page.getByText('No targets configured.', { exact: false }).waitFor();
+  await page.getByRole('button', { name: 'New target', exact: true }).click();
+  await page.getByLabel('Target name', { exact: true }).fill('Browser verified collections');
+  await page.getByLabel('Calendar period start (Nairobi)', { exact: true }).fill('2020-01-01');
+  await page.getByLabel('Base quota (currency units)', { exact: true }).fill('10000.01');
+  await page.getByLabel('Reason for this target or revision', { exact: true }).fill('Controlled browser verification of exact planning assumptions.');
+  await page.getByRole('button', { name: 'Create target', exact: true }).click();
+  await page.getByRole('heading', { name: 'Browser verified collections', exact: true }).waitFor();
+  await page.getByText('Actual: KES 0.00', { exact: true }).waitFor();
+  assert.equal(await page.getByText('KES 100,000.10', { exact: true }).count(), 1, '10x stretch preserves cents');
+  await page.getByRole('button', { name: 'Revise target', exact: true }).click();
+  await page.getByLabel('Metric', { exact: true }).selectOption('NEW_MRR');
+  await page.getByLabel('Reason for this target or revision', { exact: true }).fill('Review unavailable historical movement evidence explicitly.');
+  await page.getByRole('button', { name: 'Save target revision', exact: true }).click();
+  await page.getByText('Actual: Unavailable', { exact: true }).waitFor();
+  assert.equal(await page.getByText('Attainment unavailable', { exact: true }).count(), 4);
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(t => { document.documentElement.classList.remove('light', 'dark'); document.documentElement.classList.add(t); }, theme);
+    for (const width of [390, 834, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Revenue workspace fits ' + width);
+      await page.waitForTimeout(350); // Allow the existing responsive navigation transition to settle before visual capture.
+      await page.screenshot({ path: temporaryRoot + `/pcc-revenue-${theme}-${width}.png`, fullPage: true });
+    }
+  }
+  await page.getByRole('button', { name: 'Campaigns', exact: true }).click();
   const fixtureDb = await mongoose.createConnection(mongo.getUri('sales-browser-test')).asPromise();
   try {
     const customer = await fixtureDb.collection('salesleads').findOne({ name: 'Customer Success Browser' });
@@ -834,6 +864,7 @@ try {
     JSON.stringify({
       status: "PASSED",
       journeys: [
+        'revenue target creation, exact stretch amounts, audited revision and unavailable historical MRR',
         "Control state transitions",
         "Fort Knox security and evidence",
         "guided pilot validation, import and owner activation milestone",

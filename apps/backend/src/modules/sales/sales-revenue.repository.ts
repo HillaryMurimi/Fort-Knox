@@ -19,6 +19,7 @@ export const SalesRevenueRepository = {
   async financials(from: Date, to: Date, currency: string, now: Date, campaignId?: string) {
     // Reuse platform billing proof and LIVE-dataset scoping. Legacy floating totals never enter this projection.
     const pipeline: PipelineStage[] = [
+      { $match: { provider: 'PAYSTACK', currency, status: 'PAID', paidAt: { $type: 'date', $lte: now }, $expr: integerMinor('$totalMinor') } },
       ...invoicePipeline(query, now),
       { $match: { verified: true, provider: 'PAYSTACK', currency, $expr: integerMinor('$totalMinor') } },
       { $lookup: { from: 'organizationcontracts', let: { contract: '$contractId', org: '$organizationId' }, pipeline: [{ $match: { status: 'SIGNED', $expr: { $and: [{ $eq: ['$_id', '$$contract'] }, { $eq: ['$organizationId', '$$org'] }] } } }, { $project: { _id: 1 } }], as: 'signedContract' } },

@@ -3,9 +3,7 @@ import { env } from '../../config/env.js';
 import { AppError } from '../../core/errors/AppError.js';
 import { AuthorizationService } from '../../core/authorization/authorization.service.js';
 import type { AuthenticatedUser } from '../../core/types/auth.js';
-import { SalesRevenueTarget } from '../../database/models/SalesRevenueTarget.js';
-import { SalesCampaign } from '../../database/models/SalesCampaign.js';
-import { AuditLog } from '../../database/models/AuditLog.js';
+import { RevenueTargetRepository as targets } from './sales-revenue-target.repository.js';
 import { AuditService } from '../audit/audit.service.js';
 import { assertFreshAdmin } from '../auth/admin-security.js';
 import { assertSwitchEnabled } from '../platform-control/platform-control.guard.js';
@@ -19,7 +17,7 @@ import { objectId } from './sales-success.schemas.js';
 
 export async function assertRevenueIndexes() {
   if (env.NODE_ENV !== 'production') return;
-  const indexes = await SalesRevenueTarget.collection.indexes().catch(() => []);
+  const indexes = await targets.indexes().catch(() => []);
   if (!indexes.some(i => i.name === 'sales_revenue_target_command_unique' && i.unique && i.key.requestedBy === 1 && i.key.commandId === 1))
     throw new AppError(503, 'SALES_INDEXES_REQUIRED', 'Install revenue target command indexes');
 }
@@ -32,7 +30,7 @@ const limitations = [
   'Operational counts are retained CRM records at query time, not historical stage transitions. Reply counts are correlated messages, not unique customers. Costs are configured estimates in micro-USD, not expenses.',
 ];
 async function validateScope(policy: RevenueTargetPolicy) {
-  if (policy.scope === 'CAMPAIGN' && !await SalesCampaign.exists({ _id: policy.scopeId })) throw new AppError(400, 'CAMPAIGN_NOT_FOUND', 'Select an existing campaign');
+  if (policy.scope === 'CAMPAIGN' && !await targets.campaignExists(policy.scopeId!)) throw new AppError(400, 'CAMPAIGN_NOT_FOUND', 'Select an existing campaign');
 }
 export class SalesRevenueService {
   static async overview(auth: AuthenticatedUser, raw: unknown) {
@@ -52,12 +50,11 @@ export class SalesRevenueService {
   }
   static async list(auth: AuthenticatedUser, raw: unknown) {
     await access(auth); const { page } = revenueTargetPageSchema.parse(raw);
-    const [items, total] = await Promise.all([SalesRevenueTarget.find().select('-commandHash -commandId').sort({ createdAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).lean(), SalesRevenueTarget.countDocuments()]);
-    return { items, total, page };
+    return targets.list(page);
   }
   static async view(auth: AuthenticatedUser, id: string) {
     await access(auth); objectId.parse(id);
-    const target = await SalesRevenueTarget.findById(id).select('-commandHash -commandId').lean();
+    const target = await targets.view(id);
     if (!target) throw new AppError(404, 'TARGET_NOT_FOUND', 'Revenue target not found');
     const policy = revenueTargetPolicySchema.parse(target.policy), now = new Date(), period = targetPeriod(policy);
     let actualMinor: string | null = null, unavailableReason: string | null = null;
@@ -69,7 +66,7 @@ export class SalesRevenueService {
       const finance = await SalesRevenueRepository.financials(period.from, new Date(Math.min(now.getTime(), period.to.getTime())), policy.currency, now, policy.scope === 'CAMPAIGN' ? policy.scopeId : undefined);
       actualMinor = policy.metric === 'COLLECTED_CASH' ? finance.cash.amountMinor : String(BigInt(finance.currentMRR.amountMinor) * (policy.metric === 'CURRENT_ARR' ? 12n : 1n));
     }
-    const history = await AuditLog.find({ resourceType: 'SalesRevenueTarget', resourceId: target._id, action: { $in: ['sales.revenue.target.created', 'sales.revenue.target.updated'] } }).select('action actorUserId metadata createdAt').sort({ createdAt: -1, _id: -1 }).limit(20).lean();
+    const history = await targets.history(target._id);
     await AuditService.record({ actorUserId: auth.userId, action: 'sales.revenue.target.viewed', resourceType: 'SalesRevenueTarget', resourceId: target._id });
     return { target, period, asOf: now, ...targetPerformance(policy, actualMinor), unavailableReason, limitations, history, historyLimit: 20 };
   }
@@ -78,7 +75,7 @@ export class SalesRevenueService {
     const input = createRevenueTargetSchema.parse(raw); await validateScope(input.policy);
     const commandHash = createHash('sha256').update(JSON.stringify({ policy: input.policy, reason: input.reason })).digest('hex');
     const replay = async () => {
-      const existing = await SalesRevenueTarget.findOne({ requestedBy: auth.userId, commandId: input.commandId });
+      const existing = await targets.command(auth.userId, input.commandId);
       if (!existing) return null;
       if (existing.commandHash !== commandHash) throw new AppError(409, 'COMMAND_CONFLICT', 'Use a new command for changed target details');
       return { id: String(existing._id) };
@@ -86,7 +83,7 @@ export class SalesRevenueService {
     const prior = await replay(); if (prior) return prior;
     try {
       return await salesTransaction(async session => {
-        const [target] = await SalesRevenueTarget.create([{ requestedBy: auth.userId, commandId: input.commandId, commandHash, policy: input.policy }], { session });
+        const [target] = await targets.create({ requestedBy: auth.userId, commandId: input.commandId, commandHash, policy: input.policy }, session);
         if (!target) throw new AppError(500, 'TARGET_WRITE_FAILED', 'Could not save target');
         await AuditService.record({ actorUserId: auth.userId, action: 'sales.revenue.target.created', resourceType: 'SalesRevenueTarget', resourceId: target._id, metadata: { after: input.policy, reason: input.reason, revision: 0 } }, session);
         return { id: String(target._id) };
@@ -100,12 +97,12 @@ export class SalesRevenueService {
     await access(auth); assertFreshAdmin(auth); objectId.parse(id);
     const input = updateRevenueTargetSchema.parse(raw); await validateScope(input.policy);
     return salesTransaction(async session => {
-      const target = await SalesRevenueTarget.findOne({ _id: id, revision: input.revision }).session(session);
+      const target = await targets.replace(id, input.revision, input.policy, session);
       if (!target) throw new AppError(409, 'TARGET_CHANGED', 'Reload this target before editing');
       const before = revenueTargetPolicySchema.parse(target.policy);
-      target.policy = input.policy; target.revision += 1; await target.save({ session });
-      await AuditService.record({ actorUserId: auth.userId, action: 'sales.revenue.target.updated', resourceType: 'SalesRevenueTarget', resourceId: target._id, metadata: { before, after: input.policy, reason: input.reason, revision: target.revision } }, session);
-      return { id, revision: target.revision };
+      const revision = target.revision + 1;
+      await AuditService.record({ actorUserId: auth.userId, action: 'sales.revenue.target.updated', resourceType: 'SalesRevenueTarget', resourceId: target._id, metadata: { before, after: input.policy, reason: input.reason, revision } }, session);
+      return { id, revision };
     });
   }
 }

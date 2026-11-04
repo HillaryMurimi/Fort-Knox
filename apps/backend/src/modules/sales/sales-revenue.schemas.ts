@@ -7,7 +7,7 @@ export const revenueQuerySchema = z.object({ from: z.iso.date(), to: z.iso.date(
 export const revenueTargetPolicySchema = z.object({
   name: z.string().trim().min(3).max(120), metric: z.enum(revenueMetrics), currency: z.enum(['KES', 'USD', 'NGN', 'GHS', 'ZAR']),
   period: z.enum(['MONTHLY', 'QUARTERLY', 'ANNUAL']), periodStart: z.iso.date(),
-  baselineMinor: minorUnits.refine(value => BigInt(value) > 0n, 'Quota must be positive'),
+  baselineMinor: minorUnits.refine(value => value !== '0', 'Quota must be positive'),
   scope: z.enum(['DEPARTMENT', 'CAMPAIGN', 'AGENT', 'TEAM']), scopeId: z.string().trim().min(1).max(120).optional(),
   pipelineCoverageBps: z.number().int().min(10000).max(1000000),
   forecastMinor: minorUnits.optional(), forecastRationale: z.string().trim().min(20).max(2000).optional(),

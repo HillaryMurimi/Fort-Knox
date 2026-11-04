@@ -10,6 +10,7 @@ import Link from "next/link";
 import { SalesAgentControl } from "./sales-agent-control";
 import { SalesCustomerAssistance } from './sales-customer-assistance';
 import { SalesCampaigns } from './sales-campaigns';
+import { SalesRevenue } from './sales-revenue';
 import { SalesCustomerIdentity } from "./sales-customer-identity";
 import { SalesCustomerHistory } from "./sales-customer-history";
 import { SalesCustomerFollowups } from './sales-customer-followups';
@@ -130,7 +131,7 @@ export function SalesSuccessWorkspace() {
         </Link>
       </header>
       <nav aria-label="Sales workspace" className="flex flex-wrap gap-2">
-        {["Customers", "AI Agents", ...(admin ? ["Campaigns", "Permissions"] : [])].map(
+        {["Customers", "AI Agents", ...(admin ? ["Revenue", "Campaigns", "Permissions"] : [])].map(
           (t) => (
             <Button
               key={t}
@@ -144,6 +145,7 @@ export function SalesSuccessWorkspace() {
         )}
       </nav>
       {tab === 'Campaigns' && <SalesCampaigns />}
+      {tab === 'Revenue' && <SalesRevenue />}
       {feedback && (
         <div role="status">
           <Alert>{feedback}</Alert>
