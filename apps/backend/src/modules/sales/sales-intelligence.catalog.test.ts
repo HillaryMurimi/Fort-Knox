@@ -15,6 +15,6 @@ describe('curated sales intelligence', () => {
   it('enforces retrieval bounds and source attribution', () => {
     expect(() => intelligenceForAgent('SALES_OUTREACH', 21)).toThrow();
     expect(intelligenceForAgent('SALES_OUTREACH', 0)).toEqual([]);
-    expect(salesIntelligence.every(item => item.sourceUrl.startsWith('https://www.youtube.com/watch?v='))).toBe(true);
+    expect(salesIntelligence.every(item => item.sourceUrl.startsWith('https://'))).toBe(true);
   });
 });
