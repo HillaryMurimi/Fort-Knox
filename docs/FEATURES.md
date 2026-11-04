@@ -500,3 +500,5 @@ Customer 360 includes evidence-based follow-up policies, bounded sequences, sepa
 ### Approved-template autonomous sales email
 
 Sales Outreach supports an optional approved email campaign with up to five exact templates selected by customer qualification. A durable worker renders the current customer name and queues through existing consent, suppression, budget and notification controls. SALES_AUTONOMOUS_EMAIL is independently OFF by default. Campaign review exposes full subjects/bodies, and controls are rechecked before provider dispatch. Free-form model output remains subject to individual approval. See AI_SALES_CONTINUATION.md for the operating limits and external acceptance requirements.
+
+Onboarding assistance now executes reviewed agent recommendations into existing onboarding-request records with scoped assignment and audited lifecycle controls. Customer 360 shows internal vs customer-originated requests, current status, schedule, guidance and outcome. See AI_SALES_CONTINUATION.md (2026-11-04).

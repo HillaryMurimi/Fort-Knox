@@ -514,6 +514,16 @@ export class SalesAgentService {
         approval.status = "COMPLETED";
         approval.result = { noteRecorded: true };
       }
+      if (input.decision === 'APPROVE' && approval.tool === 'ASSISTANCE_PROPOSAL') {
+        if (!actor) throw new AppError(403, 'AGENT_ACTOR_REVOKED', 'Approval owner is not authorized');
+        await SuccessRepository.load(actor, String(run.leadId), 'sales.onboarding.read', session);
+        await assertSwitchEnabled('SALES_AI_RUNTIME'); await assertSwitchEnabled(`SALES_AGENT_${run.agent}`);
+        const config = await repository.config(run.agent);
+        if (!config?.enabled || config.paused) throw new AppError(409, 'AGENT_PAUSED', 'Origin agent is disabled or paused');
+        const { SalesAssistanceService } = await import('./sales-assistance.service.js');
+        approval.result = await SalesAssistanceService.openApproved(auth, { leadId: run.leadId, approvalId: approval._id, organizationId: run.contextOrganizationId, guidance: agentOutputSchema.shape.action.parse(approval.payload).text }, session);
+        approval.status = 'COMPLETED';
+      }
       // Approval of an outreach/booking/research proposal never asserts dispatch or creation.
       await approval.save({ session });
       if (run.followUpId) await signalSalesFollowUps(run.leadId, 'agent-decision:' + approval._id + ':' + input.decision, session);
@@ -883,6 +893,7 @@ export class SalesAgentService {
               status: "AWAITING_APPROVAL",
               output,
               autonomousTemplateSelected: selectedAutonomousTemplate,
+              contextOrganizationId: view.customer.organizationId ?? null,
               providerRequestId: result.requestId,
               model: result.model,
               inputTokens: result.inputTokens,

@@ -414,3 +414,5 @@ The existing sales outreach/consent/review queue now supports optional Twilio SM
 ### AI sales follow-up continuation
 
 Reserved sales.followups.read/manage grants are explicitly delegated and assignment-scoped. Linked customer evidence additionally requires sales.onboarding.read; preparation requires constituent notes, meetings, outreach and AI permissions. Policies require fresh dual-channel platform administrator review. See AI_SALES_CONTINUATION.md, Governed follow-up sequences, for the full contract.
+
+Onboarding assistance (2026-11-04): sales.assistance.manage is an explicitly delegated permission. Reads additionally require sales.onboarding.read and sales.notes.read within current assigned-customer scope. Mutations require case assignment or platform administration; representative assignment requires fresh dual-channel SUPER_ADMIN assurance and current recipient scope. Assistance completion has no authority to verify payments, activate subscriptions or mutate inventory.

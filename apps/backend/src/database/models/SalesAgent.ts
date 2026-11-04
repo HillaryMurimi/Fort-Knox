@@ -39,6 +39,7 @@ const run = new Schema(
     campaignId: { type: Schema.Types.ObjectId, ref: 'SalesCampaign' },
     campaignHash: String,
     autonomousTemplateSelected: Boolean,
+    contextOrganizationId: { type: Schema.Types.ObjectId, ref: 'Organization' },
     researchSources: Schema.Types.Mixed,
     researchHash: String,
     researchExpiresAt: Date,

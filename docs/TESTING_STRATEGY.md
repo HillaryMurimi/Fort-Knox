@@ -380,3 +380,7 @@ Follow-up Mongo workflows verify cadence, independent approvals, idempotency/con
 ### Autonomous sales email regression coverage
 
 Run the sales-autonomous-email replica-set suite alongside sales-agent, sales-campaign and sales-outreach suites with RUN_E2E=1. Cover switch-off task rejection, approved template rendering and queue idempotency, opt-out after queueing, changed campaign text, qualification changes and unapproved model prose. Fixture acceptance is not live email-provider delivery evidence. Unit coverage rejects unsupported placeholders and header injection and verifies customer-name rendering.
+
+### Assistance execution regression coverage (2026-11-04)
+
+RUN_E2E=1 suites sales-assistance, sales-agent and sales-followup cover exact approval creation, switch/agent gates, organization-link changes, staff/case scope, cross-organization request IDs, stale revisions, invalid transitions, explicit completion/cancellation and HTTP auth/validation. The agent fixture now supplies a linked organization and enabled assistance service and asserts exactly one internal request. Frontend cases cover internal-source labeling, escaped guidance, permission restrictions, terminal controls and retry states.

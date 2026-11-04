@@ -10,6 +10,7 @@ export const salesPermissions = [
   "sales.notes.read",
   "sales.notes.create",
   "sales.onboarding.read",
+  "sales.assistance.manage",
   "sales.agents.read",
   "sales.agents.execute",
   "sales.research.execute",

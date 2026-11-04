@@ -1239,6 +1239,8 @@ Documentation is part of the implementation.
 
 # 48. Git Discipline
 
+Follow `docs/CODEX_FEATURE_DELIVERY_POLICY.md` for verified feature commits, safe integration into remote main, completion reports, and the separate production-deployment authorization boundary.
+
 Keep changes bounded to the requested phase/feature.
 
 Do not perform unrelated refactors during feature implementation unless necessary.

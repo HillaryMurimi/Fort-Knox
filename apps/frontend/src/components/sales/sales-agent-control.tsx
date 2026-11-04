@@ -70,7 +70,8 @@ export function SalesAgentControl({ leadId }: { leadId?: string | undefined }) {
       <Alert>
         Agents prepare validated proposals for human review. Approval alone does
         not send outreach or book an external meeting. Missing integrations are
-        reported explicitly.
+        reported explicitly. Approving an assistance proposal opens an internal
+        onboarding request when the assistance service is enabled.
       </Alert>
       {message && <p role="status">{message}</p>}
       {catalog.isLoading && <p role="status">Loading agent configuration…</p>}

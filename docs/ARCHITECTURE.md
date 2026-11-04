@@ -478,3 +478,5 @@ The existing sales outreach/consent/review queue now supports optional Twilio SM
 ### AI sales follow-up continuation
 
 Follow-up policies/sequences reuse the existing sales module, agent/outreach services and Job worker; no parallel scheduler or transport. See AI_SALES_CONTINUATION.md, Governed follow-up sequences, for the full contract.
+
+Assistance is a domain operation on existing PropertyOnboardingRequest, AgentApproval, SalesActivity and AuditLog records. The agent stores the observed linked organization; fresh approval atomically opens an internal request. Thin assistance controllers call the sales assistance service; current customer scope and explicit staff permissions protect both request reads and lifecycle commands. Existing follow-up signals react to request changes. No second worker queue or CRM store was introduced.

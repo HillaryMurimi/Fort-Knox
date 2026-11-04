@@ -39,6 +39,7 @@ import type { AuthenticatedUser } from "../../src/core/types/auth.js";
 import { completedAdminFixture } from "../helpers/admin-assurance.js";
 import { setSalesResearchTestProvider } from '../../src/integrations/research/sales-research.provider.js';
 import { Organization } from '../../src/database/models/Organization.js';
+import { PropertyOnboardingRequest } from '../../src/database/models/PropertyOnboardingRequest.js';
 import { setSalesCalendarTestProvider } from '../../src/integrations/calendar/sales-calendar.provider.js';
 const output = (key: AgentKey): AgentOutput => ({
   summary: "Review actual customer context",
@@ -93,6 +94,7 @@ describe.skipIf(!process.env.RUN_E2E)(
         SalesLead,
         SalesActivity,
         PlatformSwitch,
+        PropertyOnboardingRequest,
       ])
         await model.init();
     }, 180000);
@@ -185,6 +187,11 @@ describe.skipIf(!process.env.RUN_E2E)(
       "executes %s with a controlled provider, creates exact-payload approval and never sends",
       async (key) => {
         await configure(key);
+        if (key === 'ONBOARDING_SUCCESS') {
+          const org = await Organization.create({ name: 'Reviewed onboarding', slug: 'reviewed-onboarding' });
+          await SalesLead.updateOne({ _id: leadId }, { $set: { organizationId: org._id } });
+          await PlatformSwitch.create({ key: 'SALES_ASSISTANCE', kind: 'FEATURE', name: 'Assistance', description: 'Internal assistance execution', enabled: true, mode: 'ON' });
+        }
         setSalesModelTestProvider(provider(key));
         const task = await create(key);
         expect(await Job.countDocuments({ type: "sales.agent.execute" })).toBe(
@@ -224,6 +231,7 @@ describe.skipIf(!process.env.RUN_E2E)(
           },
         );
         expect(approved.dispatched).toBe(false);
+        if (key === 'ONBOARDING_SUCCESS') expect(await PropertyOnboardingRequest.countDocuments({ source: 'INTERNAL_ASSISTANCE', approvalId: view.approval._id })).toBe(1);
         expect((await service.view(admin, task.id)).run.status).toBe(
           "COMPLETED",
         );

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { assistanceControlSchema } from './sales-assistance.schemas.js';
 import {
   agentTaskSchema,
   agentConfigurationSchema,
@@ -39,6 +40,8 @@ const op = (summary: string, name?: string, schema?: z.ZodType) => ({
     : {}),
 });
 export const salesAgentPaths = {
+  '/sales/success/customers/{id}/assistance': { get: op('List scoped onboarding assistance, 20 per page; requires onboarding and notes read', 'id') },
+  '/sales/success/customers/{id}/assistance/{requestId}/controls': { post: { ...op('Assigned authorized staff manage assistance; assignment requires fresh SUPER_ADMIN; completion never modifies payment or subscription', undefined, assistanceControlSchema), parameters: ['id', 'requestId'].map(name => ({ name, in: 'path', required: true, schema: { type: 'string' } })) } },
   '/sales/success/approvals/{approvalId}/import-customer': { post: op('Fresh SUPER_ADMIN imports explicitly reviewed CRM fields from an approved exact-source research proposal; consent remains UNKNOWN', 'approvalId', researchImportSchema) },
   "/sales/success/agents/{key}": {
     patch: op(

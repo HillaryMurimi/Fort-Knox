@@ -8,6 +8,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { SalesAgentControl } from "./sales-agent-control";
+import { SalesCustomerAssistance } from './sales-customer-assistance';
 import { SalesCampaigns } from './sales-campaigns';
 import { SalesCustomerIdentity } from "./sales-customer-identity";
 import { SalesCustomerHistory } from "./sales-customer-history";
@@ -470,6 +471,7 @@ export function SalesSuccessWorkspace() {
                 </section>
                 <SalesCustomerOutreach key={data.customer.id} customer={data.customer}/>
                 <SalesCustomerFollowups key={data.customer.id + "-followups"} customer={data.customer}/>
+                <SalesCustomerAssistance key={data.customer.id + '-assistance'} customer={data.customer}/>
                 <SalesCustomerIdentity
                   id={data.customer.id}
                   revision={data.customer.revision}
@@ -837,6 +839,7 @@ const delegatedPermissions = [
   "sales.notes.read",
   "sales.notes.create",
   "sales.onboarding.read",
+  "sales.assistance.manage",
   "sales.agents.read",
   "sales.agents.execute",
   "sales.research.execute",

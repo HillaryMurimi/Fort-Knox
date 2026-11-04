@@ -10,6 +10,7 @@ import * as campaigns from './sales-campaign.controller.js';
 import * as outreach from './sales-outreach.controller.js';
 import * as calendar from './sales-calendar.controller.js';
 import * as followups from './sales-followup.controller.js';
+import * as assistance from './sales-assistance.controller.js';
 import rateLimit from 'express-rate-limit';
 
 export const salesRouter = Router();
@@ -73,6 +74,8 @@ salesRouter.post('/success/customers/:id/organization', asyncHandler(success.lin
 salesRouter.post('/success/customers/:id/meetings', asyncHandler(success.meeting));
 salesRouter.patch('/success/customers/:id/meetings/:meetingId', asyncHandler(success.outcome));
 salesRouter.get('/success/customers/:id/onboarding', asyncHandler(success.monitor));
+salesRouter.get('/success/customers/:id/assistance', asyncHandler(assistance.list));
+salesRouter.post('/success/customers/:id/assistance/:requestId/controls', asyncHandler(assistance.control));
 salesRouter.post('/success/customers/:id/agent-context', asyncHandler(success.context));
 salesRouter.get('/demos/catalog',asyncHandler(demo.catalog));
 salesRouter.get('/demos',asyncHandler(demo.list));
