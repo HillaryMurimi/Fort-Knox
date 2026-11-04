@@ -53,6 +53,7 @@ export class PlatformControlService {
     if (input.mode === 'ON' && key === 'SALES_CALENDAR') await (await import('../sales/sales-calendar.service.js')).SalesCalendarService.readiness();
     if (input.mode === 'ON' && key === 'SALES_FOLLOWUPS') await (await import('../sales/sales-followup-policy.service.js')).assertFollowUpIndexes();
     if (input.mode === 'ON' && key === 'SALES_ASSISTANCE') await (await import('../sales/sales-assistance.service.js')).assertAssistanceIndexes();
+    if (input.mode === 'ON' && key === 'SALES_ANALYTICS') await (await import('../sales/sales-revenue.service.js')).assertRevenueIndexes();
     if (input.mode === 'ON' && key === 'SALES_AUTONOMOUS_EMAIL') {
       const indexes = await import('../sales/sales-success-indexes.js');
       await Promise.all([indexes.assertAgentIndexes(), indexes.assertCampaignIndexes(), indexes.assertOutreachIndexes()]);

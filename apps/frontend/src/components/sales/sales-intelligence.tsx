@@ -6,6 +6,7 @@ import { salesDemoClient as client } from "@/lib/data/sales-demo";
 import { useAuth } from "@/hooks/use-auth";
 import { StatusBadge, Alert, Button } from "@/components/ui";
 import { AcquisitionFunnel } from "./acquisition-funnel";
+import { SalesGrowthReadiness } from "./sales-growth-readiness";
 export function SalesIntelligenceView() {
   const auth = useAuth(),
     [page, setPage] = useState(1),
@@ -37,6 +38,7 @@ export function SalesIntelligenceView() {
           Prepare demonstration
         </Link>
       </header>
+      <SalesGrowthReadiness />
       <AcquisitionFunnel />
       {data.isLoading && (
         <p role="status">Loading prospect conversion evidence…</p>

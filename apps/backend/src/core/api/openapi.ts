@@ -5,6 +5,7 @@ import { salesDemoPaths } from "../../modules/sales/sales-demo.openapi.js";
 import { salesSuccessPaths } from "../../modules/sales/sales-success.openapi.js";
 import { salesFollowUpPaths } from '../../modules/sales/sales-followup.openapi.js';
 import { salesAgentPaths } from '../../modules/sales/sales-agent.openapi.js';
+import { salesRevenuePaths } from '../../modules/sales/sales-revenue.openapi.js';
 import { salesIdentityPaths } from '../../modules/sales/sales-identity.openapi.js';
 import { salesCampaignPaths } from '../../modules/sales/sales-campaign.openapi.js';
 import { salesOutreachPaths } from '../../modules/sales/sales-outreach.openapi.js';
@@ -186,6 +187,7 @@ export function buildOpenApiDocument() {
       ...salesDemoPaths,
       ...salesSuccessPaths,
       ...salesAgentPaths,
+      ...salesRevenuePaths,
       ...salesFollowUpPaths,
       ...salesIdentityPaths,
       ...salesCampaignPaths,

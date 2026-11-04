@@ -11,6 +11,7 @@ import * as outreach from './sales-outreach.controller.js';
 import * as calendar from './sales-calendar.controller.js';
 import * as followups from './sales-followup.controller.js';
 import * as assistance from './sales-assistance.controller.js';
+import * as revenue from './sales-revenue.controller.js';
 import rateLimit from 'express-rate-limit';
 
 export const salesRouter = Router();
@@ -23,6 +24,11 @@ salesRouter.post('/outreach/unsubscribe', rateLimit({ windowMs: 60000, limit: 20
 salesRouter.use(requireAuth);
 salesRouter.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
 salesRouter.get('/success/customers', asyncHandler(success.list));
+salesRouter.get('/success/revenue', asyncHandler(revenue.overview));
+salesRouter.get('/success/revenue/targets', asyncHandler(revenue.list));
+salesRouter.post('/success/revenue/targets', asyncHandler(revenue.create));
+salesRouter.get('/success/revenue/targets/:targetId', asyncHandler(revenue.view));
+salesRouter.patch('/success/revenue/targets/:targetId', asyncHandler(revenue.update));
 salesRouter.get('/success/outreach/capabilities', asyncHandler(outreach.capabilities));
 salesRouter.get('/success/outreach/whatsapp/templates', asyncHandler(outreach.whatsappTemplates));
 salesRouter.get('/success/followups/policies', asyncHandler(followups.policies));

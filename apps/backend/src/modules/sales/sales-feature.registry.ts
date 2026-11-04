@@ -48,7 +48,7 @@ export const salesFeatureCatalog = [
   [
     "SALES_ANALYTICS",
     "Sales analytics",
-    "Persisted conversions and authoritative subscription run rate.",
+    "Verified gross subscription cash, current recurring snapshots and audited administrator targets; incomplete metrics remain unavailable.",
   ],
   [
     "SALES_ASSISTANCE",
@@ -85,5 +85,5 @@ export const salesFeatureCatalog = [
 ] as const;
 export function isPlannedSalesFeature(key: string) {
   return salesFeatureCatalog.some(([candidate]) => candidate === key) &&
-    !['SALES_DASHBOARD', 'SALES_AI_RUNTIME', 'SALES_APPROVALS', 'SALES_LIFECYCLE', 'SALES_AUTOLINK', 'SALES_CAMPAIGNS', 'SALES_TRACKING', 'SALES_ATTRIBUTION', 'SALES_RESEARCH', 'SALES_OUTBOUND', 'SALES_EMAIL', 'SALES_AUTONOMOUS_EMAIL', 'SALES_SMS', 'SALES_WHATSAPP', 'SALES_CALENDAR', 'SALES_FOLLOWUPS', 'SALES_ASSISTANCE', ...agentKeys.map(k => `SALES_AGENT_${k}`)].includes(key);
+    !['SALES_DASHBOARD', 'SALES_AI_RUNTIME', 'SALES_APPROVALS', 'SALES_LIFECYCLE', 'SALES_AUTOLINK', 'SALES_CAMPAIGNS', 'SALES_TRACKING', 'SALES_ATTRIBUTION', 'SALES_RESEARCH', 'SALES_OUTBOUND', 'SALES_EMAIL', 'SALES_AUTONOMOUS_EMAIL', 'SALES_SMS', 'SALES_WHATSAPP', 'SALES_CALENDAR', 'SALES_FOLLOWUPS', 'SALES_ASSISTANCE', 'SALES_ANALYTICS', ...agentKeys.map(k => `SALES_AGENT_${k}`)].includes(key);
 }
