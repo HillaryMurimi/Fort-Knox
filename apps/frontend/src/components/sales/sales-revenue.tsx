@@ -411,6 +411,7 @@ export function SalesRevenue() {
             {targets.data?.items.map((t) => (
               <Button
                 variant={selected === t._id ? "default" : "outline"}
+                className="h-auto min-h-10 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]"
                 key={t._id}
                 aria-pressed={selected === t._id}
                 onClick={() => {
@@ -423,7 +424,7 @@ export function SalesRevenue() {
             ))}
           </div>
         )}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="outline"
             disabled={page === 1}

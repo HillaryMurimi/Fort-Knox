@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, afterAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import mongoose, { Types } from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { env } from '../../src/config/env.js';
@@ -30,7 +30,11 @@ describe.skipIf(!process.env.RUN_E2E)('Approved-template autonomous sales email'
     for (const model of [User, SalesLead, SalesCampaign, SalesAgent, SalesAgentRun, SalesAgentApproval, SalesMessage, SalesRecipientControl, SalesConsentEvent, SalesCampaignUsage, SalesConversationEntry, SalesProviderControl, PlatformSwitch, Notification, Job]) await model.init();
   }, 180000);
   afterAll(async () => { Object.assign(env, previous); setSalesModelTestProvider(); setSalesDeliveryTestProvider(); await mongoose.disconnect(); await mongo.stop(); });
+  afterEach(() => { vi.useRealTimers(); });
   beforeEach(async () => {
+    // Control Date only: MongoDB and worker I/O keep real timers. Immediate delivery
+    // requires a weekday inside the recipient's 08:00-20:00 sending window.
+    vi.setSystemTime(new Date('2026-11-04T07:00:00Z'));
     for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({});
     Object.assign(env, { EMAIL_FROM: 'sales@example.test', SALES_REPLY_DOMAIN: 'replies.example.test', SALES_RESEND_WEBHOOK_SECRET: 'whsec_' + Buffer.alloc(32, 7).toString('base64'), SALES_EMAIL_ESTIMATED_MICRO_USD: 10 });
     send.mockClear(); setSalesDeliveryTestProvider({ key: 'RESEND', idempotencyHours: 23, minimumIntervalMs: 0, send });
@@ -65,6 +69,31 @@ describe.skipIf(!process.env.RUN_E2E)('Approved-template autonomous sales email'
     await SalesOutreachService.deliverNotification(message!.notificationId!);
     expect(send).toHaveBeenCalledTimes(1); expect((await SalesMessage.findById(message!._id))?.status).toBe('SENT');
     await SalesAutonomousEmailService.process(id); expect(send).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    ['2026-11-04T18:57:00Z', '2026-11-05T05:00:00Z'],
+    ['2026-11-06T17:00:00Z', '2026-11-09T05:00:00Z'],
+  ])('defers autonomous delivery at %s until %s without spending or dispatching', async (queuedAt, dueAt) => {
+    vi.setSystemTime(new Date(queuedAt));
+    admin.mfaVerifiedAt = new Date();
+    const id = await generated();
+    await SalesAutonomousEmailService.process(id);
+    const message = await SalesMessage.findOne({ leadId });
+    if (!message?.notificationId) throw new Error('Expected a durable autonomous delivery notification');
+    expect(message).toMatchObject({ status: 'QUEUED', attempt: 0, nextAttemptAt: new Date(dueAt) });
+    expect(await SalesOutreachService.deliverNotification(message.notificationId)).toEqual({ deferred: true });
+    expect(send).not.toHaveBeenCalled();
+    expect(await SalesCampaignUsage.countDocuments()).toBe(0);
+    vi.setSystemTime(new Date(new Date(dueAt).getTime() - 1));
+    expect(await SalesOutreachService.deliverNotification(message.notificationId)).toEqual({ deferred: true });
+    expect(send).not.toHaveBeenCalled();
+    vi.setSystemTime(new Date(dueAt));
+    await SalesOutreachService.deliverNotification(message.notificationId);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(await SalesMessage.findById(message._id)).toMatchObject({ status: 'SENT', attempt: 1 });
+    await SalesAutonomousEmailService.process(id);
+    await SalesOutreachService.deliverNotification(message.notificationId);
+    expect(send).toHaveBeenCalledTimes(1);
   });
   it('does not dispatch after a channel stop or customer opt-out', async () => {
     const id = await generated(); await SalesAutonomousEmailService.process(id);

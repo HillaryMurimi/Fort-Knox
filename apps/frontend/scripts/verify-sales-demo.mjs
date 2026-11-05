@@ -302,10 +302,15 @@ try {
   assert.equal(await page.getByText('Attainment unavailable', { exact: true }).count(), 4);
   for (const theme of ['light', 'dark']) {
     await page.evaluate(t => { document.documentElement.classList.remove('light', 'dark'); document.documentElement.classList.add(t); }, theme);
-    for (const width of [390, 834, 1440]) {
+    for (const width of [320, 390, 834, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.evaluate(() => window.scrollTo(0, 0));
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Revenue workspace fits ' + width);
+      const targetControls = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Revenue targets', exact: true }) });
+      assert.ok(await targetControls.evaluate(section => [...section.querySelectorAll('button')].every(button => {
+        const parent = button.parentElement.getBoundingClientRect(), bounds = button.getBoundingClientRect();
+        return bounds.left >= parent.left - 1 && bounds.right <= parent.right + 1 && button.scrollWidth <= button.clientWidth + 1;
+      })), 'Revenue target controls stay inside their panel at ' + width);
       await page.waitForTimeout(350); // Allow the existing responsive navigation transition to settle before visual capture.
       await page.screenshot({ path: temporaryRoot + `/pcc-revenue-${theme}-${width}.png`, fullPage: true });
     }

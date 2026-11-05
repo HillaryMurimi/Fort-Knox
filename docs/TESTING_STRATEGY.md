@@ -381,9 +381,13 @@ Follow-up Mongo workflows verify cadence, independent approvals, idempotency/con
 
 Run the sales-autonomous-email replica-set suite alongside sales-agent, sales-campaign and sales-outreach suites with RUN_E2E=1. Cover switch-off task rejection, approved template rendering and queue idempotency, opt-out after queueing, changed campaign text, qualification changes and unapproved model prose. Fixture acceptance is not live email-provider delivery evidence. Unit coverage rejects unsupported placeholders and header injection and verifies customer-name rendering.
 
+Immediate-dispatch fixtures fix Date to a recipient-local weekday inside the sending window while retaining real I/O timers, and restore the clock after each case. Autonomous email regressions also cover the hosted failure's evening timestamp and the Friday-to-Monday boundary: no provider dispatch or campaign spending before the scheduled window, then exactly one accepted attempt despite replay. Production scheduling and policy checks are exercised unchanged.
+
 ### Assistance execution regression coverage (2026-11-04)
 
 RUN_E2E=1 suites sales-assistance, sales-agent and sales-followup cover exact approval creation, switch/agent gates, organization-link changes, staff/case scope, cross-organization request IDs, stale revisions, invalid transitions, explicit completion/cancellation and HTTP auth/validation. The agent fixture now supplies a linked organization and enabled assistance service and asserts exactly one internal request. Frontend cases cover internal-source labeling, escaped guidance, permission restrictions, terminal controls and retry states.
 ## Revenue and quota regression coverage (2026-11-04)
 
 Run sales-revenue unit and RUN_E2E replica-set suites for exact large-money arithmetic, calendar boundaries, malformed policies, verified payment/contract proof, demo and currency isolation, renewal/MRR deduplication, registration attribution, command idempotency, audit rollback, stale revisions, historical unavailability, authentication, platform authority, step-up and feature-off failures. Frontend sales-revenue tests cover query gating, escaping, money precision, retry states and estimates. verify:sales-demo exercises real-HTTP quota creation/revision and light/dark responsive captures. Test fixtures do not certify live provider completeness or deployed staging.
+
+Revenue browser coverage includes 320, 390, 834 and 1440px in both themes, retaining the one-pixel page-overflow tolerance and additionally requiring target buttons to fit their parent and their own text. Check Linux fallback-font rendering as well as Windows: a button can escape its card without yet escaping the viewport. Target labels wrap within the card and pagination may wrap onto another line.

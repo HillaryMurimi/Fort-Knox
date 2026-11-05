@@ -321,12 +321,21 @@ try {
         url.search === destination.search,
     );
     const tab = destination.searchParams.get("tab");
-    if (tab && headings[tab])
+    if (tab && headings[tab]) {
+      // Wait for panel layout separately from URL completion after query-only
+      // navigation, then retain the accessible-heading visibility assertion.
+      await page.waitForFunction(
+        (name) => [...document.querySelectorAll("main h2")].some((element) => {
+          const bounds = element.getBoundingClientRect();
+          return element.textContent?.trim() === name && bounds.width > 0 && bounds.height > 0;
+        }),
+        headings[tab],
+      );
       await page
         .getByRole("heading", { name: headings[tab], exact: true })
         .first()
         .waitFor();
-    else await page.locator("main h1").first().waitFor();
+    } else await page.locator("main h1").first().waitFor();
   }
   await page.goto(origin + "/platform");
   await page
