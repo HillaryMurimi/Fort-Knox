@@ -1,6 +1,6 @@
 # Protected renewal evidence for Revenue
 
-M2 continuation, 2026-11-05, Africa/Nairobi. Verification in progress; publication and hosted acceptance will be recorded below.
+M2 continuation, completed 2026-11-05 at 23:48:40 Africa/Nairobi (20:48:40 UTC), with exact-commit hosted acceptance. This completes the protected new-renewal evidence increment, not the entire M2 milestone.
 
 ## Outcome and connection to the Quality repair
 
@@ -40,7 +40,7 @@ Deleted: none. Unrelated `.continue/`, local logs and generated files excluded.
 
 Added coverage: real renewal settlement into Revenue, catalog independence, exact cash/current MRR, replay, invoice-link immutability, missing/unsigned/foreign/wrong-subscription evidence, transactional audit rollback and projection rejection of metadata-only or unprotected links.
 
-Local checks so far:
+Completed local checks:
 
 | Command | Result |
 | --- | --- |
@@ -54,7 +54,15 @@ Local checks so far:
 
 The first build invocation accidentally inherited NODE_ENV=test from the check runner and omitted NEXT_PUBLIC_API_URL; Next's production configuration assertion correctly stopped prerendering. This was a harness configuration error. The clean production rerun passed using the same synthetic HTTPS API URL and disabled development bypasses as hosted CI.
 
-The first full E2E run passed 387/388 cases in 862.17s; the existing anonymous-demo-to-first-value onboarding case exceeded its unchanged 5000ms timeout (reported duration 8417ms). It passed in the focused 40-case run. All new renewal regressions passed. Available Windows memory was below 350 MB when investigating the result, consistent with resource contention. The complete rerun passed 388/388 with no code, assertion or timeout changes. Exact-commit publication/hosted results remain pending.
+The first full E2E run passed 387/388 cases in 862.17s; the existing anonymous-demo-to-first-value onboarding case exceeded its unchanged 5000ms timeout (reported duration 8417ms). It passed in the focused 40-case run. All new renewal regressions passed. Available Windows memory was below 350 MB when investigating the result, consistent with resource contention. The complete rerun passed 388/388 with no code, assertion or timeout changes.
+
+Implementation `e0f1849adbca490d995de5318e741ddf028deb5e` was committed and pushed normally to main, then verified against `git ls-remote`. [Quality 42105806904](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/42105806904) completed successfully on that exact SHA:
+
+- [Backend](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/42105806904/job/127520185586): typecheck, lint, default tests, complete E2E, build and release certification passed.
+- [Frontend](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/42105806904/job/127520185958): typecheck, lint, tests, production build and all three browser journeys passed, including status/contrast, platform operations, and sales/Revenue flows.
+- [Coolify images](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/42105806904/job/127520186066): synthetic image build/smoke checks passed.
+
+The hosted result independently verifies the unchanged onboarding timeout and the new renewal cases in Ubuntu/Node 22. It is engineering acceptance; no staging or production deployment is implied.
 
 ## Remaining work and owner actions
 
