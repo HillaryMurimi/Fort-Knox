@@ -22,7 +22,9 @@ export const SalesRevenueRepository = {
       { $match: { provider: 'PAYSTACK', currency, status: 'PAID', paidAt: { $type: 'date', $lte: now }, $expr: integerMinor('$totalMinor') } },
       ...invoicePipeline(query, now),
       { $match: { verified: true, provider: 'PAYSTACK', currency, $expr: integerMinor('$totalMinor') } },
-      { $lookup: { from: 'organizationcontracts', let: { contract: '$contractId', org: '$organizationId' }, pipeline: [{ $match: { status: 'SIGNED', $expr: { $and: [{ $eq: ['$_id', '$$contract'] }, { $eq: ['$organizationId', '$$org'] }] } } }, { $project: { _id: 1 } }], as: 'signedContract' } },
+      // Renewals use the protected top-level link. Mutable metadata and today's
+      // catalog are never promoted into historical contract or price evidence.
+      { $lookup: { from: 'organizationcontracts', let: { contract: { $ifNull: ['$contractId', { $cond: [{ $eq: [{ $type: '$commercialSnapshot' }, 'object'] }, '$originContractId', null] }] }, org: '$organizationId' }, pipeline: [{ $match: { status: 'SIGNED', $expr: { $and: [{ $eq: ['$_id', '$$contract'] }, { $eq: ['$organizationId', '$$org'] }] } } }, { $project: { _id: 1 } }], as: 'signedContract' } },
       { $match: { 'signedContract.0': { $exists: true } } },
       { $lookup: { from: 'salesattributions', let: { org: '$organizationId' }, pipeline: [{ $match: { milestone: 'REGISTERED', status: 'ATTRIBUTED', $expr: { $eq: ['$organizationId', '$$org'] } } }, { $project: { referralCampaignId: 1 } }, { $limit: 1 }], as: 'attribution' } },
       { $set: { campaignId: { $ifNull: [{ $arrayElemAt: ['$attribution.referralCampaignId', 0] }, null] } } },

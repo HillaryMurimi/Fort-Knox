@@ -591,6 +591,31 @@ export async function settlePrepaidRenewal(
           );
         return;
       }
+      // A subscription's mutable metadata is not sufficient contract evidence.
+      // Resolve the signed organization contract and its paid activation invoice
+      // before retaining a renewal link in the immutable invoice snapshot.
+      const contract = Types.ObjectId.isValid(metadata.contractId)
+        ? await OrganizationContract.findOne({
+            _id: metadata.contractId,
+            organizationId: subscription.organizationId,
+            status: "SIGNED",
+          }).session(session)
+        : null;
+      const activation = contract
+        ? await SubscriptionInvoice.findOne({
+            contractId: contract._id,
+            organizationId: subscription.organizationId,
+            subscriptionId,
+            provider: "PAYSTACK",
+            status: "PAID",
+          }).session(session)
+        : null;
+      if (!contract || !activation)
+        throw new AppError(
+          409,
+          "RENEWAL_CONTRACT_EVIDENCE_REQUIRED",
+          "Renewal requires the signed organization contract and paid activation invoice",
+        );
       const current = metadata.commercialSnapshot,
         pending = metadata.pendingCommercialSnapshot;
       const selected =
@@ -660,6 +685,7 @@ export async function settlePrepaidRenewal(
         paidAt,
         provider: "PAYSTACK",
         providerInvoiceId: reference,
+        originContractId: contract._id,
         commercialSnapshot: snapshot,
         lineItems: snapshot.lineItems,
         metadata: { originContractId: metadata.contractId },
@@ -722,6 +748,7 @@ export async function settlePrepaidRenewal(
             processedAt: new Date(),
             payload: {
               invoiceId: String(invoice._id),
+              originContractId: String(contract._id),
               totalMinor: invoice.totalMinor,
               currency: invoice.currency,
             },

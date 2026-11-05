@@ -219,6 +219,29 @@ describe.skipIf(!process.env.RUN_E2E)(
       expect(r.cash.count).toBe(2);
       expect(r.currentMRR.count).toBe(0);
     });
+    it("counts protected renewal links but excludes metadata-only, unsigned, foreign and unsnapshotted links", async () => {
+      for (const kind of ["protected", "metadata-only", "unsigned", "foreign", "no-snapshot"]) {
+        const source = await receipt({ signed: kind !== "unsigned" });
+        const invoice = await SubscriptionInvoice.findById(source.invoiceId).orFail();
+        if (kind === "foreign") {
+          await OrganizationContract.collection.updateOne({ _id: invoice.contractId }, {
+            $set: { organizationId: new Types.ObjectId() },
+          });
+        }
+        await SubscriptionInvoice.collection.updateOne({ _id: invoice._id }, {
+          $unset: { contractId: 1 },
+          $set: {
+            ...(kind === "metadata-only"
+              ? { metadata: { originContractId: String(invoice.contractId) } }
+              : { originContractId: invoice.contractId }),
+            ...(kind === "no-snapshot" ? {} : { commercialSnapshot: { totalMinor: invoice.totalMinor } }),
+          },
+        });
+      }
+      const result = await repository.financials(from, to, "KES", now);
+      expect(result.cash).toEqual({ amountMinor: "3000000", count: 1 });
+      expect(result.currentMRR).toEqual({ amountMinor: "1000000", count: 1 });
+    });
     it("attributes only the registration cohort without multiplying company revenue", async () => {
       const first = await receipt(),
         campaign = new Types.ObjectId();

@@ -710,3 +710,5 @@ Onboarding assistance (2026-11-04): GET /api/v1/sales/success/customers/:id/assi
 ## Sales revenue intelligence (2026-11-04)
 
 Authenticated SUPER_ADMIN routes `/api/v1/sales/success/revenue` and `/targets` expose evidence-qualified financial projections and audited quota planning. Writes require fresh dual-channel assurance; all operations require SALES_ANALYTICS. See [SALES_REVENUE_INTELLIGENCE.md](SALES_REVENUE_INTELLIGENCE.md) and generated OpenAPI for schemas, unavailable metrics, source windows and idempotency/revision rules. These routes do not modify billing or send messages.
+
+New contract-based renewal invoices expose optional originContractId through the existing authorized invoice list. The reference is retained only after validating a same-organization SIGNED contract and its same-subscription PAID activation invoice. Invalid evidence blocks settlement with RENEWAL_CONTRACT_EVIDENCE_REQUIRED and remains subject to reconciliation. Revenue accepts this protected link with a retained commercial snapshot, while metadata-only historical renewal links remain excluded. No new endpoint or Revenue response field is introduced.

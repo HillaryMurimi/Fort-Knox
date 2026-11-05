@@ -6,7 +6,7 @@ const op = (summary: string, body?: z.ZodType, query?: z.ZodObject, target = fal
   ...(body ? { requestBody: { required: true, content: { 'application/json': { schema: z.toJSONSchema(body) } } } } : {}),
 });
 export const salesRevenuePaths = {
-  '/sales/success/revenue': { get: op('Current recurring revenue and period gross collections; operations are global CRM counts even when campaign filters cash', undefined, revenueQuerySchema) },
+  '/sales/success/revenue': { get: { ...op('Current recurring revenue and period gross collections; operations are global CRM counts even when campaign filters cash', undefined, revenueQuerySchema), description: 'Qualifying paid invoices require provider event proof and a same-organization signed contract. Renewal snapshots use protected originContractId; metadata-only historical links remain excluded. This is not provider reconciliation or recognized revenue.' } },
   '/sales/success/revenue/targets': { get: op('Paginated administrator targets (20 per page)', undefined, revenueTargetPageSchema), post: op('Idempotently record a target without changing billing', createRevenueTargetSchema) },
   '/sales/success/revenue/targets/{targetId}': { get: op('Evaluate target and show last 20 audited revisions', undefined, undefined, true), patch: op('Revise a target with optimistic concurrency and audit', updateRevenueTargetSchema, undefined, true) },
 };

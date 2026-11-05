@@ -47,6 +47,7 @@ import {
 import { LandlordOnboardingService } from "../../src/modules/onboarding/landlord-onboarding.service.js";
 import { IntegrationService } from "../../src/modules/integrations/integration.service.js";
 import { BillingService } from "../../src/modules/billing/billing.service.js";
+import { SalesRevenueRepository } from "../../src/modules/sales/sales-revenue.repository.js";
 import { AuditService } from "../../src/modules/audit/audit.service.js";
 import type { AuthenticatedUser } from "../../src/core/types/auth.js";
 
@@ -1556,6 +1557,7 @@ describe.skipIf(!process.env.RUN_E2E)(
       const subscription = await OrganizationSubscription.findOne({
         organizationId: org,
       }).orFail();
+      await SubscriptionPlan.updateOne({ _id: subscription.planId }, { amount: 99999 });
       const renewal = {
         event: "charge.success",
         data: {
@@ -1573,6 +1575,9 @@ describe.skipIf(!process.env.RUN_E2E)(
         providerInvoiceId: "renewal-test-1",
       }).orFail();
       expect(invoice.total).toBe(11000);
+      expect(invoice.totalMinor).toBe(1100000);
+      expect(String(invoice.originContractId)).toBe(state.contract._id);
+      expect(invoice.contractId).toBeUndefined();
       expect(invoice.documentId).toBeTruthy();
       expect(invoice.receiptDocumentId).toBeTruthy();
       expect(
@@ -1583,6 +1588,71 @@ describe.skipIf(!process.env.RUN_E2E)(
       expect(
         await SubscriptionInvoice.countDocuments({ organizationId: org }),
       ).toBe(2);
+      const observedAt = new Date(subscription.currentPeriodEnd.getTime() + 1);
+      const revenue = await SalesRevenueRepository.financials(
+        new Date(0), observedAt, "KES", observedAt,
+      );
+      expect(revenue.cash).toEqual({ amountMinor: "4400000", count: 2 });
+      expect(revenue.currentMRR).toEqual({ amountMinor: "1100000", count: 1 });
+      expect(await BillingEvent.countDocuments({ externalReference: "renewal-test-1" })).toBe(1);
+      invoice.originContractId = new Types.ObjectId();
+      await expect(invoice.save()).rejects.toThrow("INVOICE_SNAPSHOT_IMMUTABLE");
+      await expect(SubscriptionInvoice.updateOne({ _id: invoice._id }, {
+        $unset: { originContractId: 1 },
+      })).rejects.toThrow("INVOICE_SNAPSHOT_IMMUTABLE");
+      const retained = await SubscriptionInvoice.findById(invoice._id).orFail();
+      retained.commercialSnapshot = undefined;
+      await expect(retained.save()).rejects.toThrow("INVOICE_SNAPSHOT_IMMUTABLE");
+    });
+    it.each(["missing", "foreign", "unsigned", "wrong-subscription"])(
+      "rejects %s renewal contract evidence without advancing access or revenue",
+      async (scenario) => {
+        const state = await checkout();
+        await signedWebhook(charge(state));
+        const subscription = await OrganizationSubscription.findOne({ organizationId: org }).orFail();
+        if (scenario === "wrong-subscription") {
+          // Imported/corrupt records must not manufacture a valid activation link.
+          await SubscriptionInvoice.collection.updateOne({ _id: new Types.ObjectId(state.invoice._id) }, {
+            $set: { subscriptionId: new Types.ObjectId() },
+          });
+        } else if (scenario === "missing") {
+          await OrganizationSubscription.updateOne({ _id: subscription._id }, {
+            $set: { "metadata.contractId": String(new Types.ObjectId()) },
+          });
+        } else {
+          await OrganizationContract.collection.updateOne({ _id: new Types.ObjectId(state.contract._id) }, {
+            $set: scenario === "foreign" ? { organizationId: new Types.ObjectId() } : { status: "PENDING_SIGNATURE" },
+          });
+        }
+        await expect(signedWebhook({ event: "charge.success", data: {
+          status: "success", reference: "rejected-renewal", subscription: { subscription_code: "SUB_contract" },
+          amount: 1100000, currency: "KES", paid_at: subscription.currentPeriodEnd.toISOString(),
+        } })).rejects.toMatchObject({ code: "RENEWAL_CONTRACT_EVIDENCE_REQUIRED" });
+        expect(await SubscriptionInvoice.countDocuments({ organizationId: org })).toBe(1);
+        expect(await BillingEvent.countDocuments({ externalReference: "rejected-renewal" })).toBe(0);
+        expect((await OrganizationSubscription.findById(subscription._id).orFail()).currentPeriodEnd).toEqual(subscription.currentPeriodEnd);
+      },
+    );
+    it("rolls back renewal invoice, evidence and access when the audit cannot be retained", async () => {
+      const state = await checkout();
+      await signedWebhook(charge(state));
+      const subscription = await OrganizationSubscription.findOne({ organizationId: org }).orFail();
+      const documents = await Document.countDocuments({ organizationId: org });
+      const evidence = await Evidence.countDocuments({ organizationId: org });
+      const record = AuditService.record.bind(AuditService);
+      vi.spyOn(AuditService, "record").mockImplementation(async (...args) => {
+        if (args[0].action === "billing.prepaid.renewal.paid") throw new Error("Renewal audit unavailable");
+        return record(...args);
+      });
+      await expect(signedWebhook({ event: "charge.success", data: {
+        status: "success", reference: "audit-renewal", subscription: { subscription_code: "SUB_contract" },
+        amount: 1100000, currency: "KES", paid_at: subscription.currentPeriodEnd.toISOString(),
+      } })).rejects.toThrow("Renewal audit unavailable");
+      expect(await SubscriptionInvoice.countDocuments({ organizationId: org })).toBe(1);
+      expect(await BillingEvent.countDocuments({ externalReference: "audit-renewal" })).toBe(0);
+      expect(await Document.countDocuments({ organizationId: org })).toBe(documents);
+      expect(await Evidence.countDocuments({ organizationId: org })).toBe(evidence);
+      expect((await OrganizationSubscription.findById(subscription._id).orFail()).currentPeriodEnd).toEqual(subscription.currentPeriodEnd);
     });
     it("flags ambiguous remote renewal submission without repeating the debit schedule", async () => {
       const state = await checkout();

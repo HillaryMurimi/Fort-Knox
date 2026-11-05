@@ -1,6 +1,6 @@
 # Hosted Quality repair for the M2 Revenue delivery
 
-Milestone: M2 verification repair. Started 2026-11-05, Africa/Nairobi. This report remains in verification until exact-commit hosted results are recorded below.
+Milestone: M2 verification repair. Completed 2026-11-05, Africa/Nairobi, with exact-commit hosted acceptance.
 
 ## Root causes and before/after evidence
 
@@ -45,7 +45,7 @@ Completed local checks (synthetic/isolated data only):
 | `npm run certify:release` | CERTIFIED_STATIC: 39 route files, 172 permissions and 10 critical paths |
 | `npm run build` | Backend TypeScript and frontend Next.js production builds passed |
 
-Implementation SHA, remote-main verification and exact-commit hosted job links are still pending. No pending job is considered successful. Local browser journeys use installed Windows Google Chrome; separate Linux Chrome rendering reproduction above establishes the font-dependent failure and correction. Hosted acceptance remains necessary.
+Implementation commit `82079fbe1d36843aea3e57cbcf8687358236f33b` was pushed normally and verified as remote main using `git ls-remote`. [Quality 42053908041](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/42053908041) completed successfully on that exact SHA. All steps passed in [frontend](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/42053908041/job/127336995940), [backend](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/42053908041/job/127336996117), and [coolify-images](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/42053908041/job/127336995395). Local browser journeys used installed Windows Google Chrome; the separate Linux rendering reproduction established the font-dependent failure, and the hosted Ubuntu/Node 22/Chrome browser journeys passed with the fix.
 
 ## Deployment, risks and owner actions
 

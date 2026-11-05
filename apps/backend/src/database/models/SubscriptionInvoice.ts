@@ -18,6 +18,8 @@ const subscriptionInvoiceSchema = new Schema({
   providerInvoiceId: { type: String },
   lineItems: { type: [Schema.Types.Mixed], default: [] },
   contractId: { type: Schema.Types.ObjectId, ref: 'OrganizationContract' },
+  // Initial contract invoices remain unique; subsequent renewals retain a separate protected link.
+  originContractId: { type: Schema.Types.ObjectId, ref: 'OrganizationContract' },
   documentId: { type: Schema.Types.ObjectId, ref: 'Document' }, receiptDocumentId: { type: Schema.Types.ObjectId, ref: 'Document' },
   commercialSnapshot: { type: Schema.Types.Mixed },
   subtotalMinor: Number, taxMinor: Number, totalMinor: Number,
@@ -31,7 +33,7 @@ subscriptionInvoiceSchema.index({ organizationId: 1, invoiceNumber: 1 }, { uniqu
 subscriptionInvoiceSchema.index({ provider: 1, providerInvoiceId: 1 }, { unique: true, partialFilterExpression: { providerInvoiceId: { $type: 'string' } } });
 subscriptionInvoiceSchema.index({ contractId: 1 }, { unique: true, partialFilterExpression: { contractId: { $type: 'objectId' } } });
 subscriptionInvoiceSchema.pre('save', function () {
-  if (!this.isNew && this.commercialSnapshot && ['organizationId', 'subscriptionId', 'contractId', 'invoiceNumber', 'periodStart', 'periodEnd', 'subtotal', 'tax', 'total', 'currency', 'dueDate', 'lineItems', 'commercialSnapshot', 'subtotalMinor', 'taxMinor', 'totalMinor', 'issuedAt'].some(key => this.isModified(key))) throw new Error('INVOICE_SNAPSHOT_IMMUTABLE');
+  if (!this.isNew && (this.commercialSnapshot || this.originContractId || this.isModified('originContractId')) && ['organizationId', 'subscriptionId', 'contractId', 'originContractId', 'invoiceNumber', 'periodStart', 'periodEnd', 'subtotal', 'tax', 'total', 'currency', 'dueDate', 'lineItems', 'commercialSnapshot', 'subtotalMinor', 'taxMinor', 'totalMinor', 'issuedAt'].some(key => this.isModified(key))) throw new Error('INVOICE_SNAPSHOT_IMMUTABLE');
 });
 subscriptionInvoiceSchema.pre(['updateOne', 'updateMany', 'findOneAndUpdate', 'replaceOne', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete'], async function () {
   if (await model('SubscriptionInvoice').exists({ $and: [this.getFilter(), { commercialSnapshot: { $exists: true } }] }).session(this.getOptions().session ?? null)) throw new Error('INVOICE_SNAPSHOT_IMMUTABLE');

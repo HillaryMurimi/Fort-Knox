@@ -31,3 +31,5 @@ Completion of a software milestone is not evidence of achieved growth, profitabi
 ## M2 implementation boundary
 
 Revenue Command Center and audited planning targets are the first delivery, specified in [SALES_REVENUE_INTELLIGENCE.md](SALES_REVENUE_INTELLIGENCE.md). Historical immutable MRR movements, complete renewal evidence, retained-customer cohorts, monetary attribution allocation and measured profitability remain open. Finish those source foundations before the M3 Supervisor can claim those outcomes. The existing growth-readiness suggestions and curated sales playbooks remain advisory, not evidence of autonomous revenue optimization.
+
+Renewal continuation (2026-11-05): new contract renewals now retain a protected contract reference alongside the immutable price snapshot and provider event. The Revenue projection recognizes that evidence; metadata-only historic renewals remain excluded. This closes the new-renewal linkage gap, not historical movement, source-completeness, reconciliation or retention requirements. See the [renewal delivery report](completion-reports/2026-11-05-renewal-revenue-evidence.md) for verification status.
