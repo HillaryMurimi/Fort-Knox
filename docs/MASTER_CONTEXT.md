@@ -603,3 +603,7 @@ The existing sales outreach/consent/review queue now supports optional Twilio SM
 ### Governed AI sales follow-ups
 
 Customer 360 follow-up policies reuse existing CRM, agent, outreach and durable Job services. Exact source baselines, scoped authority, consent and lifecycle progress govern every draft and dispatch. Policies never pre-approve delivery; optional SALES_FOLLOWUPS defaults OFF. See AI_SALES_CONTINUATION.md for implemented controls and verification boundaries.
+
+## M2 historical subscription foundation (2026-11-06)
+
+Billing now records immutable verified subscription movements; the existing Revenue workspace derives exact monthly bridges and verified-activation retention cohorts, with read-only reconciliation and source drill-down. Missing history fails closed. M3 must use qualified event evidence and independent permission/contact-policy gates; no autonomous intervention or deployment is authorized. See [SUBSCRIPTION_REVENUE_HISTORY.md](SUBSCRIPTION_REVENUE_HISTORY.md) and the dated completion report for acceptance and owner actions.

@@ -20,6 +20,7 @@ import { WebhookEvent } from '../src/database/models/WebhookEvent.js';
 import { SalesFollowUpPolicy, SalesFollowUp } from '../src/database/models/SalesFollowUp.js';
 import { PropertyOnboardingRequest } from '../src/database/models/PropertyOnboardingRequest.js';
 import { SalesRevenueTarget } from '../src/database/models/SalesRevenueTarget.js';
+import { SubscriptionMovement } from '../src/database/models/SubscriptionMovement.js';
 await connectDatabase();
 try {
   for (const model of [SalesDemoSession, SalesValueEvent, AcquisitionJourney, SalesLead, SalesMeeting, SalesActivity, SalesAgent, SalesAgentRun, SalesAgentApproval, Job, SalesIdentityMatch, SalesMergeRequest, SalesProjectionCheckpoint, AuditLog, DomainEvent, SalesCampaign, SalesTrackingLink, SalesAttribution, SalesConsentEvent, SalesRecipientControl, SalesMessage, SalesCampaignUsage, SalesConversationEntry, SalesProviderControl, Notification, WebhookEvent])
@@ -27,6 +28,7 @@ try {
   await SalesFollowUpPolicy.createIndexes(); await SalesFollowUp.createIndexes();
   await PropertyOnboardingRequest.createIndexes();
   await SalesRevenueTarget.createIndexes();
+  await SubscriptionMovement.createIndexes();
   for (const [key, options] of Organization.schema.indexes())
     if (options.name?.startsWith("guided_pilot_"))
       await Organization.collection.createIndex(key, options);

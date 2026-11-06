@@ -1,4 +1,5 @@
 import { PRODUCT_NAME } from '../../config/brand.js';
+import { endSubscription } from '../billing/subscription-movement.service.js';
 import { env } from '../../config/env.js';
 import { assertOperationalIntegrationAllowed } from '../sales/pilot-safety.js';
 import { settlePrepaidInvoice, settlePrepaidRenewal } from '../billing/prepaid-billing.service.js';
@@ -337,7 +338,7 @@ export class IntegrationService {
     if (existing) { event.status = 'RECEIVED'; event.error = undefined; await event.save(); }
 
     try {
-      if (provider === 'PAYSTACK') await this.processPaystack(body);
+      if (provider === 'PAYSTACK') await this.processPaystack(body, event._id);
       else await this.processMpesa(body);
       event.status = 'PROCESSED';
       event.processedAt = new Date();
@@ -389,7 +390,7 @@ export class IntegrationService {
     await this.confirmProviderPayment(p);
   }
 
-  static async processPaystack(body: Record<string, unknown>) {
+  static async processPaystack(body: Record<string, unknown>, webhookEventId?: Types.ObjectId) {
     const eventType = String(body.event ?? '');
     const eventData = body.data as Record<string, unknown> | undefined;
     if (['refund.pending', 'refund.processing', 'refund.needs-attention', 'refund.failed', 'refund.processed'].includes(eventType)) {
@@ -422,12 +423,16 @@ export class IntegrationService {
     if (eventType === 'invoice.payment_failed' && eventData) {
       const reference = eventData.subscription as Record<string, unknown> | undefined;
       const subscription = await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerSubscriptionId: String(reference?.subscription_code ?? eventData.subscription_code ?? '') });
-      if (subscription && subscription.status === 'ACTIVE') { subscription.status = 'PAST_DUE'; await subscription.save(); }
+      if (subscription && subscription.status === 'ACTIVE') {
+        await endSubscription({ subscriptionId: subscription._id, kind: 'EXPIRATION', sourceKind: 'VERIFIED_WEBHOOK', reference: `payment-failed:${subscription._id}:${webhookEventId ?? hashPayload(Buffer.from(JSON.stringify(body)))}`, webhookEventId });
+      }
       return;
     }
     if (eventType === 'subscription.disable' && eventData) {
       const subscription = await OrganizationSubscription.findOne({ provider: 'PAYSTACK', providerSubscriptionId: String(eventData.subscription_code ?? '') });
-      if (subscription && !subscription.cancelAtPeriodEnd) { subscription.status = 'CANCELLED'; subscription.cancelledAt = new Date(); await subscription.save(); }
+      if (subscription && !subscription.cancelAtPeriodEnd) {
+        await endSubscription({ subscriptionId: subscription._id, kind: 'CANCELLATION', sourceKind: 'VERIFIED_WEBHOOK', reference: `provider-cancel:${subscription._id}:${webhookEventId ?? hashPayload(Buffer.from(JSON.stringify(body)))}`, webhookEventId });
+      }
       return;
     }
     if (eventType === 'subscription.not_renew' && eventData) {

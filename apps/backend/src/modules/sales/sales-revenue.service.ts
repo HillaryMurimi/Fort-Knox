@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { Types } from 'mongoose';
 import { env } from '../../config/env.js';
 import { AppError } from '../../core/errors/AppError.js';
 import { AuthorizationService } from '../../core/authorization/authorization.service.js';
@@ -14,6 +15,9 @@ import { createRevenueTargetSchema, updateRevenueTargetSchema, revenueTargetPoli
 import { targetPeriod, targetPerformance } from './sales-revenue.calculations.js';
 import { growthReadiness } from './sales-growth.recommendations.js';
 import { objectId } from './sales-success.schemas.js';
+import { revenueHistoryQuery, revenueMovementQuery } from './sales-revenue.schemas.js';
+import { RevenueHistoryRepository } from './revenue-history.repository.js';
+import { deriveRevenueHistory } from './revenue-history.calculations.js';
 
 export async function assertRevenueIndexes() {
   if (env.NODE_ENV !== 'production') return;
@@ -33,6 +37,29 @@ async function validateScope(policy: RevenueTargetPolicy) {
   if (policy.scope === 'CAMPAIGN' && !await targets.campaignExists(policy.scopeId!)) throw new AppError(400, 'CAMPAIGN_NOT_FOUND', 'Select an existing campaign');
 }
 export class SalesRevenueService {
+  static async historical(auth: AuthenticatedUser, raw: unknown) {
+    await access(auth);
+    const selection = revenueHistoryQuery.parse(raw), now = new Date();
+    const evidence = await RevenueHistoryRepository.load(selection.currency, now);
+    const report = deriveRevenueHistory(evidence.events, evidence.gaps, selection.from, selection.to, selection.currency, now, evidence.truncated);
+    const counts: Record<string, number> = {};
+    for (const gap of evidence.gaps) counts[gap.code] = (counts[gap.code] ?? 0) + 1;
+    await AuditService.record({ actorUserId: auth.userId, action: 'sales.revenue.history.viewed', resourceType: 'SubscriptionMovement', metadata: selection });
+    return { ...report, reconciliation: { counts, issues: evidence.gaps.slice(0, 100), issueCount: evidence.gaps.length, issueLimit: 100, sourceLimit: evidence.limit, truncated: evidence.truncated, providerCompleteness: 'NOT_CERTIFIED', historyMutated: false }, sourceCount: evidence.events.length };
+  }
+  static async movements(auth: AuthenticatedUser, raw: unknown) {
+    await access(auth); const q = revenueMovementQuery.parse(raw);
+    const result = await RevenueHistoryRepository.movements(q.currency, q.page, q.organizationId);
+    await AuditService.record({ actorUserId: auth.userId, action: 'sales.revenue.movements.viewed', resourceType: 'SubscriptionMovement', metadata: q });
+    return result;
+  }
+  static async movementSource(auth: AuthenticatedUser, id: string) {
+    await access(auth); objectId.parse(id);
+    const result = await RevenueHistoryRepository.source(id);
+    if (!result) throw new AppError(404, 'MOVEMENT_NOT_FOUND', 'Movement source not found');
+    await AuditService.record({ actorUserId: auth.userId, action: 'sales.revenue.source.viewed', resourceType: 'SubscriptionMovement', resourceId: new Types.ObjectId(id) });
+    return result;
+  }
   static async overview(auth: AuthenticatedUser, raw: unknown) {
     await access(auth);
     const selection = revenueQuerySchema.parse(raw), now = new Date();
@@ -45,7 +72,7 @@ export class SalesRevenueService {
     return { asOf: now, range: { from: range.from, to: range.to, timeZone: 'Africa/Nairobi' }, currency: selection.currency,
       ...finance, currentARR: { amountMinor: String(BigInt(finance.currentMRR.amountMinor) * 12n), count: finance.currentMRR.count },
       operations, operationsScope: 'ALL_CRM_RECORDS', growthIntelligence: growthReadiness(operations), limitations,
-      unavailable: ['New / expansion / contraction / churned MRR', 'Recognized revenue', 'Net collections after refunds and fees', 'Gross margin / net profit', 'CAC / LTV / retention rate', 'Monetary pipeline coverage', 'Agent / team revenue attribution'],
+      unavailable: ['Historical movements and retention in this current-snapshot view (use Movement & retention history)', 'Recognized revenue', 'Net collections after refunds and fees', 'Gross margin / net profit', 'CAC / LTV', 'Monetary pipeline coverage', 'Agent / team revenue attribution'],
     };
   }
   static async list(auth: AuthenticatedUser, raw: unknown) {
@@ -59,7 +86,7 @@ export class SalesRevenueService {
     const policy = revenueTargetPolicySchema.parse(target.policy), now = new Date(), period = targetPeriod(policy);
     let actualMinor: string | null = null, unavailableReason: string | null = null;
     if (['AGENT', 'TEAM'].includes(policy.scope)) unavailableReason = 'Auditable monetary attribution for agents and teams is not available.';
-    else if (['NEW_MRR', 'RECOGNIZED_REVENUE'].includes(policy.metric)) unavailableReason = 'Historical movement or revenue recognition evidence is not available.';
+    else if (['NEW_MRR', 'RECOGNIZED_REVENUE'].includes(policy.metric)) unavailableReason = 'Historical target attribution and revenue recognition are not certified. Review the separate evidence-qualified monthly bridge.';
     else if (now < period.from) unavailableReason = 'The target period has not started.';
     else if (policy.metric !== 'COLLECTED_CASH' && now >= period.to) unavailableReason = 'A historical recurring revenue snapshot is not available.';
     else {

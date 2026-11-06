@@ -28,6 +28,7 @@ import { OrganizationContract } from "../../src/database/models/OrganizationCont
 import { ContractTemplate } from "../../src/database/models/ContractTemplate.js";
 import { OrganizationSubscription } from "../../src/database/models/OrganizationSubscription.js";
 import { SubscriptionInvoice } from "../../src/database/models/SubscriptionInvoice.js";
+import { SubscriptionMovement } from "../../src/database/models/SubscriptionMovement.js";
 import { Document } from "../../src/database/models/Document.js";
 import { Evidence } from "../../src/database/models/Evidence.js";
 import { BillingEvent } from "../../src/database/models/BillingEvent.js";
@@ -107,6 +108,7 @@ describe.skipIf(!process.env.RUN_E2E)(
         OrganizationContract,
         OrganizationSubscription,
         SubscriptionInvoice,
+        SubscriptionMovement,
         Document,
         Evidence,
         BillingEvent,
@@ -1595,6 +1597,11 @@ describe.skipIf(!process.env.RUN_E2E)(
       expect(revenue.cash).toEqual({ amountMinor: "4400000", count: 2 });
       expect(revenue.currentMRR).toEqual({ amountMinor: "1100000", count: 1 });
       expect(await BillingEvent.countDocuments({ externalReference: "renewal-test-1" })).toBe(1);
+      const movements = await SubscriptionMovement.find({ organizationId: org }).sort({ sequence: 1 }).lean();
+      expect(movements.map(e => e.kind)).toEqual(['ACTIVATION', 'RENEWAL']);
+      expect(movements.map(e => e.newMinor)).toEqual(['1100000', '1100000']);
+      expect(movements[1]?.effectiveAt).toEqual(subscription.currentPeriodEnd);
+      expect(String(movements[1]?.invoiceId)).toBe(String(invoice._id));
       invoice.originContractId = new Types.ObjectId();
       await expect(invoice.save()).rejects.toThrow("INVOICE_SNAPSHOT_IMMUTABLE");
       await expect(SubscriptionInvoice.updateOne({ _id: invoice._id }, {
@@ -1650,6 +1657,7 @@ describe.skipIf(!process.env.RUN_E2E)(
       } })).rejects.toThrow("Renewal audit unavailable");
       expect(await SubscriptionInvoice.countDocuments({ organizationId: org })).toBe(1);
       expect(await BillingEvent.countDocuments({ externalReference: "audit-renewal" })).toBe(0);
+      expect(await SubscriptionMovement.countDocuments({ organizationId: org })).toBe(1);
       expect(await Document.countDocuments({ organizationId: org })).toBe(documents);
       expect(await Evidence.countDocuments({ organizationId: org })).toBe(evidence);
       expect((await OrganizationSubscription.findById(subscription._id).orFail()).currentPeriodEnd).toEqual(subscription.currentPeriodEnd);

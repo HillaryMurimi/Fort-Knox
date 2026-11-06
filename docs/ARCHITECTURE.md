@@ -480,3 +480,7 @@ The existing sales outreach/consent/review queue now supports optional Twilio SM
 Follow-up policies/sequences reuse the existing sales module, agent/outreach services and Job worker; no parallel scheduler or transport. See AI_SALES_CONTINUATION.md, Governed follow-up sequences, for the full contract.
 
 Assistance is a domain operation on existing PropertyOnboardingRequest, AgentApproval, SalesActivity and AuditLog records. The agent stores the observed linked organization; fresh approval atomically opens an internal request. Thin assistance controllers call the sales assistance service; current customer scope and explicit staff permissions protect both request reads and lifecycle commands. Existing follow-up signals react to request changes. No second worker queue or CRM store was introduced.
+
+## Historical recurring revenue foundation (2026-11-06)
+
+Billing's immutable SubscriptionMovement collection feeds the existing sales Revenue read model. Paid settlement and lifecycle state changes append evidence and audit atomically; no duplicate analytics service or inferred catalog revenue is introduced. Historical bridges/cohorts derive from snapshot-consistent, bounded source reads in the existing sales repository. Future M3 consumers require reconciled complete periods and separate policy approval; this ledger conveys no payment/contact authority. Full semantics and rollout boundary: [Subscription revenue history](SUBSCRIPTION_REVENUE_HISTORY.md).

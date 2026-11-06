@@ -1,4 +1,5 @@
 import { EntitlementService } from '../../core/billing/entitlement.service.js';
+import { endSubscription } from './subscription-movement.service.js';
 import { priceSnapshot, type CommercialSnapshot } from '../onboarding/contract-snapshot.js';
 import { startPrepaidCheckout, reconcilePrepaidCheckouts } from './prepaid-billing.service.js';
 import { SubscriptionPlan } from '../../database/models/SubscriptionPlan.js';
@@ -120,7 +121,20 @@ export class BillingService {
     return OrganizationSubscription.findById(subscription._id).populate('planId');
   }
 
-  static async cancel(auth: NonNullable<Express.Request['auth']>, organizationId: string, atPeriodEnd: boolean) { AuthorizationService.assertCan(auth,'billing.subscription.manage',{organizationId}); const subscription = await OrganizationSubscription.findOne({organizationId}).select('+providerEmailToken'); if (!subscription) throw new AppError(404,'NOT_FOUND','Subscription not found'); if (subscription.provider === 'PAYSTACK') { if (!subscription.providerSubscriptionId || !subscription.providerEmailToken) throw new AppError(409,'SUBSCRIPTION_NOT_READY','Paystack subscription is not ready for cancellation'); await new PaystackBillingProvider().cancelSubscription(subscription.providerSubscriptionId, subscription.providerEmailToken); } subscription.cancelAtPeriodEnd = atPeriodEnd; subscription.updatedBy = auth.userId; if (!atPeriodEnd) { subscription.status='CANCELLED'; subscription.cancelledAt=new Date(); } await subscription.save(); return OrganizationSubscription.findById(subscription._id); }
+  static async cancel(auth: NonNullable<Express.Request['auth']>, organizationId: string, atPeriodEnd: boolean) {
+    AuthorizationService.assertCan(auth,'billing.subscription.manage',{organizationId});
+    const subscription = await OrganizationSubscription.findOne({organizationId}).select('+providerEmailToken');
+    if (!subscription) throw new AppError(404,'NOT_FOUND','Subscription not found');
+    if (subscription.status === 'CANCELLED') return OrganizationSubscription.findById(subscription._id);
+    if (subscription.provider === 'PAYSTACK') {
+      if (!subscription.providerSubscriptionId || !subscription.providerEmailToken) throw new AppError(409,'SUBSCRIPTION_NOT_READY','Paystack subscription is not ready for cancellation');
+      await new PaystackBillingProvider().cancelSubscription(subscription.providerSubscriptionId, subscription.providerEmailToken);
+    }
+    if (atPeriodEnd) {
+      subscription.cancelAtPeriodEnd = true; subscription.updatedBy = auth.userId; await subscription.save();
+    } else await endSubscription({ subscriptionId: subscription._id, kind: 'CANCELLATION', sourceKind: 'AUTHORIZED_CANCELLATION', reference: `cancel:${subscription._id}:${subscription.currentPeriodEnd.toISOString()}`, actorUserId: auth.userId });
+    return OrganizationSubscription.findById(subscription._id);
+  }
 
   static async recoverCheckout(auth: NonNullable<Express.Request['auth']>, organizationId: string) {
     AuthorizationService.assertCan(auth, 'billing.subscription.manage', { organizationId });
@@ -210,11 +224,11 @@ export class BillingService {
 
   static async reconcile() {
     const prepaid = await reconcilePrepaidCheckouts();
-    const now = new Date(); const subscriptions = await OrganizationSubscription.find({ status: { $in: ['TRIALING','ACTIVE','PAST_DUE'] } }); let expired=0; let cancelled=0; let upgraded=0;
-    for (const subscription of subscriptions) {
+    const now = new Date(); const subscriptions = OrganizationSubscription.find({ status: { $in: ['TRIALING','ACTIVE','PAST_DUE'] } }).cursor({ batchSize: 100 }); let expired=0; let cancelled=0; let upgraded=0;
+    for await (const subscription of subscriptions) {
       if (subscription.status === 'TRIALING' && subscription.trialEndsAt && subscription.trialEndsAt <= now) { subscription.status='PAST_DUE'; subscription.gracePeriodEndsAt=new Date(now.getTime()+7*86_400_000); await subscription.save(); expired++; }
-      if (subscription.cancelAtPeriodEnd && subscription.currentPeriodEnd <= now) { subscription.status='CANCELLED'; subscription.cancelledAt=now; await subscription.save(); cancelled++; continue; }
-      if (subscription.provider === 'PAYSTACK' && subscription.status === 'ACTIVE' && subscription.currentPeriodEnd <= now) { subscription.status='PAST_DUE'; await subscription.save(); expired++; continue; }
+      if (subscription.cancelAtPeriodEnd && subscription.currentPeriodEnd <= now) { await endSubscription({ subscriptionId: subscription._id, kind: 'CANCELLATION', sourceKind: 'PAID_TERM_BOUNDARY', reference: `cancel-end:${subscription._id}:${subscription.currentPeriodEnd.toISOString()}`, at: subscription.currentPeriodEnd, expectedPeriodEnd: subscription.currentPeriodEnd }); cancelled++; continue; }
+      if (subscription.provider === 'PAYSTACK' && ['ACTIVE', 'PAST_DUE'].includes(subscription.status) && subscription.currentPeriodEnd <= now) { await endSubscription({ subscriptionId: subscription._id, kind: 'EXPIRATION', sourceKind: 'PAID_TERM_BOUNDARY', reference: `expiry:${subscription._id}:${subscription.currentPeriodEnd.toISOString()}`, at: subscription.currentPeriodEnd, expectedPeriodEnd: subscription.currentPeriodEnd }); expired++; continue; }
       if (subscription.provider !== 'PAYSTACK' && subscription.pendingPlanId && subscription.pendingPlanEffectiveAt && subscription.pendingPlanEffectiveAt <= now) { subscription.planId=subscription.pendingPlanId; subscription.pendingPlanId=undefined; subscription.pendingPlanEffectiveAt=undefined; subscription.currentPeriodStart=now; const plan=await SubscriptionPlan.findById(subscription.planId); if(plan) subscription.currentPeriodEnd=addInterval(now,plan.billingInterval); await subscription.save(); upgraded++; }
     }
     return { expired, cancelled, upgraded, prepaid };

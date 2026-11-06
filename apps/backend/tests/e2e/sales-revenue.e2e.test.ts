@@ -19,6 +19,7 @@ import { OrganizationContract } from "../../src/database/models/OrganizationCont
 import { SubscriptionInvoice } from "../../src/database/models/SubscriptionInvoice.js";
 import { BillingEvent } from "../../src/database/models/BillingEvent.js";
 import { SalesRevenueTarget } from "../../src/database/models/SalesRevenueTarget.js";
+import { SubscriptionMovement } from "../../src/database/models/SubscriptionMovement.js";
 import { SalesAttribution } from "../../src/database/models/SalesCampaign.js";
 import { PlatformSwitch } from "../../src/database/models/PlatformSwitch.js";
 import { AuditLog } from "../../src/database/models/AuditLog.js";
@@ -64,6 +65,7 @@ describe.skipIf(!process.env.RUN_E2E)(
         SubscriptionInvoice,
         BillingEvent,
         SalesRevenueTarget,
+        SubscriptionMovement,
         SalesAttribution,
         PlatformSwitch,
         AuditLog,
@@ -422,6 +424,36 @@ describe.skipIf(!process.env.RUN_E2E)(
         service.create(admin, { commandId: randomUUID(), policy, reason }),
       ).rejects.toMatchObject({ code: "SERVICE_DISABLED" });
       expect(await SalesRevenueTarget.countDocuments()).toBe(0);
+    });
+    it("protects historical reports and source drill-downs, excludes demo organizations and audits reads", async () => {
+      const query = { from: "2026-01", to: "2026-02", currency: "KES" };
+      const organization = await Organization.create({ name: 'History owner', slug: randomUUID(), status: 'ACTIVE' });
+      const event = await SubscriptionMovement.create({ organizationId: organization._id, subscriptionId: new Types.ObjectId(), sequence: 1, kind: 'ACTIVATION', effectiveAt: new Date('2026-01-01'), currency: 'KES', previousMinor: '0', newMinor: '10000', sourceKey: randomUUID(), sourceKind: 'VERIFIED_PAYMENT', sourceReference: 'fixture', completeFromStart: true, dataset: 'LIVE' });
+      for (const path of ['/history', '/movements', '/movements/' + event._id]) expect((await request(app).get(base + path)).status).toBe(401);
+      const landlord = { ...admin, isPlatformAdmin: false, memberships: [{ organizationId: organization._id, role: 'LANDLORD', permissions: ['sales.leads.read'], scope: { allProperties: true, propertyIds: [], buildingIds: [] } }] };
+      await expect(service.historical(landlord, query)).rejects.toMatchObject({ statusCode: 403 });
+      await expect(service.movements(landlord, { currency: 'KES' })).rejects.toMatchObject({ statusCode: 403 });
+      await expect(service.movementSource(landlord, String(event._id))).rejects.toMatchObject({ statusCode: 403 });
+      const history = await request(app).get(base + '/history').auth(token, { type: 'bearer' }).query(query);
+      expect(history.status, JSON.stringify(history.body)).toBe(200);
+      expect(history.headers['cache-control']).toBe('no-store');
+      expect(history.body.data.autonomousInterventionsEnabled).toBe(false);
+      expect(history.body.data.bridges[0].closingMinor).toBeNull();
+      expect(history.body.data.reconciliation.counts.MOVEMENT_SOURCE_MISSING).toBe(1);
+      const source = await request(app).get(base + '/movements/' + event._id).auth(token, { type: 'bearer' });
+      expect(source.status).toBe(200); expect(source.body.data.event.organization).toBeUndefined();
+      expect(source.body.data.invoice).toBeNull(); expect(source.headers['cache-control']).toBe('no-store');
+      expect(await AuditLog.countDocuments({ action: 'sales.revenue.source.viewed' })).toBe(1);
+      expect((await request(app).get(base + '/history').auth(token, { type: 'bearer' }).query({ ...query, to: '2027-02' })).status).toBe(400);
+      expect((await request(app).get(base + '/movements').auth(token, { type: 'bearer' }).query({ page: -1 })).status).toBe(400);
+      expect((await request(app).get(base + '/movements/invalid').auth(token, { type: 'bearer' })).status).toBe(400);
+      await Organization.updateOne({ _id: organization._id }, { $set: { 'settings.platformDemoDataset': DEMO_DATASET } });
+      expect((await service.movements(admin, { currency: 'KES' })).total).toBe(0);
+      await expect(service.movementSource(admin, String(event._id))).rejects.toMatchObject({ statusCode: 404 });
+      await PlatformSwitch.updateOne({ key: 'SALES_ANALYTICS' }, { $set: { enabled: false, mode: 'OFF' } });
+      await expect(service.historical(admin, query)).rejects.toMatchObject({ code: 'SERVICE_DISABLED' });
+      await expect(service.movements(admin, { currency: 'KES' })).rejects.toMatchObject({ code: 'SERVICE_DISABLED' });
+      await expect(service.movementSource(admin, String(event._id))).rejects.toMatchObject({ code: 'SERVICE_DISABLED' });
     });
     it("serves evidence and audited target journeys through real authenticated HTTP", async () => {
       const created = await request(app)

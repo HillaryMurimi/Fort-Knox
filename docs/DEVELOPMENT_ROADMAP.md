@@ -241,3 +241,7 @@ AI sales follow-up engineering is under final verification. Subsequent work rema
 Approved-template autonomous sales email now has an OFF-by-default switch and a durable worker path. Continue with hosted/provider acceptance, onboarding assistance execution and authoritative CRM analytics before describing the AI Sales department as complete. See AI_SALES_CONTINUATION.md for current limits and operator gates.
 
 Onboarding assistance execution now reuses the existing request collection and exact agent approval transaction; see AI_SALES_CONTINUATION.md (2026-11-04). Continue with authoritative aggregate intelligence and external provider/Coolify acceptance. Internal request completion does not certify customer onboarding or financial success.
+
+## M2 historical subscription foundation (2026-11-06)
+
+Billing now records immutable verified subscription movements; the existing Revenue workspace derives exact monthly bridges and verified-activation retention cohorts, with read-only reconciliation and source drill-down. Missing history fails closed. M3 must use qualified event evidence and independent permission/contact-policy gates; no autonomous intervention or deployment is authorized. See [SUBSCRIPTION_REVENUE_HISTORY.md](SUBSCRIPTION_REVENUE_HISTORY.md) and the dated completion report for acceptance and owner actions.

@@ -1,4 +1,5 @@
 import { assertVerifiedLandlordEmail } from "../onboarding/verified-landlord.js";
+import { recordPaidMovement } from './subscription-movement.service.js';
 import { PRODUCT_NAME } from "../../config/brand.js";
 import mongoose, { Types } from "mongoose";
 import { randomUUID } from "node:crypto";
@@ -333,6 +334,7 @@ export async function settlePrepaidInvoice(
         ],
         { session },
       );
+      await recordPaidMovement(invoice._id, subscription.currentPeriodStart, subscription.currentPeriodEnd, session);
       for (const state of ["PAYMENT_VERIFIED", "ACTIVE"])
         await AuditService.record(
           {
@@ -756,6 +758,7 @@ export async function settlePrepaidRenewal(
         ],
         { session },
       );
+      await recordPaidMovement(invoice._id, start, end, session);
       await AuditService.record(
         {
           organizationId: subscription.organizationId,

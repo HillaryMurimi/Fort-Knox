@@ -39,6 +39,9 @@ const criticalPaths = [
   '/sales/demos/{id}/pilot',
   '/sales/organizations/{organizationId}/pilot/import/confirm',
   '/platform-control/sales-intelligence',
+  '/sales/success/revenue/history',
+  '/sales/success/revenue/movements',
+  '/sales/success/revenue/movements/{movementId}',
 ];
 const paths = Object.keys(buildOpenApiDocument().paths);
 const missing = criticalPaths.filter((path) => !paths.includes(path));

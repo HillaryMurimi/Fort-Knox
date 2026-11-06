@@ -96,6 +96,14 @@ export interface TargetDetail {
 }
 const base = "/sales/success/revenue";
 export const revenueClient = {
+  history: (selection: { from: string; to: string; currency: string }) =>
+    api<RevenueHistory>(`${base}/history?${new URLSearchParams(selection)}`),
+  movements: (currency: string, page: number) =>
+    api<{ items: RevenueMovement[]; total: number; page: number }>(
+      `${base}/movements?${new URLSearchParams({ currency, page: String(page) })}`,
+    ),
+  movementSource: (id: string) =>
+    api<MovementSource>(`${base}/movements/${id}`),
   overview: (selection: { from: string; to: string; currency: string }) =>
     api<RevenueOverview>(base + "?" + new URLSearchParams(selection)),
   targets: (page: number) =>
@@ -117,6 +125,94 @@ export const revenueClient = {
       body: JSON.stringify(body),
     }),
 };
+export interface RevenueMovement {
+  _id: string;
+  organizationId: string;
+  subscriptionId: string;
+  sequence: number;
+  kind: string;
+  currency: string;
+  effectiveAt: string;
+  recordedAt: string;
+  previousMinor: string | null;
+  newMinor: string;
+  sourceKind: string;
+  sourceReference: string;
+  invoiceId?: string;
+  contractId?: string;
+  billingEventId?: string;
+  completeFromStart: boolean;
+  gaps: string[];
+}
+export interface MovementSource {
+  event: RevenueMovement;
+  invoice: {
+    _id: string;
+    invoiceNumber: string;
+    status: string;
+    paidAt?: string;
+    contractId?: string;
+    originContractId?: string;
+  } | null;
+  proof: {
+    _id: string;
+    provider: string;
+    type: string;
+    status: string;
+    externalReference?: string;
+  } | null;
+  webhook: {
+    _id: string;
+    provider: string;
+    eventId: string;
+    status: string;
+  } | null;
+}
+export interface RevenueHistory {
+  asOf: string;
+  currency: string;
+  timeZone: string;
+  sourceCount: number;
+  definition: string;
+  autonomousInterventionsEnabled: false;
+  agentRestriction: string;
+  bridges: {
+    month: string;
+    complete: boolean;
+    reasons: string[];
+    openingMinor: string | null;
+    newMinor: string | null;
+    reactivationMinor: string | null;
+    expansionMinor: string | null;
+    contractionMinor: string | null;
+    churnedMinor: string | null;
+    closingMinor: string | null;
+    reconciled: boolean;
+  }[];
+  cohorts: {
+    cohortMonth: string;
+    month: string;
+    complete: boolean;
+    reasons: string[];
+    customers: number;
+    retainedCustomers: number | null;
+    baselineMinor: string | null;
+    retainedMinor: string | null;
+    customerRetentionPercent: string | null;
+    grossRevenueRetentionPercent: string | null;
+    netRevenueRetentionPercent: string | null;
+  }[];
+  reconciliation: {
+    counts: Record<string, number>;
+    issues: { code: string; sourceId?: string; organizationId?: string }[];
+    issueCount: number;
+    issueLimit: number;
+    sourceLimit: number;
+    truncated: boolean;
+    providerCompleteness: string;
+    historyMutated: false;
+  };
+}
 // Every supported reporting currency uses two decimal places. Never round monetary input through Number.
 export function toMinor(input: string) {
   if (!/^(0|[1-9][0-9]{0,12})(\.[0-9]{1,2})?$/.test(input))

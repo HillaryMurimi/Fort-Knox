@@ -10,6 +10,7 @@ import {
   type TargetDetail,
 } from "@/lib/data/sales-revenue";
 import { SalesRevenueTargetForm } from "./sales-revenue-target-form";
+import { SalesRevenueHistory } from "./sales-revenue-history";
 const panel = "rounded-2xl border border-border bg-card p-5 sm:p-7";
 const input =
   "mt-1 w-full rounded-lg border border-border bg-background p-2 text-sm";
@@ -386,6 +387,7 @@ export function SalesRevenue() {
           </section>
         </>
       )}
+      <SalesRevenueHistory />
       <section className={panel + " space-y-5"}>
         <div className="flex flex-wrap justify-between gap-3">
           <h3 className="text-xl font-medium">Revenue targets</h3>

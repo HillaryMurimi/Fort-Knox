@@ -300,6 +300,38 @@ try {
   await page.getByRole('button', { name: 'Save target revision', exact: true }).click();
   await page.getByText('Actual: Unavailable', { exact: true }).waitFor();
   assert.equal(await page.getByText('Attainment unavailable', { exact: true }).count(), 4);
+  await page.getByLabel('History from', { exact: true }).fill('2025-01');
+  await page.getByLabel('History through', { exact: true }).fill('2025-02');
+  await page.getByRole('button', { name: 'Load history', exact: true }).click();
+  await page.getByText('No retained movement sources.', { exact: true }).waitFor();
+  await page.getByRole('region', { name: 'Monthly MRR bridges', exact: true }).getByText(/no ledger baseline/).first().waitFor();
+  // Explicit retained evidence fixture in this disposable database, not a mocked API.
+  const historyDb = await mongoose.createConnection(mongo.getUri('sales-browser-test')).asPromise();
+  try {
+    const org = new mongoose.Types.ObjectId(), sub = new mongoose.Types.ObjectId(), contract = new mongoose.Types.ObjectId();
+    await historyDb.collection('organizations').insertOne({ _id: org, name: 'Browser ledger owner', slug: 'browser-ledger', status: 'ACTIVE' });
+    await historyDb.collection('organizationcontracts').insertOne({ _id: contract, organizationId: org, status: 'SIGNED' });
+    let previousEvent;
+    for (const [sequence, month, before, after, kind] of [[1, '01', '0', '1000001', 'ACTIVATION'], [2, '02', '1000001', '1500001', 'EXPANSION']]) {
+      const id = new mongoose.Types.ObjectId(), invoice = new mongoose.Types.ObjectId(), proof = new mongoose.Types.ObjectId(), at = new Date(`2025-${month}-05T12:00:00Z`), reference = `browser-ledger-${sequence}`;
+      await historyDb.collection('subscriptioninvoices').insertOne({ _id: invoice, organizationId: org, subscriptionId: sub, invoiceNumber: reference, currency: 'KES', provider: 'PAYSTACK', providerInvoiceId: reference, status: 'PAID', paidAt: at, totalMinor: Number(after), amountPaid: Number(after) / 100, commercialSnapshot: { monthlyMinor: Number(after), currency: 'KES' }, ...(sequence === 1 ? { contractId: contract } : { originContractId: contract }) });
+      await historyDb.collection('billingevents').insertOne({ _id: proof, organizationId: org, provider: 'PAYSTACK', type: 'INVOICE_PAID', status: 'PROCESSED', externalReference: reference, payload: { authorization_code: 'never-return-this-test-secret' } });
+      await historyDb.collection('subscriptionmovements').insertOne({ _id: id, organizationId: org, subscriptionId: sub, sequence, kind, effectiveAt: at, recordedAt: at, currency: 'KES', previousMinor: before, newMinor: after, paidThrough: new Date('2025-04-01'), previousEventId: previousEvent, sourceKey: `paid:${invoice}`, sourceKind: 'VERIFIED_PAYMENT', sourceReference: reference, invoiceId: invoice, contractId: contract, billingEventId: proof, completeFromStart: true, gaps: [], dataset: 'LIVE' });
+      previousEvent = id;
+    }
+  } finally { await historyDb.close(); }
+  await page.getByRole('button', { name: 'Refresh evidence', exact: true }).click();
+  const bridges = page.getByRole('region', { name: 'Monthly MRR bridges', exact: true });
+  await bridges.getByText('KES 15,000.01', { exact: true }).waitFor();
+  assert.equal(await bridges.getByText('Reconciled', { exact: true }).count(), 2);
+  await page.getByRole('region', { name: 'Retention cohorts', exact: true }).getByText('149.99%', { exact: true }).waitFor(); // Exact 1500001 / 1000001, truncated rather than rounded.
+  await page.getByRole('button', { name: 'Inspect source 2', exact: true }).click();
+  const movementDialog = page.getByRole('dialog', { name: 'Movement evidence', exact: true });
+  await movementDialog.getByText('browser-ledger-2', { exact: true }).first().waitFor();
+  assert.ok(!(await movementDialog.textContent()).includes('never-return-this-test-secret'));
+  await page.keyboard.press('Escape');
+  await movementDialog.waitFor({ state: 'hidden' });
+  assert.equal(await page.getByRole('button', { name: 'Inspect source 2', exact: true }).evaluate(e => e === document.activeElement), true, 'Source dialog restores focus');
   for (const theme of ['light', 'dark']) {
     await page.evaluate(t => { document.documentElement.classList.remove('light', 'dark'); document.documentElement.classList.add(t); }, theme);
     for (const width of [320, 390, 834, 1440]) {
@@ -734,8 +766,9 @@ try {
     .getByRole("button", { name: "Continue", exact: true })
     .click();
   let ownerResponse = await ownerLogin;
-  if (ownerResponse.status() === 429) {
-    // This full journey authenticates several identities from one loopback IP. Honor the real limiter.
+  for (let attempt = 0; ownerResponse.status() === 429 && attempt < 3; attempt++) {
+    // The public and authentication limiters have independent windows. Honor
+    // each Retry-After instead of assuming that one cooldown clears both.
     const retryAfter = Number(ownerResponse.headers()['retry-after']);
     assert.ok(Number.isFinite(retryAfter) && retryAfter > 0 && retryAfter <= 60, 'A bounded authentication cooldown must be provided');
     await new Promise(resolve => setTimeout(resolve, (retryAfter + 1) * 1000));
@@ -744,7 +777,7 @@ try {
     await ownerPage.getByRole('button', { name: 'Continue', exact: true }).click();
     ownerResponse = await retry;
   }
-  assert.equal(ownerResponse.status(), 200);
+  assert.equal(ownerResponse.status(), 200, await ownerResponse.text());
   const ownerChallenge = (await ownerResponse.json()).data;
   assert.equal(
     ownerChallenge.accountOtpRequired,

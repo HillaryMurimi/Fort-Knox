@@ -4,6 +4,13 @@ import { objectId } from './sales-success.schemas.js';
 export const minorUnits = z.string().regex(/^(0|[1-9][0-9]{0,14})$/);
 export const revenueMetrics = ['COLLECTED_CASH', 'CURRENT_MRR', 'CURRENT_ARR', 'NEW_MRR', 'RECOGNIZED_REVENUE'] as const;
 export const revenueQuerySchema = z.object({ from: z.iso.date(), to: z.iso.date(), currency: z.enum(['KES', 'USD', 'NGN', 'GHS', 'ZAR']).default('KES'), campaignId: objectId.optional() }).strict();
+const historyMonth = z.string().regex(/^(20[2-9][0-9]|2100)-(0[1-9]|1[0-2])$/);
+export const revenueHistoryQuery = z.object({ from: historyMonth, to: historyMonth, currency: revenueQuerySchema.shape.currency }).strict().refine(v => {
+  const [fy, fm] = v.from.split('-').map(Number), [ty, tm] = v.to.split('-').map(Number);
+  const distance = (ty! - fy!) * 12 + tm! - fm!;
+  return distance >= 0 && distance < 12;
+}, 'Select one to twelve complete calendar months');
+export const revenueMovementQuery = z.object({ currency: revenueQuerySchema.shape.currency, page: z.coerce.number().int().min(1).max(10000).default(1), organizationId: objectId.optional() }).strict();
 export const revenueTargetPolicySchema = z.object({
   name: z.string().trim().min(3).max(120), metric: z.enum(revenueMetrics), currency: z.enum(['KES', 'USD', 'NGN', 'GHS', 'ZAR']),
   period: z.enum(['MONTHLY', 'QUARTERLY', 'ANNUAL']), periodStart: z.iso.date(),
