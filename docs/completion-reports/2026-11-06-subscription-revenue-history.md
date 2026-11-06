@@ -1,6 +1,6 @@
 # M2 — immutable subscription movements and retention
 
-Date: 2026-11-06 18:02 Africa/Nairobi. Acceptance status: all required local checks passed; initial hosted failure corrected and exact-SHA acceptance pending. No staging/production deployment or live outbound activation authorized or performed.
+Accepted: 2026-11-06 23:44 Africa/Nairobi. All required local checks passed and hosted Quality completed successfully on the exact accepted implementation SHA below. No staging/production deployment or live outbound activation authorized or performed.
 
 ## Implemented
 
@@ -83,5 +83,17 @@ No files deleted. No environment files, secrets, generated artifacts or unrelate
 4. NEW_MRR/historical target attribution remains uncertified. Verified activation cohorts cover only organizations with proven openings; they do not silently claim retention for the whole legacy customer population.
 5. Queries above the source cap fail closed; future materialization/checkpoints need separate design. No benchmark against owner-scale live data or real-provider acceptance is claimed.
 6. Leave autonomous financial/customer interventions OFF. Consent, suppression, approval, scope, spending, timing and audit gates remain independent requirements.
+7. Development-tool dependency advisories and lint warnings remain maintenance work. The production-only dependency audits returned zero vulnerabilities; this is not a claim that the entire development toolchain is advisory-free.
 
 Next connected milestone: use qualified immutable event references for M3 proposal-only Supervisor/retention triggers, then prove trigger correctness and every independent customer-contact/authorization policy before considering live activation. Deployment status: not deployed to staging or production.
+
+## Exact-SHA delivery evidence
+
+- Initial implementation: `8ca5da0afbb780bcba8738719846caba05a01dba`.
+- Accepted implementation including the governed browser-fixture correction: **`13799b6bba043b89db82d7e813d2761f74ff98b1`**, pushed normally to `origin/main` and verified against `git ls-remote`. No force push, branch-protection bypass, clone or deployment was used. The pre-existing untracked `.continue/` folder remains untouched.
+- [Quality 42289897036](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/42289897036): **completed / success**, exact head SHA `13799b6bba043b89db82d7e813d2761f74ff98b1`, updated at 2026-11-06 20:44:16 UTC (23:44:16 Nairobi).
+- [Backend job 128140262927](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/42289897036/job/128140262927): passed typecheck, lint, 583 default tests, **399 complete E2E/transaction tests**, production build and static release certification (39 route files, 172 permissions, 13 critical paths). Default tests intentionally skip the opt-in suites; the subsequent complete E2E command executes them.
+- [Frontend job 128140263222](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/42289897036/job/128140263222): passed typecheck, lint, unit tests, production build, status/contrast/responsiveness, platform-business and complete sales/pilot/browser-history journeys.
+- [Coolify-image job 128140263138](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/42289897036/job/128140263138): passed image builds and synthetic-service smoke tests. This does not deploy an application or establish real-provider acceptance.
+
+The documentation follow-up records this verified implementation evidence. Staging/production, real provider completeness, original legacy-history remediation and autonomous revenue interventions remain outside this acceptance.
