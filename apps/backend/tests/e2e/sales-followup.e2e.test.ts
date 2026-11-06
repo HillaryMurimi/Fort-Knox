@@ -74,6 +74,21 @@ describe.skipIf(!process.env.RUN_E2E)('Durable governed follow-up sequences', ()
   async function review(messageId: string, action: string) { const m = (await SalesMessage.findById(messageId))!; return outreach.decide(fresh(), leadId, messageId, { action, revision: m.revision, payloadHash: m.payloadHash, reason: 'Reviewed this exact governed followup and the current source context.' }); }
   async function sendReviewed(messageId: string) { const m = (await SalesMessage.findById(messageId))!; await review(messageId, 'SUBMIT'); await review(messageId, 'APPROVE'); await outreach.deliverNotification(m.notificationId ?? (await SalesMessage.findById(messageId))!.notificationId!); }
   async function control(id: string, action: string, extra: Record<string, unknown> = {}) { const p = (await SalesFollowUp.findById(id))!; return followups.control(fresh(), leadId, id, { revision: p.revision, action, context: 'Human reviewed the current sequence and recorded the requested intervention.', ...extra }); }
+  it('rejects a Friday evening request outside a one-day approval window and schedules it only within a reviewed longer window', async () => {
+    vi.setSystemTime(new Date('2026-11-06T15:07:00Z')); // Hosted failure: Friday 18:07 Nairobi.
+    await SalesLead.updateOne({ _id: leadId }, { nextActionDate: new Date(Date.now() + 2 * 3600000) });
+    const shortPolicy = await policy('HUMAN_TEMPLATE', { expiresAfterDays: 1 });
+    await expect(enroll(shortPolicy)).rejects.toMatchObject({ code: 'FOLLOWUP_WINDOW_UNAVAILABLE' });
+    expect(await SalesFollowUp.countDocuments()).toBe(0);
+    const reviewedPolicy = await policy('HUMAN_TEMPLATE', { expiresAfterDays: 7 });
+    const result = await enroll(reviewedPolicy);
+    const retained = await SalesFollowUp.findById(result.id).orFail();
+    expect(retained.nextContactAt.toISOString()).toBe('2026-11-09T05:00:00.000Z');
+    expect(retained.nextContactAt.getTime()).toBeLessThan(retained.expiresAt.getTime());
+    expect(await SalesMessage.countDocuments()).toBe(0);
+    expect(await Notification.countDocuments()).toBe(0);
+    expect(send).not.toHaveBeenCalled();
+  });
   it('prepares a bound draft at due time but never sends or queues delivery without review', async () => {
     const plan = await enroll(); await followups.wake(plan.id); expect(await SalesMessage.countDocuments()).toBe(0); await wake(plan.id);
     const message = (await SalesMessage.findOne())!; expect(String(message.followUpId)).toBe(plan.id); expect(message.status).toBe('DRAFT'); expect(await Notification.countDocuments()).toBe(0); expect(send).not.toHaveBeenCalled();

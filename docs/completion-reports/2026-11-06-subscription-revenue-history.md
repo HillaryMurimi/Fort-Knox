@@ -1,6 +1,6 @@
 # M2 — immutable subscription movements and retention
 
-Date: 2026-11-06 18:02 Africa/Nairobi. Acceptance status: all required local checks passed; hosted exact-SHA verification pending push. No staging/production deployment or live outbound activation authorized or performed.
+Date: 2026-11-06 18:02 Africa/Nairobi. Acceptance status: all required local checks passed; initial hosted failure corrected and exact-SHA acceptance pending. No staging/production deployment or live outbound activation authorized or performed.
 
 ## Implemented
 
@@ -14,6 +14,7 @@ Journey: a real SUPER_ADMIN opens Sales & Customer Success → Revenue, selects 
 - Before: historical MRR and retention were unavailable. After: complete verified monthly bridges reconcile exactly; unknown openings, legacy metadata-only contract links, missing proof, late boundary conflicts and open periods remain explicitly unavailable. No invoice or historical event is backfilled or changed.
 - Exact-money evidence: values above Number's safe integer reconcile without loss; 1,500,001 / 1,000,001 minor units yields 149.99% under the documented truncation rule. The first browser fixture incorrectly expected 150.00%; its assertion was corrected, with a corresponding arithmetic regression test. Production math was not loosened.
 - The extended browser journey exposed independent public/authentication rate-limit windows. One cooldown could clear only the first limiter. The harness now honors each bounded Retry-After, up to three attempts, while still requiring a successful real login and OTP. Production thresholds and checks were not changed or bypassed.
+- Initial hosted [Quality 42239394670](https://github.com/HillaryMurimi/Fort-Knox/actions/runs/42239394670) for `8ca5da0afbb780bcba8738719846caba05a01dba` passed backend and Coolify images, but failed frontend follow-up enrollment (`409 !== 201`, browser script line 497). The Friday 18:07 Nairobi run requested contact two hours later; the unchanged weekday 08:00–20:00 policy deferred that to Monday, outside the fixture's one-day campaign/sequence window. A fixed-clock replica-set regression reproduces `FOLLOWUP_WINDOW_UNAVAILABLE` for one day, permits enrollment only after a separately reviewed seven-day policy, verifies Monday 08:00 scheduling, and asserts zero messages/notifications/provider sends. The browser fixture now reviews a seven-day campaign/sequence window; all production policy gates and success assertions remain unchanged. Follow-up regression suite: 35 passed. Backend typecheck/lint and the corrected complete sales browser journey also passed locally, with zero console errors (`ci-history-sales-browser-weekend.log`). This initial hosted failure is retained as evidence, not reported as a green release.
 
 ## API, database and security
 
@@ -45,6 +46,7 @@ Final local commands and outcomes (reviewed implementation):
 | `npm --prefix apps/frontend run verify:status-system` | 66 tests plus 12 contrast/labels/responsive/reduced-motion browser cases passed |
 | `npm --prefix apps/frontend run verify:platform-business` | SUPER_ADMIN authentication, bypass denial, navigation, plan/filter, retained brief/action/source drill-down and logout passed on desktop/mobile |
 | `git diff --check` | Passed |
+| `npm --prefix apps/backend audit --omit=dev --json` and frontend equivalent | Both production dependency trees: zero vulnerabilities on 2026-11-06; full development-tool audits still report advisories |
 
 All database/browser verification used disposable local test databases and controlled adapters. No owner database, real payment or live outbound channel was used. Screenshots for both themes were inspected; tables scroll within their panels rather than overflowing the page. Final local logs use the ignored `ci-history-final-*`, `ci-history-build.log`, `ci-history-sales-browser-3.log`, `ci-history-status-browser.log` and `ci-history-platform-browser.log` files. They are not committed as generated artifacts.
 
@@ -67,7 +69,7 @@ All database/browser verification used disposable local test databases and contr
 - Backend scripts: `certify-release.ts`, `create-sales-indexes.ts`.
 - Billing/integration: `billing.service.ts`, `prepaid-billing.service.ts`, `integration.service.ts`.
 - Sales: `sales-revenue.controller.ts`, `sales-revenue.openapi.ts`, `sales-revenue.schemas.ts`, `sales-revenue.service.ts`, `sales.routes.ts`.
-- Backend E2E: `landlord-onboarding.e2e.test.ts`, `sales-revenue.e2e.test.ts`.
+- Backend E2E: `landlord-onboarding.e2e.test.ts`, `sales-revenue.e2e.test.ts`, `sales-followup.e2e.test.ts` (hosted scheduling-fixture regression).
 - Frontend: `scripts/verify-sales-demo.mjs`, `src/components/sales/sales-revenue.tsx`, `src/lib/data/sales-revenue.ts`, `src/lib/data/sales-revenue.test.tsx`.
 - Documentation: `MASTER_CONTEXT.md`, `FEATURES.md`, `DEVELOPMENT_ROADMAP.md`, `AI_REVENUE_GROWTH_ROADMAP.md`, `API_SPECIFICATION.md`, `ARCHITECTURE.md`, `CODEX_EXECUTION_TRACKER.md`, `DATABASE_DESIGN.md`, `SALES_REVENUE_INTELLIGENCE.md`, `TESTING_STRATEGY.md`.
 

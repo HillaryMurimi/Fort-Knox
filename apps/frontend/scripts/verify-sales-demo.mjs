@@ -419,7 +419,9 @@ try {
     await page.getByLabel('Market', { exact: true }).fill('Kenya');
     await page.getByLabel('Channel', { exact: true }).selectOption('SMS');
     await page.getByLabel('Start (your local time)', { exact: true }).fill(localDate(Date.now() - 60000));
-    await page.getByLabel('End (your local time)', { exact: true }).fill(localDate(Date.now() + 86400000));
+    // Friday evening requests defer to Monday under the real weekday policy.
+    // Review a seven-day fixture window so that valid scheduling survives weekends.
+    await page.getByLabel('End (your local time)', { exact: true }).fill(localDate(Date.now() + 7 * 86400000));
     await page.getByLabel('Message for review', { exact: true }).fill('Your requested product briefing is ready.');
     await page.getByLabel('Lead selection criteria', { exact: true }).fill('Explicitly reviewed SMS requests only');
     await page.getByLabel('Budget (micro USD)', { exact: true }).fill('10000');
@@ -472,7 +474,7 @@ try {
     await followPanel.getByLabel('Recorded trigger', { exact: true }).selectOption('CUSTOMER_REQUESTED');
     await followPanel.getByLabel('Draft preparation', { exact: true }).selectOption('HUMAN_TEMPLATE');
     await followPanel.getByLabel('Initial delay, hours', { exact: true }).fill('1');
-    await followPanel.getByLabel('Expires after days', { exact: true }).fill('1');
+    await followPanel.getByLabel('Expires after days', { exact: true }).fill('7');
     await followPanel.getByRole('group', { name: 'Step 1, distinct content', exact: true }).getByLabel('Message body', { exact: true }).fill('Your requested product briefing is available.');
     await followPanel.getByRole('group', { name: 'Step 2, distinct content', exact: true }).getByLabel('Message body', { exact: true }).fill('Would a guided inventory review help?');
     const createdPolicy = page.waitForResponse(r => r.url().endsWith('/followups/policies') && r.request().method() === 'POST');
@@ -494,7 +496,8 @@ try {
     await followPanel.getByLabel('Enrollment evidence', { exact: true }).fill('Customer requested a bounded sequence after this controlled product briefing.');
     const enrolled = page.waitForResponse(r => r.url().endsWith('/customers/'+customer._id+'/followups') && r.request().method() === 'POST');
     await followPanel.getByRole('button', { name: 'Enroll follow-up', exact: true }).click();
-    assert.equal((await enrolled).status(), 201);
+    const enrolledResponse = await enrolled;
+    assert.equal(enrolledResponse.status(), 201, await enrolledResponse.text());
     await followPanel.getByText('Review sequence controls', { exact: true }).click();
     await followPanel.getByLabel('Sequence action', { exact: true }).selectOption('PAUSE');
     await followPanel.getByLabel('Review context', { exact: true }).fill('Pause this controlled sequence for an explicit review before any draft preparation.');
